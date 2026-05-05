@@ -1,4 +1,4 @@
-/** @param {NS} ns 
+/** @param {NS} ns
  * the purpose of tor-manager is to buy the TOR router ASAP
  * so that another script can buy the port breakers. This script
  * dies a natural death once tor is bought. **/
@@ -17,7 +17,7 @@ export async function main(ns) {
             ns.toast(`Purchased the Tor router!`, 'success');
             break;
         }
-        ns.purchaseTor();
+        ns.singularity.purchaseTor();
         if (keepRunning)
             await ns.sleep(interval);
     }

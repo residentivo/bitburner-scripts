@@ -1,4 +1,4 @@
-/** @param {NS} ns 
+/** @param {NS} ns
  * Wait until an appointed time and then execute a manual hack. */
 export async function main(ns) {
     //args[0: target, 1: desired start time, 2: expected end, 3: expected duration, 4: description, 5: manipulate stock (N/A ignored), 6: disable toast warnings, 7: loop]
@@ -12,7 +12,7 @@ export async function main(ns) {
     if (sleepDuration > 0)
         await ns.sleep(sleepDuration);
     do {
-        if (!await ns.manualHack() && !disableToastWarnings)
+        if (!await ns.singularity.manualHack() && !disableToastWarnings)
             ns.toast(`Warning, hack stole 0 money. Might be a misfire. ${JSON.stringify(ns.args)}`, 'warning');
         if (loop) await ns.sleep(cycleTime - expectedDuration);
     } while (loop);
