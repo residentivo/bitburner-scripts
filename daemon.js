@@ -744,9 +744,10 @@ let dictServerProfitInfo;
 
 // Gathers up arrays of server data via external request to have the data written to disk.
 async function getStaticServerData(ns, serverNames) {
-    dictServerRequiredHackinglevels = await getNsDataThroughFile(ns, serversDictCommand(serverNames, 'ns.getServerRequiredHackingLevel(server)'), '/Temp/servers-hack-req.txt');
-    dictServerNumPortsRequired = await getNsDataThroughFile(ns, serversDictCommand(serverNames, 'ns.getServerNumPortsRequired(server)'), '/Temp/servers-num-ports.txt');
-    await refreshDynamicServerData(ns, serverNames);
+    const staticServerNames = serverNames.filter(serverName => !serverName.startsWith('hacknet-'));
+    dictServerRequiredHackinglevels = await getNsDataThroughFile(ns, serversDictCommand(staticServerNames, 'ns.getServerRequiredHackingLevel(server)'), '/Temp/servers-hack-req.txt');
+    dictServerNumPortsRequired = await getNsDataThroughFile(ns, serversDictCommand(staticServerNames, 'ns.getServerNumPortsRequired(server)'), '/Temp/servers-num-ports.txt');
+    await refreshDynamicServerData(ns, staticServerNames);
 }
 
 /** @param {NS} ns **/
