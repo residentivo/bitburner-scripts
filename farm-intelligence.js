@@ -19,7 +19,7 @@ export function autocomplete(data, args) {
  * Concept: A small amount of intelligence is granted when you (successfully) travel to a new city. This script converts money into intelligence exp! **/
 export async function main(ns) {
     disableLogs(ns, ["travelToCity", "sleep"]);
-    ns.tail();
+    ns.ui.openTail();
     let options = ns.flags(argsSchema);
     let tripsPerCycle = options['trips-per-cycle'];
     let moneyThreshold = options['money-threshold'];

@@ -52,7 +52,7 @@ export async function main(ns) {
     while (true) {
         try {
             if (!options['no-tail'])
-                ns.tail();
+                ns.ui.openTail();
             // Make sure we have the latest information about all fragments
             let fragments = await getNsDataThroughFile(ns, 'ns.stanek.activeFragments()', '/Temp/stanek-fragments.txt'); //ns.stanek.activeFragments();
             if (fragments.length == 0) {

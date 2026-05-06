@@ -8,7 +8,7 @@ export function autocomplete() { return crimes; }
 export async function main(ns) {
     ns.disableLog('sleep');
     let crime = ns.args.length == 0 ? undefined : ns.args.join(" "); // Need to join in case the crime has a space in it - it will be treated as two args
-    ns.tail();
+    ns.ui.openTail();
     if (!crime || ns.args.includes("--fast-crimes-only")) // More sophisticated auto-scaling crime logic
         await crimeForKillsKarmaStats(ns, 0, 0, Number.MAX_SAFE_INTEGER, ns.commitCrime, ns.args.includes("--fast-crimes-only"));
     else // Simple crime loop for the specified crime
@@ -28,7 +28,7 @@ async function legacyAutoCrime(ns, crime = "mug") {
             ns.tprint("User have been busy for too long. auto-crime.js exiting...");
             return;
         }
-        ns.tail(); // Force a tail window open when auto-criming, or else it's very difficult to stop if it was accidentally closed.
+        ns.ui.openTail(); // Force a tail window open when auto-criming, or else it's very difficult to stop if it was accidentally closed.
         let wait = ns.commitCrime(crime) + 10;
         ns.print(`Karma: ${formatNumberShort(ns.heart.break())} Committing crime \"${crime}\" and sleeping for ${formatDuration(wait)}...`);
         await ns.sleep(wait);
