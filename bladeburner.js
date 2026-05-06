@@ -91,7 +91,7 @@ const normalizeBBActionType = actionType => {
 const getBBDictByActionType = async (ns, strFunction, actionType, elements) => {
     const normalizedActionType = normalizeBBActionType(actionType);
     // Create a custom command that uses the normalized actionType directly in the function call
-    const customCmd = `Object.fromEntries(JSON.parse(ns.args[0]).map(e => [e, ns.bladeburner.${strFunction}(${JSON.stringify(normalizedActionType)}, e)]))`;
+    const customCmd = `Object.fromEntries(JSON.parse(ns.args[0]).map(e => [e, ns.bladeburner.${strFunction}("${normalizedActionType}", e)]))`;
     return await getNsDataThroughFile(ns, customCmd, `/Temp/bladeburner-${strFunction.split('(')[0]}.txt`, [JSON.stringify(elements)]);
 };
 
