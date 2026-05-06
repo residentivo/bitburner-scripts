@@ -78,9 +78,18 @@ const getBBInfo = async (ns, strFunction, ...args) =>
 const getBBDict = async (ns, strFunction, elements, ...args) => await getNsDataThroughFile(ns,
     `Object.fromEntries(JSON.parse(ns.args[0]).map(e => [e, ns.bladeburner.${strFunction.replace('%', 'e')}]))`,
     `/Temp/bladeburner-${strFunction.split('(')[0]}.txt`, [JSON.stringify(elements), ...args]);
+const normalizeBBActionType = actionType => {
+    if (typeof actionType !== 'string') return actionType;
+    const normalized = actionType.trim().toLowerCase();
+    if (normalized === 'general' || normalized === 'general action' || normalized === 'generalactions') return 'General';
+    if (normalized === 'contract' || normalized === 'contracts') return 'Contracts';
+    if (normalized === 'operation' || normalized === 'operations') return 'Operations';
+    if (normalized === 'black op' || normalized === 'black ops' || normalized === 'blackop' || normalized === 'blackops' || normalized === 'black operation' || normalized === 'black operations') return 'Black Operations';
+    return actionType;
+};
 // Helper for dual-parameter bladeburner functions e.g. getActionCountRemaining(actionType, action)
 const getBBDictByActionType = async (ns, strFunction, actionType, elements) =>
-    await getBBDict(ns, `${strFunction}(ns.args[1], %)`, elements, actionType);
+    await getBBDict(ns, `${strFunction}(ns.args[1], %)`, elements, normalizeBBActionType(actionType));
 
 /** @param {NS} ns 
  * Gather all one-time bladeburner info using ram-dodging scripts. */
