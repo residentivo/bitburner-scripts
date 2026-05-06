@@ -118,7 +118,12 @@ export async function main(ns) {
     joinedFactions = ignorePlayerData ? [] : playerData.factions;
     log(ns, 'In factions: ' + joinedFactions);
     // Get owned augmentations (whether they've been installed or not). Ignore strNF because you can always buy more.
-    ownedAugmentations = await getNsDataThroughFile(ns, 'ns.getOwnedAugmentations(true)', '/Temp/player-augs-purchased.txt');
+    // Skip when --join-only is set since we don't need aug data for faction joining, reducing RAM footprint
+    if (!options['join-only']) {
+        ownedAugmentations = await getNsDataThroughFile(ns, 'ns.getOwnedAugmentations(true)', '/Temp/player-augs-purchased.txt');
+    } else {
+        ownedAugmentations = []; // Initialize as empty when just joining factions
+    }
     if (options['neuroflux-disabled']) omitAugs.push(strNF);
     simulatedOwnedAugmentations = ignorePlayerData ? [] : ownedAugmentations.filter(a => a != strNF);
     // Clear "priority" / "desired" lists of any augs we already own
