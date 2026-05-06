@@ -18,9 +18,9 @@ export async function main(ns) {
     ns.print(`Found ${contractsDb.length} contracts to solve. Gathering contract data via separate scripts..."`);
     let contractsDictCommand = command => `Object.fromEntries(${JSON.stringify(contractsDb)}.map(c => [c.contract, ${command}]))`;
     let dictContractTypes = await getNsDataThroughFile(ns, contractsDictCommand('ns.codingcontract.getContractType(c.contract, c.hostname)'), '/Temp/contract-types.txt');
-    let dictContractData = await getNsDataThroughFile(ns, contractsDictCommand('ns.codingcontract.getData(c.contract, c.hostname)'), '/Temp/contract-data.txt');
+    let dictContractData = await getNsDataThroughFile(ns, `JSON.stringify(Object.fromEntries(${JSON.stringify(contractsDb)}.map(c => [c.contract, ns.codingcontract.getData(c.contract, c.hostname)])), (k, v) => typeof v === 'bigint' ? '__BIGINT__' + v.toString() : v)`, '/Temp/contract-data.txt');
     contractsDb.forEach(c => c.type = dictContractTypes[c.contract]);
-    contractsDb.forEach(c => c.data = dictContractData[c.contract]);
+    contractsDb.forEach(c => c.data = JSON.parse(dictContractData[c.contract], (k, v) => typeof v === 'string' && v.startsWith('__BIGINT__') ? BigInt(v.slice(10)) : v));
 
     // Let this script die to free up ram, and start up a new script (after a delay) that will solve all these contracts using the minimum ram footprint of 11.6 GB
     ns.run(getFilePath('/Tasks/run-with-delay.js'), 1, scriptSolver, 1, JSON.stringify(contractsDb));
