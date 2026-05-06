@@ -90,9 +90,9 @@ const normalizeBBActionType = actionType => {
 // Helper for dual-parameter bladeburner functions e.g. getActionCountRemaining(actionType, action)
 const getBBDictByActionType = async (ns, strFunction, actionType, elements) => {
     const normalizedActionType = normalizeBBActionType(actionType);
-    return await getBBDict(ns,
-        `${strFunction}((() => { const t = ns.args[1]; if (typeof t !== 'string') return t; const n = t.trim().toLowerCase(); if (n === 'general' || n === 'general action' || n === 'generalactions') return 'General'; if (n === 'contract' || n === 'contracts') return 'Contracts'; if (n === 'operation' || n === 'operations') return 'Operations'; if (n === 'black op' || n === 'black ops' || n === 'blackop' || n === 'blackops' || n === 'black operation' || n === 'black operations') return 'Black Operations'; return ns.args[1]; })(), %)`,
-        elements, normalizedActionType);
+    // Create a custom command that uses the normalized actionType directly in the function call
+    const customCmd = `Object.fromEntries(JSON.parse(ns.args[0]).map(e => [e, ns.bladeburner.${strFunction}(${JSON.stringify(normalizedActionType)}, e)]))`;
+    return await getNsDataThroughFile(ns, customCmd, `/Temp/bladeburner-${strFunction.split('(')[0]}.txt`, [JSON.stringify(elements)]);
 };
 
 /** @param {NS} ns 
