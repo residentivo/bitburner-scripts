@@ -311,8 +311,8 @@ async function mainLoop(ns) {
     } else if (Date.now() < currentTaskEndTime || bestActionName == currentAction.name) return;
 
     // Change actions if we're not currently doing the desired action
-    const bestActionType = nextBlackOp == bestActionName ? "Black Op" : contractNames.includes(bestActionName) ? "Contract" :
-        operationNames.includes(bestActionName) ? "Operation" : "General Action";
+    const bestActionType = nextBlackOp == bestActionName ? "Black Operations" : contractNames.includes(bestActionName) ? "Contracts" :
+        operationNames.includes(bestActionName) ? "Operations" : "General";
     const success = await getBBInfo(ns, `startAction(ns.args[0], ns.args[1])`, bestActionType, bestActionName);
     const expectedDuration = await getBBInfo(ns, `getActionTime(ns.args[0], ns.args[1])`, bestActionType, bestActionName);
     log(ns, (!success ? `ERROR: Failed to switch to Bladeburner ${bestActionType} "${bestActionName}"` :
