@@ -301,7 +301,7 @@ export function scanAllServers(ns) {
                 hostsToScan.push(connectedHost); // Add it to the queue of hosts to be scanned
         discoveredHosts.push(hostName); // Mark this host as "scanned"
     }
-    return discoveredHosts.filter(host => typeof host === 'string' && !host.toLowerCase().startsWith('hacknet-')); // The list of scanned hosts should now be the set of all hosts in the game!
+    return discoveredHosts; // The list of scanned hosts should now be the set of all hosts in the game!
 }
 
 /** @param {NS} ns 
