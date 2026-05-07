@@ -1642,8 +1642,10 @@ function buildServerList(ns, verbose = false) {
     // Get list of servers (i.e. all servers on first scan, or newly purchased servers on subsequent scans) that are not currently flagged for deletion
     let allServers = scanAllServers(ns).filter(hostName => !isFlaggedForDeletion(hostName));
     // Ignore hacknet node servers if we are not supposed to run scripts on them (reduces their hash rate when we do)
+    ns.print(`Discovered ${allServers.length} total servers${useHacknetNodes ? '' : ' (excluding hacknet nodes)'}: ${allServers.join(', ')}`);
     if (!useHacknetNodes)
-        allServers = allServers.filter(hostName => !hostName.startsWith('hacknet-node-'))
+        allServers = allServers.filter(hostName => !hostName.startsWith('hacknet-node-'));    
+    ns.print(`Discovered ${allServers.length} total servers${useHacknetNodes ? '' : ' (excluding hacknet nodes)'}: ${allServers.join(', ')}`);
     // Also remove hacknet servers from our lists, as they don't support server APIs like getServerSecurityLevel
     for (const hostName of addedServerNames.filter(h => h.startsWith('hacknet-server-'))) {
         removeServerByName(hostName);
