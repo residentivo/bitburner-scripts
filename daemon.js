@@ -1644,8 +1644,8 @@ function buildServerList(ns, verbose = false) {
     // Ignore hacknet node servers if we are not supposed to run scripts on them (reduces their hash rate when we do)
     if (!useHacknetNodes)
         allServers = allServers.filter(hostName => !hostName.startsWith('hacknet-node-'))
-    // Also ignore hacknet servers, as they don't support server APIs like getServerSecurityLevel
-    allServers = allServers.filter(hostName => !hostName.startsWith('hacknet-server-'))
+    // Also remove hacknet servers from our lists, as they don't support server APIs like getServerSecurityLevel
+    for (const hostName of addedServerNames.filter(h => h.startsWith('hacknet-server-'))) {
         removeServerByName(hostName);
     }
     // Remove all servers we currently have added that are no longer being returned by the above query
