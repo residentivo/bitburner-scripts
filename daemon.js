@@ -755,8 +755,17 @@ async function getStaticServerData(ns, serverNames) {
         const filtered = serverNames.filter(isHacknetServer);
         log(ns, `INFO: Filtering out ${filtered.length} hacknet servers from static data gathering: ${filtered.join(', ')}`);
     }
-    dictServerRequiredHackinglevels = await getNsDataThroughFile(ns, serversDictCommand(staticServerNames, 'ns.getServerRequiredHackingLevel(server)'), '/Temp/servers-hack-req.txt');
-    dictServerNumPortsRequired = await getNsDataThroughFile(ns, serversDictCommand(staticServerNames, 'ns.getServerNumPortsRequired(server)'), '/Temp/servers-num-ports.txt');
+    const serverFilterCommand = `${JSON.stringify(staticServerNames)}.filter(server => {
+        const lower = server.toLowerCase();
+        const srv = ns.getServer(server);
+        return !lower.startsWith('hacknet-') && !(srv && srv.isHacknetNode);
+    })`;
+    dictServerRequiredHackinglevels = await getNsDataThroughFile(ns,
+        `Object.fromEntries(${serverFilterCommand}.map(server => [server, ns.getServerRequiredHackingLevel(server)]))`,
+        '/Temp/servers-hack-req.txt');
+    dictServerNumPortsRequired = await getNsDataThroughFile(ns,
+        `Object.fromEntries(${serverFilterCommand}.map(server => [server, ns.getServerNumPortsRequired(server)]))`,
+        '/Temp/servers-num-ports.txt');
     await refreshDynamicServerData(ns, staticServerNames);
 }
 
