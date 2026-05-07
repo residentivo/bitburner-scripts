@@ -753,13 +753,13 @@ async function getStaticServerData(ns, serverNames) {
         const filtered = serverNames.filter(isHacknetServer);
         log(ns, `INFO: Filtering out ${filtered.length} hacknet servers from static data gathering: ${filtered.join(', ')}`);
     }
-    const staticServerArgs = [JSON.stringify(staticServerNames)];
+    const staticServerList = JSON.stringify(staticServerNames);
     dictServerRequiredHackinglevels = await getNsDataThroughFile(ns,
-        `Object.fromEntries(JSON.parse(ns.args[0]).map(server => [server, ns.getServerRequiredHackingLevel(server)]))`,
-        '/Temp/servers-hack-req.txt', staticServerArgs);
+        `Object.fromEntries(${staticServerList}.map(server => [server, ns.getServerRequiredHackingLevel(server)]))`,
+        '/Temp/servers-hack-req.txt');
     dictServerNumPortsRequired = await getNsDataThroughFile(ns,
-        `Object.fromEntries(JSON.parse(ns.args[0]).map(server => [server, ns.getServerNumPortsRequired(server)]))`,
-        '/Temp/servers-num-ports.txt', staticServerArgs);
+        `Object.fromEntries(${staticServerList}.map(server => [server, ns.getServerNumPortsRequired(server)]))`,
+        '/Temp/servers-num-ports.txt');
     await refreshDynamicServerData(ns, staticServerNames);
 }
 
