@@ -743,9 +743,7 @@ let dictServerMaxMoney;
 let dictServerProfitInfo;
 
 const isHacknetServer = serverName => {
-    if (typeof serverName !== 'string') return false;
-    const normalized = serverName.replace(/\u200B|\u200C|\u200D|\uFEFF/g, '').trim().toLowerCase();
-    return normalized.startsWith('hacknet-') || normalized.startsWith('hacknetnode-') || normalized.startsWith('hacknetserver-');
+    return typeof serverName === 'string' && serverName.toLowerCase().startsWith('hacknet-server');
 };
 
 // Gathers up arrays of server data via external request to have the data written to disk.
