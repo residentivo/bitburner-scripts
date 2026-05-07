@@ -742,9 +742,19 @@ let dictServerMinSecurityLevels;
 let dictServerMaxMoney;
 let dictServerProfitInfo;
 
+const isHacknetServer = serverName => {
+    if (typeof serverName !== 'string') return false;
+    const normalized = serverName.replace(/\u200B|\u200C|\u200D|\uFEFF/g, '').trim().toLowerCase();
+    return normalized.startsWith('hacknet-') || normalized.startsWith('hacknetnode-') || normalized.startsWith('hacknetserver-');
+};
+
 // Gathers up arrays of server data via external request to have the data written to disk.
 async function getStaticServerData(ns, serverNames) {
-    const staticServerNames = serverNames.filter(serverName => !serverName.startsWith('hacknet-'));
+    const staticServerNames = serverNames.filter(serverName => !isHacknetServer(serverName));
+    if (staticServerNames.length !== serverNames.length) {
+        const filtered = serverNames.filter(isHacknetServer);
+        log(ns, `INFO: Filtering out ${filtered.length} hacknet servers from static data gathering: ${filtered.join(', ')}`);
+    }
     dictServerRequiredHackinglevels = await getNsDataThroughFile(ns, serversDictCommand(staticServerNames, 'ns.getServerRequiredHackingLevel(server)'), '/Temp/servers-hack-req.txt');
     dictServerNumPortsRequired = await getNsDataThroughFile(ns, serversDictCommand(staticServerNames, 'ns.getServerNumPortsRequired(server)'), '/Temp/servers-num-ports.txt');
     await refreshDynamicServerData(ns, staticServerNames);
