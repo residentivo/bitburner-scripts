@@ -105,6 +105,13 @@ export async function main(ns) {
                 }
             }
 
+            // Show home RAM usage
+            const homeMaxRam = ns.getServerMaxRam("home");
+            const homeUsedRam = ns.getServerUsedRam("home");
+            const homeFreeRam = homeMaxRam - homeUsedRam;
+            addHud("Home RAM", formatNumberShort(homeFreeRam, 2, 1) + " / " + formatNumberShort(homeMaxRam, 2, 1) + " GB",
+                "Free / Total RAM on home (" + (100 * homeUsedRam / homeMaxRam).toFixed(0) + "% used)");
+
             const sharePower = await getNsDataThroughFile(ns, 'ns.getSharePower()', '/Temp/share-power.txt');
             if (sharePower > 1.0001) // Bitburner bug: Trace amounts of share power sometimes left over after we stop sharing
                 addHud("Share Pwr", formatNumberShort(sharePower, 3, 2), "Uses RAM to boost faction reputation gain rate while working for factions. Run `daemon.js` with the `--no-share` flag to disable.");
