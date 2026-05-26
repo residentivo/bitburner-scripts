@@ -258,31 +258,35 @@ async function spreadToServer(ns, hostname) {
  */
 async function exploreFromServer(ns) {
     const currentServer = ns.getHostname()
+    const buf = []
+    function q(msg) { buf.push(msg) }
 
     // Probe for nearby darknet servers
     let nearby
     try {
         nearby = ns.dnet.probe()
     } catch (e) {
-        log(`probe() failed on ${currentServer}: ${String(e)}`)
+        q('probe() failed on ' + currentServer + ': ' + String(e))
+        for (const m of buf) ns.print(m)
         return
     }
 
     if (!nearby || nearby.length === 0) {
-        log(`No darknet servers connected to ${currentServer}`)
+        q('No darknet servers connected to ' + currentServer)
+        for (const m of buf) ns.print(m)
         return
     }
 
-    log(`${currentServer}: Found ${nearby.length} nearby darknet server(s): ${nearby.join(', ')}`)
+    q(currentServer + ': Found ' + nearby.length + ' nearby darknet server(s): ' + nearby.join(', '))
 
     for (const hostname of nearby) {
-        // Try to authenticate
         const authed = await tryAuthenticate(ns, hostname)
         if (!authed) continue
-
-        // Spread this script to the new server
         await spreadToServer(ns, hostname)
     }
+
+    // Flush all logs after all awaits complete
+    for (const m of buf) ns.print(m)
 }
 
 // --- Entry Point ---
@@ -349,48 +353,40 @@ export async function main(ns) {
  */
 async function prepareServer(ns) {
     const hostname = ns.getHostname()
+    const buf = []
+    function q(msg) { buf.push(msg) }
+    function flush() { for (const m of buf) ns.print(m) }
 
-    // Skip darknet-specific APIs if not on a darknet server (e.g. running from home)
     if (hostname === 'home' || !hostname.startsWith('darknet-')) {
-        log(`Skipping darknet preparation on ${hostname} (not a darknet server)`)
-        return
+        q('Skipping darknet preparation on ' + hostname + ' (not a darknet server)')
+        flush(); return
     }
 
-    log(`Preparing darknet server ${hostname}...`)
+    q('Preparing darknet server ' + hostname + '...')
 
-    // Free blocked RAM (must run locally on this server)
+    // Free blocked RAM
     for (let i = 0; i < memoryReallocTicks; i++) {
-        try {
-            ns.dnet.memoryReallocation()
-        } catch (e) {
-            log(`memoryReallocation tick ${i} failed: ${String(e)}`)
-            break
-        }
+        let err = null
+        try { ns.dnet.memoryReallocation() } catch (e) { err = String(e) }
+        if (err) { q('memoryReallocation tick ' + i + ' failed: ' + err); break }
         await ns.sleep(100)
     }
 
-    // Loot .cache files (must run locally)
-    try {
-        const files = ns.ls(hostname, '.cache')
-        for (const file of files) {
-            try {
-                const result = ns.dnet.openCache(file)
-                log(`Opened ${file} on ${hostname}: ${JSON.stringify(result)}`, true, 'success')
-            } catch (e) {
-                log(`Failed to open ${file}: ${String(e)}`)
-            }
-        }
-    } catch (e) {
-        log(`Cache looting failed: ${String(e)}`)
+    // Loot .cache files
+    let files = []
+    try { files = ns.ls(hostname, '.cache') } catch (_) {}
+    for (const file of files) {
+        let result = null, err = null
+        try { result = ns.dnet.openCache(file) } catch (e) { err = String(e) }
+        if (err) { q('Failed to open ' + file + ': ' + err) }
+        else if (result) { q('Opened ' + file + ' on ' + hostname + ': ' + JSON.stringify(result)) }
     }
 
-    // Run phishing for money/charisma
-    try {
-        const result = await ns.dnet.phishingAttack()
-        if (result) {
-            log(`Phishing on ${hostname}: ${JSON.stringify(result)}`, true)
-        }
-    } catch (e) {
-        log(`Phishing failed: ${String(e)}`)
-    }
+    // Run phishing
+    let phishResult = null, phishErr = null
+    try { phishResult = await ns.dnet.phishingAttack() } catch (e) { phishErr = String(e) }
+    if (phishErr) { q('Phishing failed: ' + phishErr) }
+    else if (phishResult) { q('Phishing on ' + hostname + ': ' + JSON.stringify(phishResult)) }
+
+    flush()
 }
