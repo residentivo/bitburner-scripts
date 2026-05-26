@@ -15,9 +15,24 @@
  * Based on the Bitburner v3 Darkweb Network documentation.
  */
 
-import {
-    disableLogs, getFilePath
-} from './helpers.js'
+// --- Inline helpers (self-contained, no import needed) ---
+
+function pathJoin(...parts) {
+    return parts.filter(p => p).join('/')
+}
+
+function checkNsInstance(ns, fnName) {
+    if (!ns) throw new Error(`ns is required for ${fnName}`)
+    return ns
+}
+
+function disableLogs(ns, listOfLogs) {
+    ['disableLog'].concat(...listOfLogs).forEach(log => checkNsInstance(ns, 'disableLogs').disableLog(log))
+}
+
+function getFilePath(file) {
+    return pathJoin('', file)
+}
 
 // --- Configuration ---
 const passwordsFile = '/Temp/darknet-passwords.txt'
