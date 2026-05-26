@@ -95,30 +95,23 @@ function getPasswordHint(ns, details) {
 
 // Try to guess password for a server based on hints and known strategies.
 // Returns { password, whether it was already known } or null if no guess.
-function tryDeterminePassword(ns, hostname, details) {
-    // If we already know this server's password, use it
+function tryDeterminePassword(ns, hostname, details, safeLog) {
     if (passwords[hostname]) {
         return { password: passwords[hostname], known: true }
     }
-
-    // If we have a known strategy for this modelId, use it
     if (details.modelId && knownPasswordStrategies[details.modelId]) {
         const pw = knownPasswordStrategies[details.modelId](ns, hostname, details)
         return { password: pw, known: false }
     }
-
-    // Check the password hint for clues
     const hint = getPasswordHint(ns, details)
-    if (hint) {
-        log(`Password hint for ${hostname}: "${hint}"`, true)
+    if (hint && safeLog) {
+        safeLog('Password hint for ' + hostname + ': "' + hint + '"', true)
     }
-
-    // Cannot determine password
     return null
 }
 
 // Extract more clues from server logs via heartbleed
-async function getServerLogs(ns, hostname) {
+async function getServerLogs(ns, hostname, safeLog) {
     let result = null
     let errorStr = null
     try {
@@ -128,7 +121,7 @@ async function getServerLogs(ns, hostname) {
     }
     // Do all NS calls AFTER all awaits are resolved
     if (errorStr) {
-        log(`heartbleed failed for ${hostname}: ${errorStr}`)
+        if (safeLog) { safeLog('heartbleed failed for ' + hostname + ': ' + errorStr) }
         return null
     }
     if (result && result.logs) {
@@ -144,63 +137,50 @@ async function getServerLogs(ns, hostname) {
  * Returns true if authentication was successful.
  */
 async function tryAuthenticate(ns, hostname) {
+    // Buffer all log messages and flush AFTER all awaits to avoid concurrency errors
+    const buf = []
+    function q(msg, imp) { buf.push({ msg, imp }) }
+    function flush() { for (const e of buf) log(e.msg, e.imp) }
+
     // Check if we already have a session
     let details
     try {
         details = ns.dnet.getServerDetails(hostname)
     } catch {
-        log(`Cannot get details for ${hostname} (not connected or offline)`)
-        return false
+        q('Cannot get details for ' + hostname + ' (not connected or offline)')
+        flush(); return false
     }
 
-    if (!details.isOnline) {
-        log(`${hostname} is offline, skipping`)
-        return false
-    }
-
-    if (!details.isConnectedToCurrentServer) {
-        log(`${hostname} is not connected to current server, skipping`)
-        return false
-    }
-
-    if (details.hasSession) {
-        log(`Already authenticated to ${hostname}`)
-        return true
-    }
+    if (!details.isOnline) { q(hostname + ' is offline, skipping'); flush(); return false }
+    if (!details.isConnectedToCurrentServer) { q(hostname + ' is not connected to current server, skipping'); flush(); return false }
+    if (details.hasSession) { q('Already authenticated to ' + hostname); flush(); return true }
 
     // Try to determine the password
-    const pwGuess = tryDeterminePassword(ns, hostname, details)
+    const pwGuess = tryDeterminePassword(ns, hostname, details, q)
     if (!pwGuess) {
-        log(`No password strategy for ${hostname} (model: ${details.modelId})`)
-        // Try heartbleed to get more clues
-        const logs = await getServerLogs(ns, hostname)
-        if (logs) {
-            log(`Server logs for ${hostname}: ${JSON.stringify(logs).substring(0, 200)}`)
-        }
-        return false
+        q('No password strategy for ' + hostname + ' (model: ' + details.modelId + ')')
+        const srvLogs = await getServerLogs(ns, hostname, q)
+        if (srvLogs) { q('Server logs for ' + hostname + ': ' + JSON.stringify(srvLogs).substring(0, 200)) }
+        flush(); return false
     }
 
-    // Attempt authentication
-    try {
-        const result = await ns.dnet.authenticate(hostname, pwGuess.password)
-        if (result.success) {
-            log(`SUCCESS: Authenticated to ${hostname}${pwGuess.known ? ' (known password)' : ' (new password: "' + pwGuess.password + '")'}`, true, 'success')
-            // Save the password for future use
-            passwords[hostname] = pwGuess.password
-            savePasswords(ns)
-            return true
-        } else {
-            log(`Failed to authenticate to ${hostname} with password "${pwGuess.password}"`)
-            // Remove stale password if it failed
-            if (passwords[hostname] === pwGuess.password) {
-                delete passwords[hostname]
-                savePasswords(ns)
-            }
-            return false
-        }
-    } catch (e) {
-        log(`Error authenticating to ${hostname}: ${String(e)}`)
-        return false
+    // Attempt authentication — await first, then log
+    let authRes = null, authErr = null
+    try { authRes = await ns.dnet.authenticate(hostname, pwGuess.password) } catch (e) { authErr = String(e) }
+
+    if (authErr) {
+        q('Error authenticating to ' + hostname + ': ' + authErr)
+        flush(); return false
+    }
+    if (authRes && authRes.success) {
+        q('SUCCESS: Authenticated to ' + hostname + (pwGuess.known ? ' (known password)' : ' (new password)'), true)
+        passwords[hostname] = pwGuess.password
+        try { savePasswords(ns) } catch (_) {}
+        flush(); return true
+    } else {
+        q('Failed to authenticate to ' + hostname + ' with password "' + pwGuess.password + '"')
+        if (passwords[hostname] === pwGuess.password) { delete passwords[hostname]; try { savePasswords(ns) } catch (_) {} }
+        flush(); return false
     }
 }
 
