@@ -801,7 +801,7 @@ export async function workForMegacorpFactionInvite(ns, factionName, waitForInvit
         }
         if (lastStatus != status || (Date.now() - lastStatusUpdateTime) > statusUpdateInterval) {
             if (!backdoored) // Check if an external script has backdoored this company's server yet. If so, it affects our ETA. (Don't need to check again once we discover it is)
-                backdoored = await getNsDataThroughFile(ns, `ns.getServer('${serverByCompany[companyName]}').backdoorInstalled`, '/Temp/company-is-backdoored.txt');
+                backdoored = await getNsDataThroughFile(ns, `ns.getServer('${serverByCompany[companyName]}')?.backdoorInstalled ?? false`, '/Temp/company-is-backdoored.txt');
             const cancellationMult = backdoored ? 0.75 : 0.5; // We will lose some of our gained reputation when we stop working early
             repGainRatePerMs *= cancellationMult;
             // Actually measure how much reputation we've earned since our last update, to give a more accurate ETA including external sources of rep

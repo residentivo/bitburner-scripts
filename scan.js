@@ -24,13 +24,27 @@ export let main = ns => {
     if (priorCss) priorCss.parentNode.removeChild(priorCss); // Remove old CSS to facilitate tweaking css above
     doc.head.insertAdjacentHTML('beforeend', css);
     let serverInfo = (x) => {
-        return ns.getServer(x); // Costs 2 GB. If you can't don't need backdoor links, uncomment and use the alternate implementations below
-        /* return {
-            requiredHackingSkill: ns.getServerRequiredHackingLevel(x),
-            hasAdminRights: ns.hasRootAccess(x),
-            purchasedByPlayer: x.includes('daemon') || x.includes('hacknet'),
-            backdoorInstalled: true // No way of knowing without ns.getServer
-        } */
+        const server = ns.getServer(x); // Costs 2 GB. If you can't don't need backdoor links, uncomment and use the alternate implementations below
+        return {
+            requiredHackingSkill: server.requiredHackingSkill ?? 0,
+            hasAdminRights: server.hasAdminRights ?? false,
+            purchasedByPlayer: server.purchasedByPlayer ?? false,
+            backdoorInstalled: server.backdoorInstalled ?? false,
+            organizationName: server.organizationName ?? '',
+            ip: server.ip ?? '',
+            isConnectedTo: server.isConnectedTo ?? false,
+            maxRam: server.maxRam ?? 0,
+            ramUsed: server.ramUsed ?? 0,
+            numOpenPortsRequired: server.numOpenPortsRequired ?? 0,
+            openPortCount: server.openPortCount ?? 0,
+            moneyAvailable: server.moneyAvailable ?? 0,
+            moneyMax: server.moneyMax ?? 0,
+            baseDifficulty: server.baseDifficulty ?? 0,
+            hackDifficulty: server.hackDifficulty ?? 0,
+            minDifficulty: server.minDifficulty ?? 0,
+            serverGrowth: server.serverGrowth ?? 0,
+            cpuCores: server.cpuCores ?? 0
+        }; 
     }
     let s = ["home"],
         p = [""],

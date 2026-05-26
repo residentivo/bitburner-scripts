@@ -43,15 +43,15 @@ export async function main(ns) {
     var servers = serverNames.map(ns.getServer);
     // Compute the total RAM available to us on all servers (e.g. for running hacking scripts)
     var ram_total = servers.reduce(function (total, server) {
-        if (!server.hasAdminRights || (server.hostname.startsWith('hacknet') && !flags['include-hacknet-ram'])) return total;
-        return total + server.maxRam;
+        if (!(server.hasAdminRights ?? false) || (server.hostname.startsWith('hacknet') && !flags['include-hacknet-ram'])) return total;
+        return total + (server.maxRam ?? 0);
     }, 0);
 
     // Helper to compute server gain/exp rates at a specific hacking level
     function getRatesAtHackLevel(server, player, hackLevel) {
         // Assume we will have wekened the server to min-security and taken it to max money before targetting
-        server.hackDifficulty = server.minDifficulty;
-        server.moneyAvailable = server.moneyMax;
+        server.hackDifficulty = server.minDifficulty ?? 0;
+        server.moneyAvailable = server.moneyMax ?? 0;
         // Temporarily change the hack level on the player object to the requested level
         const real_player_hack_skill = player.hacking;
         player.hacking = hackLevel;
