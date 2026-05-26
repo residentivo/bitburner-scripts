@@ -212,11 +212,18 @@ async function spreadToServer(ns, hostname) {
         const usedRam = ns.getServerUsedRam(hostname)
         const freeRam = maxRam - usedRam
         const scriptRam = ns.getScriptRam(scriptName)
+        const scriptRamOnTarget = ns.getScriptRam(scriptName, hostname)
 
-        log(`${hostname} RAM: ${freeRam.toFixed(1)}GB free / ${maxRam.toFixed(1)}GB total, script needs ${scriptRam.toFixed(1)}GB`)
+        log(`${hostname} RAM: ${freeRam.toFixed(1)}GB free / ${maxRam.toFixed(1)}GB total`)
+        log(`${scriptName} RAM: ${scriptRam.toFixed(1)}GB (home) / ${scriptRamOnTarget.toFixed(1)}GB (${hostname})`)
+        log(`fileExists(${scriptName}, ${hostname}): ${exists}`)
+        log(`processes on ${hostname}: ${processes.length}`)
+        for (const p of processes) {
+            log(`  pid=${p.pid} file=${p.filename} ram=${p.threads * (ns.getScriptRam(p.filename) || 0).toFixed(1)}GB`)
+        }
 
-        if (freeRam < scriptRam) {
-            log(`Not enough RAM on ${hostname} to run ${scriptName}`)
+        if (freeRam < scriptRamOnTarget) {
+            log(`Not enough RAM on ${hostname} to run ${scriptName} (need ${scriptRamOnTarget.toFixed(1)}GB, have ${freeRam.toFixed(1)}GB free)`)
             return false
         }
 
