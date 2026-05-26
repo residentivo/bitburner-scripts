@@ -119,13 +119,20 @@ function tryDeterminePassword(ns, hostname, details) {
 
 // Extract more clues from server logs via heartbleed
 async function getServerLogs(ns, hostname) {
+    let result = null
+    let errorStr = null
     try {
-        const result = await ns.dnet.heartbleed(hostname, { peek: true })
-        if (result && result.logs) {
-            return result.logs
-        }
+        result = await ns.dnet.heartbleed(hostname, { peek: true })
     } catch (e) {
-        log(`heartbleed failed for ${hostname}: ${String(e)}`)
+        errorStr = String(e)
+    }
+    // Do all NS calls AFTER all awaits are resolved
+    if (errorStr) {
+        log(`heartbleed failed for ${hostname}: ${errorStr}`)
+        return null
+    }
+    if (result && result.logs) {
+        return result.logs
     }
     return null
 }
