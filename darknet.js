@@ -208,15 +208,17 @@ async function spreadToServer(ns, hostname) {
         const freeRam = maxRam - usedRam
         const scriptRam = ns.getScriptRam(scriptName)
 
+        log(`${hostname} RAM: ${freeRam.toFixed(1)}GB free / ${maxRam.toFixed(1)}GB total, script needs ${scriptRam.toFixed(1)}GB`)
+
         if (freeRam < scriptRam) {
-            log(`Not enough RAM on ${hostname} to run ${scriptName} (need ${scriptRam}GB, have ${freeRam}GB free)`)
+            log(`Not enough RAM on ${hostname} to run ${scriptName}`)
             return false
         }
 
         const threads = Math.max(1, Math.floor(freeRam / scriptRam))
         const pid = ns.exec(scriptName, hostname, threads, ...ns.args)
         if (pid === 0) {
-            log(`Failed to exec ${scriptName} on ${hostname}`)
+            log(`Failed to exec ${scriptName} on ${hostname} (ns.exec returned 0)`)
             return false
         }
 
@@ -272,6 +274,9 @@ export async function main(ns) {
     _ns = ns
     options = ns.flags(argsSchema)
 
+    // Immediate visible confirmation that script started
+    ns.tprint('*** DARKNET EXPLORER started on ' + ns.getHostname() + ' ***')
+
     if (options.tail) {
         ns.tail()
     }
@@ -321,6 +326,13 @@ export async function main(ns) {
  */
 async function prepareServer(ns) {
     const hostname = ns.getHostname()
+
+    // Skip darknet-specific APIs if not on a darknet server (e.g. running from home)
+    if (hostname === 'home' || !hostname.startsWith('darknet-')) {
+        log(`Skipping darknet preparation on ${hostname} (not a darknet server)`)
+        return
+    }
+
     log(`Preparing darknet server ${hostname}...`)
 
     // Free blocked RAM (must run locally on this server)
