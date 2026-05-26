@@ -797,6 +797,7 @@ function buildServerObject(ns, node) {
         canHack: function () { return this.requiredHackLevel <= playerHackSkill(); },
         shouldHack: function () {
             return this.getMaxMoney() > 0 && this.name !== "home" && !this.name.startsWith('hacknet-node-') &&
+                !this.name.startsWith('hacknet-server-') &&
                 !this.name.startsWith(purchasedServersName); // Hack, but beats wasting 2.25 GB on ns.getPurchasedServers()
         },
         previouslyPrepped: false,
@@ -804,6 +805,7 @@ function buildServerObject(ns, node) {
         previousCycle: null,
         // "Prepped" means current security is at the minimum, and current money is at the maximum
         isPrepped: function () {
+            if (isHacknetServer(this.name) || this.name.startsWith('hacknet-node-')) return false;
             let currentSecurity = this.getSecurity();
             let currentMoney = this.getMoney();
             // Logic for whether we consider the server "prepped" (tolerate a 1% discrepancy)
@@ -1251,11 +1253,11 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         preferredServerOrder.unshift(home); // Send to front
     else
         preferredServerOrder.push(home); // Otherwise, send it to the back (reserve home for scripts that benefit from cores) and use only if there's no room on any other server.
-    // Push all "hacknet-node" servers to the end of the preferred list, since they will lose productivity if used
+    // Push all hacknet servers to the end of the preferred list, since they will lose productivity if used
     var anyHacknetNodes = [];
     let hnNodeIndex;
-    while (-1 !== (hnNodeIndex = preferredServerOrder.indexOf(s => s.name.startsWith('hacknet-node-'))))
-        anyHacknetNodes.push(preferredServerOrder.splice(hnNodeIndex, 1));
+    while (-1 !== (hnNodeIndex = preferredServerOrder.findIndex(s => s.name.startsWith('hacknet-node-') || s.name.startsWith('hacknet-server-'))))
+        anyHacknetNodes.push(preferredServerOrder.splice(hnNodeIndex, 1)[0]);
     preferredServerOrder.push(...anyHacknetNodes.sort((a, b) => b.totalRam != a.totalRam ? b.totalRam - a.totalRam : a.name.localeCompare(b.name)));
 
     // Allow for an overriding "preferred" server to be used in the arguments, and slot it to the front regardless of the above
