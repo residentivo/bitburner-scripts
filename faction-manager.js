@@ -205,7 +205,12 @@ async function updateFactionData(ns, allFactions, factionsToOmit) {
     // Add any player joined factions that may not be in the pre-defined list
     factionNames.push(...joinedFactions.filter(f => !factionNames.includes(f) && !factionsToOmit.includes(f)));
     // Add any factions that the player has earned an invite to
-    const invitations = await getNsDataThroughFile(ns, 'ns.checkFactionInvitations()', '/Temp/player-faction-invites.txt');
+    let invitations = [];
+    try {
+        invitations = await getNsDataThroughFile(ns, 'ns.checkFactionInvitations()', '/Temp/player-faction-invites.txt');
+    } catch (err) {
+        log(ns, `WARNING: Failed to check faction invites (insufficient RAM?): ${String(err)}`, false, 'warning');
+    }
     factionNames.push(...invitations.filter(f => !factionNames.includes(f) && !factionsToOmit.includes(f)));
     // If specified, get info about *all* factions in the game, not just the ones hard-coded in the preferred faction order list.
     if (allFactions)
