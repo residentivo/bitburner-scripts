@@ -120,6 +120,10 @@ export async function main(ns) {
         }) || [];
     // Combine the lists, sort, and display a summary.
     const server_eval = unlocked_servers.concat(locked_servers);
+    if (server_eval.length === 0) {
+        ns.tprint("No hackable servers found! Try increasing your hacking skill or running with --all flag.");
+        return;
+    }
     const best_server = server_eval.sort((a, b) => b.gainRate - a.gainRate)[0];
     if (!flags['silent'])
         ns.tprint("Best server: ", best_server.hostname, " with ", formatMoney(best_server.gainRate), " per ram-second");
@@ -138,7 +142,7 @@ export async function main(ns) {
         ns.tprint("Best exp server: ", best_exp_server.hostname, " with ", best_exp_server.expRate, " exp per ram-second");
     order = 1;
     let serverListByExp = `Servers in order of best to worst hack exp at Hack ${player.hacking}:`;
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < Math.min(5, server_eval.length); i++)
         serverListByExp += `\n ${order++} ${server_eval[i].hostname}, with ${server_eval[i].expRate.toPrecision(3)} exp per ram-second`;
     ns.print(serverListByExp);
 
