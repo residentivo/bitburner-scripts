@@ -300,7 +300,13 @@ export async function main(ns) {
 
     await buildToolkit(ns); // build toolkit
     await getStaticServerData(ns, scanAllServers(ns)); // Gather information about servers that will never change
-    buildServerList(ns); // create the exhaustive server list   
+    buildServerList(ns); // create the exhaustive server list
+    // DEBUG: log darknet launch condition
+    if (addedServerNames.includes("darkweb")) {
+        log('DEBUG: darkweb found in addedServerNames, darknet.js should launch', true);
+    } else {
+        log('DEBUG: darkweb NOT in addedServerNames, darknet.js will NOT launch. Servers: ' + addedServerNames.join(', '), true);
+    }
     await establishMultipliers(ns); // figure out the various bitnode and player multipliers
     maxTargets = stockFocus ? Object.keys(serverStockSymbols).length : options['initial-max-targets']; // Ensure we immediately attempt to target all servers that represent stocks if in stock-focus mode
 
@@ -381,13 +387,18 @@ function whichServerIsRunning(ns, scriptName, canUseCache = true) {
 async function runStartupScripts(ns) {
     let launched = 0;
     for (const helper of asynchronousHelpers) {
-        if (launched > 0) await ns.asleep(200); // Sleep a short while between each script being launched, so they aren't all fighting for temp RAM at the same time.
+        if (launched > 0) await ns.asleep(200);
         if (!helper.isLaunched && (helper.shouldRun === undefined || helper.shouldRun())) {
+            log('DEBUG: Attempting to launch ' + helper.name + ' (shouldRun=' + (helper.shouldRun ? helper.shouldRun() : 'undefined') + ')', true);
             helper.isLaunched = await tryRunTool(ns, getTool(helper))
-            if (helper.isLaunched) launched++;
+            if (helper.isLaunched) {
+                log('DEBUG: Successfully launched ' + helper.name, true);
+                launched++;
+            } else {
+                log('DEBUG: Failed to launch ' + helper.name, true);
+            }
         }
     }
-    // if every helper is launched already return "true" so we can skip doing this each cycle going forward.
     return asynchronousHelpers.reduce((allLaunched, tool) => allLaunched && tool.isLaunched, true);
 }
 
