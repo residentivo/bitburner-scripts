@@ -16,18 +16,12 @@
  */
 
 import {
-    formatMoney, formatNumberShort, formatDuration, formatRam,
-    disableLogs, log as logHelper, getFilePath, hashCode,
-    getNsDataThroughFile, runCommand, waitForProcessToComplete_Custom,
-    getFnIsAliveViaNsPs, autoRetry
+    disableLogs, log as logHelper, getFilePath
 } from './helpers.js'
 
 // --- Configuration ---
 const passwordsFile = '/Temp/darknet-passwords.txt'
 const probeInterval = 5000          // How often to probe for new servers (ms)
-const authThreads = 1               // Threads for authenticate calls (more = faster but costlier)
-const maxAuthAttemptsPerServer = 50 // Max password guesses per server per cycle before moving on
-const phishingMinRam = 4            // Minimum free RAM on a server before running phishing
 const memoryReallocTicks = 5        // Number of memoryReallocation calls per server
 
 // --- Globals ---
@@ -223,75 +217,6 @@ async function spreadToServer(ns, hostname) {
 }
 
 /**
- * Free blocked RAM on a darknet server using memoryReallocation.
- */
-async function freeMemory(ns, hostname) {
-    try {
-        for (let i = 0; i < memoryReallocTicks; i++) {
-            ns.dnet.memoryReallocation(hostname)
-            await ns.asleep(100)
-        }
-        log(`Freed memory on ${hostname}`)
-    } catch (e) {
-        log(`memoryReallocation failed on ${hostname}: ${String(e)}`)
-    }
-}
-
-/**
- * Open any .cache files found on the server.
- */
-async function lootCacheFiles(ns, hostname) {
-    try {
-        const files = ns.ls(hostname, '.cache')
-        for (const file of files) {
-            try {
-                const result = ns.dnet.openCache(file)
-                log(`Opened ${file} on ${hostname}: ${JSON.stringify(result)}`, true, 'success')
-            } catch (e) {
-                log(`Failed to open ${file} on ${hostname}: ${String(e)}`)
-            }
-        }
-    } catch (e) {
-        log(`Error listing cache files on ${hostname}: ${String(e)}`)
-    }
-}
-
-/**
- * Run phishing attacks on a darknet server for money and .cache files.
- */
-async function runPhishing(ns, hostname) {
-    try {
-        const maxRam = ns.getServerMaxRam(hostname)
-        const usedRam = ns.getServerUsedRam(hostname)
-        const freeRam = maxRam - usedRam
-
-        if (freeRam < phishingMinRam) return
-
-        // Each phishing call uses ~1GB RAM
-        const threads = Math.max(1, Math.floor(freeRam / 1))
-        for (let i = 0; i < threads; i++) {
-            ns.dnet.phishingAttack()
-        }
-        log(`Running ${threads} phishing threads on ${hostname}`)
-    } catch (e) {
-        log(`Phishing failed on ${hostname}: ${String(e)}`)
-    }
-}
-
-/**
- * Connect to a session on a remote darknet server (for scp/exec at distance).
- */
-async function connectToSession(ns, hostname) {
-    if (passwords[hostname]) {
-        try {
-            ns.dnet.connectToSession(hostname, passwords[hostname])
-        } catch (e) {
-            // Non-fatal: some servers may not support this
-        }
-    }
-}
-
-/**
  * Main exploration loop for a single server.
  */
 async function exploreFromServer(ns) {
@@ -318,20 +243,8 @@ async function exploreFromServer(ns) {
         const authed = await tryAuthenticate(ns, hostname)
         if (!authed) continue
 
-        // Connect session for remote operations
-        await connectToSession(ns, hostname)
-
-        // Free blocked RAM
-        await freeMemory(ns, hostname)
-
-        // Loot cache files
-        await lootCacheFiles(ns, hostname)
-
         // Spread this script to the new server
         await spreadToServer(ns, hostname)
-
-        // Run phishing for money/exp
-        await runPhishing(ns, hostname)
     }
 }
 
@@ -368,6 +281,9 @@ export async function main(ns) {
 
     log(`Starting darknet exploration on ${ns.getHostname()}...`, true)
 
+    // On each server we run: free memory, loot cache, phishing, then explore
+    await prepareServer(ns)
+
     // Main loop
     while (true) {
         try {
@@ -376,5 +292,50 @@ export async function main(ns) {
             log(`ERROR in main loop: ${String(e)}`, true, 'error')
         }
         await ns.sleep(probeInterval)
+    }
+}
+
+/**
+ * On-server preparation: free RAM, loot cache, run phishing.
+ * Called once when script starts on a new darknet server.
+ */
+async function prepareServer(ns) {
+    const hostname = ns.getHostname()
+    log(`Preparing darknet server ${hostname}...`)
+
+    // Free blocked RAM (must run locally on this server)
+    for (let i = 0; i < memoryReallocTicks; i++) {
+        try {
+            ns.dnet.memoryReallocation()
+        } catch (e) {
+            log(`memoryReallocation tick ${i} failed: ${String(e)}`)
+            break
+        }
+        await ns.sleep(100)
+    }
+
+    // Loot .cache files (must run locally)
+    try {
+        const files = ns.ls(hostname, '.cache')
+        for (const file of files) {
+            try {
+                const result = ns.dnet.openCache(file)
+                log(`Opened ${file} on ${hostname}: ${JSON.stringify(result)}`, true, 'success')
+            } catch (e) {
+                log(`Failed to open ${file}: ${String(e)}`)
+            }
+        }
+    } catch (e) {
+        log(`Cache looting failed: ${String(e)}`)
+    }
+
+    // Run phishing for money/charisma
+    try {
+        const result = await ns.dnet.phishingAttack()
+        if (result) {
+            log(`Phishing on ${hostname}: ${JSON.stringify(result)}`, true)
+        }
+    } catch (e) {
+        log(`Phishing failed: ${String(e)}`)
     }
 }
