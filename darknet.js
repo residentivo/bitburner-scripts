@@ -49,15 +49,16 @@ const argsSchema = [
 ]
 let options
 
-// Local log helper: always prints to ns.print (visible in tail), optionally also tprint/toast
+// Local log helper: write to log file (safe, no concurrency issues), optionally tprint for important
+const logFile = '/Temp/darknet-log.txt'
 function log(msg, important, toastStyle) {
     if (_ns) {
-        _ns.print(msg)
+        try { _ns.write(logFile, _ns.getHostname() + ' [' + new Date().toISOString().substring(11, 19) + '] ' + msg + '\n', 'a') } catch (_) {}
         if (important || (options && options.verbose)) {
-            _ns.tprint(msg)
+            try { _ns.tprint(msg) } catch (_) {}
         }
         if (toastStyle) {
-            _ns.toast(msg, toastStyle)
+            try { _ns.toast(msg, toastStyle) } catch (_) {}
         }
     }
 }
@@ -267,13 +268,13 @@ async function exploreFromServer(ns) {
         nearby = ns.dnet.probe()
     } catch (e) {
         q('probe() failed on ' + currentServer + ': ' + String(e))
-        for (const m of buf) ns.print(m)
+        for (const m of buf) try { ns.write(logFile, ns.getHostname() + ' ' + m + '\n', 'a') } catch (_) {}
         return
     }
 
     if (!nearby || nearby.length === 0) {
         q('No darknet servers connected to ' + currentServer)
-        for (const m of buf) ns.print(m)
+        for (const m of buf) try { ns.write(logFile, ns.getHostname() + ' ' + m + '\n', 'a') } catch (_) {}
         return
     }
 
@@ -286,7 +287,7 @@ async function exploreFromServer(ns) {
     }
 
     // Flush all logs after all awaits complete
-    for (const m of buf) ns.print(m)
+    for (const m of buf) try { ns.write(logFile, ns.getHostname() + ' ' + m + '\n', 'a') } catch (_) {}
 }
 
 // --- Entry Point ---
@@ -311,22 +312,21 @@ export async function main(ns) {
     disableLogs(ns, ['getServerMaxRam', 'getServerUsedRam', 'scan', 'asleep', 'exec', 'scp'])
 
     // Always-visible startup banner
-    ns.print('========================================')
-    ns.print('  DARKNET EXPLORER - Starting up...')
-    ns.print('========================================')
+    const banner = 'DARKNET EXPLORER started on ' + ns.getHostname()
+    try { ns.write(logFile, banner + '\n', 'w') } catch (_) {}
+    ns.tprint('*** ' + banner + ' ***')
 
     // Check if we have access to the darknet API
     try {
         ns.dnet.probe()
     } catch {
-        ns.tprint('ERROR: ns.dnet API not available. Purchase DarkscapeNavigator.exe first (buy DarkscapeNavigator.exe in terminal with TOR router).')
+        ns.tprint('ERROR: ns.dnet API not available.')
         return
     }
 
     // Load previously discovered passwords
     loadPasswords(ns)
-    ns.print(`Loaded ${Object.keys(passwords).length} known password(s)`)
-    ns.print(`Starting darknet exploration on ${ns.getHostname()}...`)
+    try { ns.write(logFile, ns.getHostname() + ' Starting darknet exploration\n', 'a') } catch (_) {}
 
     // On each server we run: free memory, loot cache, phishing, then explore
     await prepareServer(ns)
@@ -336,12 +336,12 @@ export async function main(ns) {
     while (true) {
         try {
             loopCount++
-            if (loopCount % 12 === 0) { // Every ~60 seconds (12 * 5s)
-                ns.print(`[Darknet] Loop #${loopCount} - exploring from ${ns.getHostname()}...`)
+            if (loopCount % 12 === 0) {
+                try { ns.write(logFile, ns.getHostname() + ' Loop #' + loopCount + '\n', 'a') } catch (_) {}
             }
             await exploreFromServer(ns)
         } catch (e) {
-            ns.print(`ERROR in main loop: ${String(e)}`)
+            try { ns.write(logFile, ns.getHostname() + ' ERROR: ' + String(e) + '\n', 'a') } catch (_) {}
         }
         await ns.sleep(probeInterval)
     }
@@ -355,7 +355,7 @@ async function prepareServer(ns) {
     const hostname = ns.getHostname()
     const buf = []
     function q(msg) { buf.push(msg) }
-    function flush() { for (const m of buf) ns.print(m) }
+    function flush() { for (const m of buf) try { ns.write(logFile, hostname + ' ' + m + '\n', 'a') } catch (_) {} }
 
     if (hostname === 'home' || !hostname.startsWith('darknet-')) {
         q('Skipping darknet preparation on ' + hostname + ' (not a darknet server)')
