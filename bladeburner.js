@@ -110,7 +110,12 @@ async function gatherBladeburnerInfo(ns) {
     log(ns, `INFO: There are ${remainingBlackOpsNames.length} remaining BlackOps operations to complete in order:\n` +
         remainingBlackOpsNames.map(n => `${n} (${blackOpsRanks[n]})`).join(", "));
     // Check if we have the aug that lets us do bladeburner while otherwise busy
-    haveSimulacrum = await getNsDataThroughFile(ns, `ns.getOwnedAugmentations().includes("${simulacrumAugName}")`, '/Temp/bladeburner-hasSimulacrum.txt');
+    try {
+        haveSimulacrum = await getNsDataThroughFile(ns, `ns.getOwnedAugmentations().includes("${simulacrumAugName}")`, '/Temp/bladeburner-hasSimulacrum.txt');
+    } catch (err) {
+        log(ns, `WARNING: Failed to check for '${simulacrumAugName}' augmentation (insufficient RAM?). Assuming false.\n${String(err)}`, false, 'warning');
+        haveSimulacrum = false;
+    }
     // Initialize some flags that may change over time
     lastBlackOpReady = false; // Flag will track whether we've notified the user that the last black-op is ready
     lowStaminaTriggered = false; // Flag will track whether we've previously switched to stamina recovery to reduce noise
