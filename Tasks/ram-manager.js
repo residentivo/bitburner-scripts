@@ -1,4 +1,4 @@
-import { formatMoney, formatRam } from './helpers.js'
+import { formatMoney, formatRam } from '../helpers.js'
 
 const max_ram = 2 ** 30;
 
