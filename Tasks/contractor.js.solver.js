@@ -6,7 +6,7 @@ export async function main(ns) {
         ns.tprint('Contractor solver was incorrectly invoked without arguments.')
     var contractsDb = JSON.parse(ns.args[0]);
     for (const contractInfo of contractsDb) {
-        const answer = findAnswer(contractInfo)
+        const answer = findAnswer(contractInfo, ns)
         if (answer != null) {
             const solvingResult = ns.codingcontract.attempt(answer, contractInfo.contract, contractInfo.hostname, { returnReward: true })
             if (solvingResult) {
@@ -22,7 +22,11 @@ export async function main(ns) {
     }
 }
 
-function findAnswer(contract) {
+function findAnswer(contract, ns) {
+    if (!contract || !contract.type || !contract.data) {
+        if (ns) ns.print('WARN: Skipping contract ' + (contract ? contract.contract : 'unknown') + ' - missing type or data');
+        return null;
+    }
     const codingContractSolution = codingContractTypesMetadata.find((codingContractTypeMetadata) => codingContractTypeMetadata.name === contract.type)
     return codingContractSolution ? codingContractSolution.solver(contract.data) : null;
 }
