@@ -188,11 +188,16 @@ async function tryAuthenticate(ns, hostname) {
 async function spreadToServer(ns, hostname) {
     const scriptName = ns.getScriptName()
     try {
-        // Copy script to target
-        const copied = await ns.scp(scriptName, hostname)
-        if (!copied) {
-            log(`Failed to copy ${scriptName} to ${hostname}`)
-            return false
+        // Check if script already exists on target
+        const exists = ns.fileExists(scriptName, hostname)
+        if (!exists) {
+            // Copy script to target
+            const copied = await ns.scp(scriptName, hostname)
+            if (!copied) {
+                log(`Failed to scp ${scriptName} to ${hostname}`, true, 'error')
+                return false
+            }
+            log(`Copied ${scriptName} to ${hostname}`)
         }
 
         // Check if already running
@@ -215,14 +220,23 @@ async function spreadToServer(ns, hostname) {
             return false
         }
 
-        const threads = Math.max(1, Math.floor(freeRam / scriptRam))
-        const pid = ns.exec(scriptName, hostname, threads, ...ns.args)
+        // Try spawning with 1 thread first (safest)
+        const pid = ns.exec(scriptName, hostname, 1, ...ns.args)
         if (pid === 0) {
-            log(`Failed to exec ${scriptName} on ${hostname} (ns.exec returned 0)`)
-            return false
+            // If exec failed, try killing any existing instance and retrying
+            log(`exec returned 0 on ${hostname}, attempting killall and retry...`)
+            try { ns.killall(hostname) } catch (_) {}
+            await ns.sleep(200)
+            const pid2 = ns.exec(scriptName, hostname, 1, ...ns.args)
+            if (pid2 === 0) {
+                log(`Failed to exec ${scriptName} on ${hostname} after killall (ns.exec returned 0 twice)`, true, 'error')
+                return false
+            }
+            log(`Spreading ${scriptName} to ${hostname} (pid ${pid2}) after killall`, true)
+            return true
         }
 
-        log(`Spreading ${scriptName} to ${hostname} (${threads} threads)`, true)
+        log(`Spreading ${scriptName} to ${hostname} (pid ${pid})`, true)
         return true
     } catch (e) {
         log(`Error spreading to ${hostname}: ${String(e)}`)
