@@ -47,7 +47,7 @@ export async function main(ns) {
             let cash = ns.getServerMoneyAvailable("home") - (options['reserve'] != null ? options['reserve'] : Number(ns.read("reserve.txt") || 0));
             let budget = cash * options['aug-budget'];
             let playerInfo = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt')
-            let allSleeveStats = await getNsDataThroughFile(ns, `[...Array(${numSleeves}).keys()].map(i => ns.sleeve.getSleeveStats(i))`, '/Temp/sleeve-stats.txt');
+            let allSleeveStats = await getNsDataThroughFile(ns, `[...Array(${numSleeves}).keys()].map(i => ns.sleeve.getSleeve(i))`, '/Temp/sleeve-stats.txt');
             for (let i = 0; i < numSleeves; i++) {
                 let sleeveStats = allSleeveStats[i];
                 let shock = sleeveStats.shock;
