@@ -16,7 +16,7 @@
  */
 
 import {
-    disableLogs, log as logHelper, getFilePath
+    disableLogs, getFilePath
 } from './helpers.js'
 
 // --- Configuration ---
@@ -26,14 +26,26 @@ const memoryReallocTicks = 5        // Number of memoryReallocation calls per se
 
 // --- Globals ---
 let _ns = null
-let log = (...args) => {}
 let passwords = {} // { hostname: password }
 
 const argsSchema = [
-    ['verbose', false],     // Enable verbose logging
+    ['verbose', false],     // Enable verbose logging (tprint)
     ['tail', false],        // Open a tail window
 ]
 let options
+
+// Local log helper: always prints to ns.print (visible in tail), optionally also tprint/toast
+function log(msg, important, toastStyle) {
+    if (_ns) {
+        _ns.print(msg)
+        if (important || (options && options.verbose)) {
+            _ns.tprint(msg)
+        }
+        if (toastStyle) {
+            _ns.toast(msg, toastStyle)
+        }
+    }
+}
 
 // --- Helpers ---
 
@@ -259,37 +271,45 @@ export function autocomplete(data, args) {
 export async function main(ns) {
     _ns = ns
     options = ns.flags(argsSchema)
-    log = (...args) => logHelper(_ns, ...args)
-
-    disableLogs(ns, ['getServerMaxRam', 'getServerUsedRam', 'scan', 'asleep', 'exec', 'scp'])
 
     if (options.tail) {
         ns.tail()
     }
 
+    disableLogs(ns, ['getServerMaxRam', 'getServerUsedRam', 'scan', 'asleep', 'exec', 'scp'])
+
+    // Always-visible startup banner
+    ns.print('========================================')
+    ns.print('  DARKNET EXPLORER - Starting up...')
+    ns.print('========================================')
+
     // Check if we have access to the darknet API
     try {
         ns.dnet.probe()
     } catch {
-        log('ERROR: ns.dnet API not available. Purchase DarkscapeNavigator.exe first (buy DarkscapeNavigator.exe in terminal with TOR router).', true, 'error')
+        ns.tprint('ERROR: ns.dnet API not available. Purchase DarkscapeNavigator.exe first (buy DarkscapeNavigator.exe in terminal with TOR router).')
         return
     }
 
     // Load previously discovered passwords
     loadPasswords(ns)
-    log(`Loaded ${Object.keys(passwords).length} known password(s)`)
-
-    log(`Starting darknet exploration on ${ns.getHostname()}...`, true)
+    ns.print(`Loaded ${Object.keys(passwords).length} known password(s)`)
+    ns.print(`Starting darknet exploration on ${ns.getHostname()}...`)
 
     // On each server we run: free memory, loot cache, phishing, then explore
     await prepareServer(ns)
 
     // Main loop
+    let loopCount = 0
     while (true) {
         try {
+            loopCount++
+            if (loopCount % 12 === 0) { // Every ~60 seconds (12 * 5s)
+                ns.print(`[Darknet] Loop #${loopCount} - exploring from ${ns.getHostname()}...`)
+            }
             await exploreFromServer(ns)
         } catch (e) {
-            log(`ERROR in main loop: ${String(e)}`, true, 'error')
+            ns.print(`ERROR in main loop: ${String(e)}`)
         }
         await ns.sleep(probeInterval)
     }
