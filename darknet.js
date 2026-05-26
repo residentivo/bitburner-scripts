@@ -41,6 +41,7 @@ const memoryReallocTicks = 5        // Number of memoryReallocation calls per se
 
 // --- Globals ---
 let _ns = null
+let _pid = 0
 let passwords = {} // { hostname: password }
 
 const argsSchema = [
@@ -48,6 +49,17 @@ const argsSchema = [
     ['tail', false],        // Open a tail window
 ]
 let options
+
+// Check if this script instance is still alive (not killed by another process)
+function isAlive() {
+    if (!_ns) return false
+    try {
+        // ns.self() returns null if script is dead/killed
+        return _ns.self() !== null
+    } catch (_) {
+        return false
+    }
+}
 
 // Local log helper: write to log file (safe, no concurrency issues), optionally tprint for important
 const logFile = '/Temp/darknet-log.txt'
@@ -300,40 +312,41 @@ export function autocomplete(data, args) {
 /** @param {NS} ns */
 export async function main(ns) {
     _ns = ns
+    _pid = ns.pid || 0
     options = ns.flags(argsSchema)
 
-    // Immediate visible confirmation that script started
-    ns.tprint('*** DARKNET EXPLORER started on ' + ns.getHostname() + ' ***')
+    // Kill any other instances of this script on the same server
+    const scriptName = ns.getHostname() + ':' + ns.getScriptName()
+    try {
+        const processes = ns.ps(ns.getHostname())
+        for (const p of processes) {
+            if (p.filename === ns.getScriptName() && p.pid !== _pid) {
+                ns.kill(p.pid)
+            }
+        }
+    } catch (_) {}
 
-    if (options.tail) {
-        ns.tail()
-    }
+    ns.tprint('*** DARKNET EXPLORER started on ' + ns.getHostname() + ' (pid ' + _pid + ') ***')
+
+    if (options.tail) ns.tail()
 
     disableLogs(ns, ['getServerMaxRam', 'getServerUsedRam', 'scan', 'asleep', 'exec', 'scp'])
 
-    // Always-visible startup banner
-    const banner = 'DARKNET EXPLORER started on ' + ns.getHostname()
-    try { ns.write(logFile, banner + '\n', 'w') } catch (_) {}
-    ns.tprint('*** ' + banner + ' ***')
+    try { ns.write(logFile, ns.getHostname() + ' DARKNET started pid=' + _pid + '\n', 'w') } catch (_) {}
 
-    // Check if we have access to the darknet API
-    try {
-        ns.dnet.probe()
-    } catch {
+    // Check darknet API access
+    try { ns.dnet.probe() } catch {
         ns.tprint('ERROR: ns.dnet API not available.')
         return
     }
 
-    // Load previously discovered passwords
     loadPasswords(ns)
-    try { ns.write(logFile, ns.getHostname() + ' Starting darknet exploration\n', 'a') } catch (_) {}
 
-    // On each server we run: free memory, loot cache, phishing, then explore
     await prepareServer(ns)
 
-    // Main loop
+    // Main loop - exit cleanly if killed
     let loopCount = 0
-    while (true) {
+    while (isAlive()) {
         try {
             loopCount++
             if (loopCount % 12 === 0) {
@@ -345,6 +358,8 @@ export async function main(ns) {
         }
         await ns.sleep(probeInterval)
     }
+
+    try { ns.write(logFile, ns.getHostname() + ' DARKNET exiting pid=' + _pid + '\n', 'a') } catch (_) {}
 }
 
 /**
