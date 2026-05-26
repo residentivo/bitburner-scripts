@@ -33,8 +33,15 @@ export async function main(ns) {
     // Main stats update loop
     while (true) {
         try {
+            // Refresh player info each loop so bitNode is always valid
+            if (!playerInfo) {
+                try { playerInfo = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt'); }
+                catch { await ns.asleep(2000); continue; }
+            }
+            const bitNode = (playerInfo && playerInfo.bitNodeN !== undefined) ? playerInfo.bitNodeN : '?';
+            const sfLevel = dictSourceFiles[bitNode] || 0;
             // Show what bitNode we're currently playing
-            addHud("BitNode", `${bitNode}.${1 + (dictSourceFiles[bitNode] || 0)}`, "Detected as being one more than your current owned SF level.");
+            addHud("BitNode", bitNode + "." + (1 + sfLevel), "Detected as being one more than your current owned SF level.");
 
             if (9 in dictSourceFiles || 9 == bitNode) { // Section not relevant if you don't have access to hacknet servers
                 const hashes = await getNsDataThroughFile(ns, '[ns.hacknet.numHashes(), ns.hacknet.hashCapacity()]', '/Temp/hash-stats.txt')
