@@ -139,11 +139,23 @@ export async function main(ns) {
                     ['hacking', 'faction_rep', 'company_rep', 'charisma', 'hacknet', 'crime_money']; // Otherwise get hacking + rep boosting, etc. for unlocking augs more quickly
 
     // Prepare global data sets of faction and augmentation information
-    log(ns, 'Getting all faction data...');
-    favorToDonate = await getNsDataThroughFile(ns, 'ns.getFavorToDonate()', '/Temp/favor-to-donate.txt')
-    await updateFactionData(ns, allFactions, omitFactions);
-    log(ns, 'Getting all augmentation data...');
-    await updateAugmentationData(ns, desiredAugs);
+    // Retry the entire data-gathering phase, since temporary RAM shortages can cause any individual call to fail
+    let dataRetries = 3;
+    while (dataRetries-- > 0) {
+        try {
+            log(ns, 'Getting all faction data...' + (dataRetries < 2 ? ` (attempt ${3 - dataRetries}/3)` : ''));
+            favorToDonate = await getNsDataThroughFile(ns, 'ns.getFavorToDonate()', '/Temp/favor-to-donate.txt');
+            await updateFactionData(ns, allFactions, omitFactions);
+            log(ns, 'Getting all augmentation data...');
+            await updateAugmentationData(ns, desiredAugs);
+            break;
+        } catch (err) {
+            const fatal = dataRetries === 0;
+            log(ns, `${fatal ? 'FAIL' : 'WARN'}: ${fatal ? 'Gave up' : 'Retrying'} data collection after error: ${String(err)}`, fatal, fatal ? 'error' : 'warning');
+            if (fatal) throw err;
+            await ns.asleep(5000); // Wait 5s for RAM to free up before retrying
+        }
+    }
 
     // Join available factions that would give access to additional desired augmentations
     if (ignorePlayerData)
