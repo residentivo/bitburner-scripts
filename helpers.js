@@ -200,8 +200,7 @@ export async function runCommand(ns, command, fileName, args = [], verbose = fal
 export async function runCommand_Custom(ns, fnRun, command, fileName, args = [], verbose = false, maxRetries = 5, retryDelayMs = 50) {
     checkNsInstance(ns, '"runCommand_Custom"');
     if (!verbose) disableLogs(ns, ['asleep']);
-    let script = `import { formatMoney, formatNumberShort, formatDuration, parseShortNumber, scanAllServers } fr` + `om '${getFilePath('helpers.js')}'\n` +
-        `export async function main(ns) { try { ` +
+    let script = `export async function main(ns) { try { ` +
         (verbose ? `let output = ${command}; ns.tprint(output)` : command) +
         `; } catch(err) { ns.tprint(String(err)); throw(err); } }`;
     fileName = fileName || `/Temp/${hashCode(command)}-command.js`;
