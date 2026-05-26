@@ -158,7 +158,7 @@ export async function getNsDataThroughFile_Custom(ns, fnRun, fnIsAlive, command,
     // If an error occurs, it will write an empty file to avoid old results being misread.
     const commandToFile = `let result="";try{result=JSON.stringify(
         ${command}
-        );}catch{} const f="${fName}"; if(ns.read(f)!=result) await ns.write(f,result,'w')`;
+        );}catch(err){result="ERROR:"+String(err)} const f="${fName}"; if(ns.read(f)!=result) await ns.write(f,result,'w')`;
     // Run the command with auto-retries if it fails
     const pid = await runCommand_Custom(ns, fnRun, commandToFile, fNameCommand, args, false, maxRetries, retryDelayMs);
     // Wait for the process to complete
@@ -172,6 +172,7 @@ export async function getNsDataThroughFile_Custom(ns, fnRun, fnIsAlive, command,
             `\nEnsure you have sufficient free RAM to run this temporary script.`,
         maxRetries, retryDelayMs, undefined, verbose);
     if (verbose) ns.print(`Read the following data for command ${command}:\n${fileData}`);
+    if (fileData.startsWith("ERROR:")) throw new Error(fileData.substring(6));
     return JSON.parse(fileData); // Deserialize it back into an object/array and return
 }
 
