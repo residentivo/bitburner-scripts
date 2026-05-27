@@ -258,7 +258,7 @@ export async function main(ns) {
     // Note: Periodic script are generally run every 30 seconds, but intervals are spaced out to ensure they aren't all bursting into temporary RAM at the same time.
     periodicScripts = [
         // Buy tor as soon as we can if we haven't already, and all the port crackers
-        { interval: 25000, name: "/Tasks/tor-manager.js", shouldRun: () => 4 in dictSourceFiles && !addedServerNames.includes("darkweb") },
+        { interval: 25000, name: "/Tasks/tor-manager.js", shouldRun: () => !addedServerNames.includes("darkweb") && _ns.getServerMoneyAvailable("home") >= 200000 },
         { interval: 26000, name: "/Tasks/program-manager.js", shouldRun: () => 4 in dictSourceFiles && getNumPortCrackers() != 5 && (getNumPortCrackers() < 3 || shouldImproveHacking()) },
         { interval: 27000, name: "/Tasks/contractor.js", requiredServer: "home" }, // Periodically look for coding contracts that need solving
         // Buy every hacknet upgrade with up to 4h payoff if it is less than 10% of our current money or 8h if it is less than 1% of our current money
