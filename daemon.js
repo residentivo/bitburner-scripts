@@ -307,6 +307,14 @@ export async function main(ns) {
     } else {
         log('DEBUG: darkweb NOT in addedServerNames, darknet.js will NOT launch. Servers: ' + addedServerNames.join(', '), true);
     }
+    // DEBUG: check if darkweb is reachable via scan
+    const scanHome = ns.scan("home");
+    log('DEBUG: ns.scan("home") = ' + JSON.stringify(scanHome), true);
+    if (scanHome.includes("darkweb")) {
+        log('DEBUG: darkweb IS connected to home via ns.scan!', true);
+    } else {
+        log('DEBUG: darkweb is NOT connected to home. Tor may not be purchased yet.', true);
+    }
     await establishMultipliers(ns); // figure out the various bitnode and player multipliers
     maxTargets = stockFocus ? Object.keys(serverStockSymbols).length : options['initial-max-targets']; // Ensure we immediately attempt to target all servers that represent stocks if in stock-focus mode
 
@@ -1668,7 +1676,14 @@ function buildServerList(ns, verbose = false) {
     for (const hostName of addedServerNames.filter(hostName => !allServers.includes(hostName)))
         removeServerByName(hostName);
     // Add any servers that are new
-    allServers.filter(hostName => !addedServerNames.includes(hostName)).forEach(hostName => addServer(buildServerObject(ns, hostName, verbose)));
+    const newServers = allServers.filter(hostName => !addedServerNames.includes(hostName));
+    if (newServers.length > 0) {
+        log('DEBUG: Adding new servers: ' + JSON.stringify(newServers), true);
+        if (newServers.includes("darkweb")) {
+            log('DEBUG: darkweb is a new server being added!', true);
+        }
+    }
+    newServers.forEach(hostName => addServer(buildServerObject(ns, hostName, verbose)));
 }
 
 // Helper to sort various copies of our host list in different ways.
