@@ -144,7 +144,11 @@ export async function main(ns) {
     while (dataRetries-- > 0) {
         try {
             log(ns, 'Getting all faction data...' + (dataRetries < 2 ? ` (attempt ${3 - dataRetries}/3)` : ''));
-            favorToDonate = await getNsDataThroughFile(ns, 'ns.getFavorToDonate()', '/Temp/favor-to-donate.txt');
+            // v3 removed ns.getFavorToDonate(); compute from current favor using game formula
+            // BaseFavorToDonate = 150, each favor multiplies target by 1.008
+            favorToDonate = undefined; // Will be computed per-faction below
+            // Helper: given current favor, return rep needed to unlock donations
+            const calcFavorToDonate = (favor) => Math.floor(150 * Math.pow(1.008, favor));
             await updateFactionData(ns, allFactions, omitFactions);
             log(ns, 'Getting all augmentation data...');
             await updateAugmentationData(ns, desiredAugs);
@@ -243,7 +247,7 @@ async function updateFactionData(ns, allFactions, factionsToOmit) {
         joined: joinedFactions.includes(faction),
         reputation: dictFactionReps[faction] || 0,
         favor: dictFactionFavors[faction],
-        donationsUnlocked: dictFactionFavors[faction] >= favorToDonate && faction !== gangFaction // Can't donate to gang factions for rep
+        donationsUnlocked: dictFactionFavors[faction] >= Math.floor(150 * Math.pow(1.008, dictFactionFavors[faction])) && faction !== gangFaction // Can't donate to gang factions for rep
             && faction !== "Church of the Machine God", // Can't donate to this faction either
         augmentations: dictFactionAugs[faction],
         unownedAugmentations: function (includeNf = false) { return this.augmentations.filter(aug => !simulatedOwnedAugmentations.includes(aug) && (aug != strNF || includeNf)) },
