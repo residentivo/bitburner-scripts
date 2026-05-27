@@ -203,65 +203,45 @@ async function tryAuthenticate(ns, hostname) {
 async function spreadToServer(ns, hostname) {
     const scriptName = ns.getScriptName()
     try {
-        // Check if script already exists on target
+        // Copy script to target if not already there
         const exists = ns.fileExists(scriptName, hostname)
         if (!exists) {
-            // Copy script to target
             const copied = await ns.scp(scriptName, hostname)
             if (!copied) {
-                log(`Failed to scp ${scriptName} to ${hostname}`, true, 'error')
+                log('Failed to scp ' + scriptName + ' to ' + hostname, true, 'error')
                 return false
             }
-            log(`Copied ${scriptName} to ${hostname}`)
+            log('Copied ' + scriptName + ' to ' + hostname)
         }
 
-        // Check if already running
-        const processes = ns.ps(hostname)
-        if (processes.some(p => p.filename === scriptName)) {
-            log(`${scriptName} already running on ${hostname}`)
-            return true
-        }
+        // Kill all processes on target to free RAM before spawning
+        try { ns.killall(hostname) } catch (_) {}
+        await ns.sleep(100)
 
         // Get free RAM on target
         const maxRam = ns.getServerMaxRam(hostname)
         const usedRam = ns.getServerUsedRam(hostname)
         const freeRam = maxRam - usedRam
-        const scriptRam = ns.getScriptRam(scriptName)
         const scriptRamOnTarget = ns.getScriptRam(scriptName, hostname)
 
-        log(`${hostname} RAM: ${freeRam.toFixed(1)}GB free / ${maxRam.toFixed(1)}GB total`)
-        log(`${scriptName} RAM: ${scriptRam.toFixed(1)}GB (home) / ${scriptRamOnTarget.toFixed(1)}GB (${hostname})`)
-        log(`fileExists(${scriptName}, ${hostname}): ${exists}`)
-        log(`processes on ${hostname}: ${processes.length}`)
-        for (const p of processes) {
-            log(`  pid=${p.pid} file=${p.filename} ram=${p.threads * (ns.getScriptRam(p.filename) || 0).toFixed(1)}GB`)
-        }
+        log(hostname + ' RAM: ' + freeRam.toFixed(1) + 'GB free / ' + maxRam.toFixed(1) + 'GB total, script needs ' + scriptRamOnTarget.toFixed(1) + 'GB')
 
         if (freeRam < scriptRamOnTarget) {
-            log(`Not enough RAM on ${hostname} to run ${scriptName} (need ${scriptRamOnTarget.toFixed(1)}GB, have ${freeRam.toFixed(1)}GB free)`)
+            log('Not enough RAM on ' + hostname + ' to run ' + scriptName + ' after killall')
             return false
         }
 
-        // Try spawning with 1 thread first (safest)
+        // Spawn with 1 thread
         const pid = ns.exec(scriptName, hostname, 1, ...ns.args)
         if (pid === 0) {
-            // If exec failed, try killing any existing instance and retrying
-            log(`exec returned 0 on ${hostname}, attempting killall and retry...`)
-            try { ns.killall(hostname) } catch (_) {}
-            await ns.sleep(200)
-            const pid2 = ns.exec(scriptName, hostname, 1, ...ns.args)
-            if (pid2 === 0) {
-                log(`Failed to exec ${scriptName} on ${hostname} after killall (ns.exec returned 0 twice)`, true, 'error')
-                return false
-            }
-            log(`Spreading ${scriptName} to ${hostname} (pid ${pid2}) after killall`, true)
-            return true
+            log('Failed to exec ' + scriptName + ' on ' + hostname + ' (ns.exec returned 0)', true, 'error')
+            return false
         }
 
-        log(`Spreading ${scriptName} to ${hostname} (pid ${pid})`, true)
+        log('Spreading ' + scriptName + ' to ' + hostname + ' (pid ' + pid + ')', true)
         return true
     } catch (e) {
-        log(`Error spreading to ${hostname}: ${String(e)}`)
+        log('Error spreading to ' + hostname + ': ' + String(e))
         return false
     }
 }
@@ -372,7 +352,9 @@ async function prepareServer(ns) {
     function q(msg) { buf.push(msg) }
     function flush() { for (const m of buf) try { ns.write(logFile, hostname + ' ' + m + '\n', 'a') } catch (_) {} }
 
-    if (hostname === 'home' || !hostname.startsWith('darknet-')) {
+    // Prepare any darknet-related server (darkweb or darknet-*)
+    const isDarknetServer = hostname === 'darkweb' || hostname.startsWith('darknet-')
+    if (!isDarknetServer) {
         q('Skipping darknet preparation on ' + hostname + ' (not a darknet server)')
         flush(); return
     }
