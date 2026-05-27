@@ -2,7 +2,7 @@
  * the purpose of tor-manager is to buy the TOR router ASAP
  * so that another script can buy the port breakers. This script
  * dies a natural death once tor is bought.
- * Compatible with both v2.2.0 (ns.purchaseTor) and v3.0.1 (ns.singularity.purchaseTor) **/
+ * Bitburner v3.0.1+ only. **/
 export async function main(ns) {
     const interval = 2000;
 
@@ -18,13 +18,8 @@ export async function main(ns) {
             ns.toast(`Purchased the Tor router!`, 'success');
             break;
         }
-        // v3 API: ns.singularity.purchaseTor(), v2 API: ns.purchaseTor()
         try {
-            if (ns.singularity && ns.singularity.purchaseTor) {
-                ns.singularity.purchaseTor();
-            } else {
-                ns.purchaseTor();
-            }
+            ns.singularity.purchaseTor();
         } catch (e) {
             ns.print('Failed to purchase Tor: ' + String(e));
         }
