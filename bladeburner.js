@@ -111,7 +111,7 @@ async function gatherBladeburnerInfo(ns) {
         remainingBlackOpsNames.map(n => `${n} (${blackOpsRanks[n]})`).join(", "));
     // Check if we have the aug that lets us do bladeburner while otherwise busy
     try {
-        haveSimulacrum = await getNsDataThroughFile(ns, `ns.getOwnedAugmentations().includes("${simulacrumAugName}")`, '/Temp/bladeburner-hasSimulacrum.txt');
+        haveSimulacrum = await getNsDataThroughFile(ns, `ns.singularity.getOwnedAugmentations().includes("${simulacrumAugName}")`, '/Temp/bladeburner-hasSimulacrum.txt');
     } catch (err) {
         log(ns, `WARNING: Failed to check for '${simulacrumAugName}' augmentation (insufficient RAM?). Assuming false.\n${String(err)}`, false, 'warning');
         haveSimulacrum = false;
@@ -381,7 +381,7 @@ async function tryJoinFaction(ns, rank) {
 async function canDoBladeburnerWork(ns) {
     if (options['ignore-busy-status'] || haveSimulacrum) return true;
     // Check if the player is busy doing something else
-    const busy = await getNsDataThroughFile(ns, 'ns.isBusy()', '/Temp/isBusy.txt');
+    const busy = await getNsDataThroughFile(ns, 'ns.singularity.isBusy()', '/Temp/isBusy.txt');
     if (!busy) return true;
     log(ns, `WARNING: Cannot perform Bladeburner actions because the player is busy ` +
         `and hasn't installed the augmentation "${simulacrumAugName}"...`, false, 'warning');

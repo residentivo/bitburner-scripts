@@ -304,16 +304,6 @@ export async function main(ns) {
     // DEBUG: log darknet launch condition
     if (addedServerNames.includes("darkweb")) {
         log('DEBUG: darkweb found in addedServerNames, darknet.js should launch', true);
-    } else {
-        log('DEBUG: darkweb NOT in addedServerNames, darknet.js will NOT launch. Servers: ' + addedServerNames.join(', '), true);
-    }
-    // DEBUG: check if darkweb is reachable via scan
-    const scanHome = ns.scan("home");
-    log('DEBUG: ns.scan("home") = ' + JSON.stringify(scanHome), true);
-    if (scanHome.includes("darkweb")) {
-        log('DEBUG: darkweb IS connected to home via ns.scan!', true);
-    } else {
-        log('DEBUG: darkweb is NOT connected to home. Tor may not be purchased yet.', true);
     }
     await establishMultipliers(ns); // figure out the various bitnode and player multipliers
     maxTargets = stockFocus ? Object.keys(serverStockSymbols).length : options['initial-max-targets']; // Ensure we immediately attempt to target all servers that represent stocks if in stock-focus mode
@@ -341,7 +331,7 @@ async function kickstartHackXp(ns) {
                 log(`INFO: Studying for ${studyTime} seconds to kickstart hack XP and speed up initial cycle times. (set --initial-study-time 0 to disable this step.)`);
                 const money = ns.getServerMoneyAvailable("home")
                 if (money >= 200000) // If we can afford to travel, we're probably far enough along that it's worthwhile going to Volhaven where ZB university is.
-                    await getNsDataThroughFile(ns, `ns.travelToCity("Volhaven")`, '/Temp/travel-to-city.txt');
+                    await getNsDataThroughFile(ns, `ns.singularity.travelToCity("Volhaven")`, '/Temp/travel-to-city.txt');
                 await updatePlayerStats(); // Update player stats to be certain of our new location.
                 const university = playerStats.city == "Sector-12" ? "Rothman University" : playerStats.city == "Aevum" ? "Summit University" : playerStats.city == "Volhaven" ? "ZB Institute of Technology" : null;
                 if (!university)
@@ -1676,14 +1666,7 @@ function buildServerList(ns, verbose = false) {
     for (const hostName of addedServerNames.filter(hostName => !allServers.includes(hostName)))
         removeServerByName(hostName);
     // Add any servers that are new
-    const newServers = allServers.filter(hostName => !addedServerNames.includes(hostName));
-    if (newServers.length > 0) {
-        log('DEBUG: Adding new servers: ' + JSON.stringify(newServers), true);
-        if (newServers.includes("darkweb")) {
-            log('DEBUG: darkweb is a new server being added!', true);
-        }
-    }
-    newServers.forEach(hostName => addServer(buildServerObject(ns, hostName, verbose)));
+    allServers.filter(hostName => !addedServerNames.includes(hostName)).forEach(hostName => addServer(buildServerObject(ns, hostName, verbose)));
 }
 
 // Helper to sort various copies of our host list in different ways.

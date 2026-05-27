@@ -148,14 +148,14 @@ export async function main(ns) {
             const allKnownFactions = factions.concat(playerInfo.factions.filter(f => !factions.includes(f)));
 
             // Get some augmentation information to decide what remains to be purchased            
-            const dictFactionAugs = await getNsDataThroughFile(ns, dictCommand(allKnownFactions, 'ns.getAugmentationsFromFaction(o)'), '/Temp/faction-augs.txt');
+            const dictFactionAugs = await getNsDataThroughFile(ns, dictCommand(allKnownFactions, 'ns.singularity.getAugmentationsFromFaction(o)'), '/Temp/faction-augs.txt');
             const augmentationNames = [...new Set(Object.values(dictFactionAugs).flat())];
-            const dictAugRepReqs = await getNsDataThroughFile(ns, dictCommand(augmentationNames, 'ns.getAugmentationRepReq(o)'), '/Temp/aug-repreqs.txt');
-            const dictAugStats = await getNsDataThroughFile(ns, dictCommand(augmentationNames, 'ns.getAugmentationStats(o)'), '/Temp/aug-stats.txt');
-            dictFactionFavors = await getNsDataThroughFile(ns, dictCommand(allKnownFactions, 'ns.getFactionFavor(o)'), '/Temp/faction-favor.txt');
+            const dictAugRepReqs = await getNsDataThroughFile(ns, dictCommand(augmentationNames, 'ns.singularity.getAugmentationRepReq(o)'), '/Temp/aug-repreqs.txt');
+            const dictAugStats = await getNsDataThroughFile(ns, dictCommand(augmentationNames, 'ns.singularity.getAugmentationStats(o)'), '/Temp/aug-stats.txt');
+            dictFactionFavors = await getNsDataThroughFile(ns, dictCommand(allKnownFactions, 'ns.singularity.getFactionFavor(o)'), '/Temp/faction-favor.txt');
 
-            const ownedAugmentations = await getNsDataThroughFile(ns, `ns.getOwnedAugmentations(true)`, '/Temp/player-augs-purchased.txt');
-            const installedAugmentations = await getNsDataThroughFile(ns, `ns.getOwnedAugmentations()`, '/Temp/player-augs-installed.txt');
+            const ownedAugmentations = await getNsDataThroughFile(ns, `ns.singularity.getOwnedAugmentations(true)`, '/Temp/player-augs-purchased.txt');
+            const installedAugmentations = await getNsDataThroughFile(ns, `ns.singularity.getOwnedAugmentations()`, '/Temp/player-augs-installed.txt');
             hasFocusPenaly = !installedAugmentations.includes("Neuroreceptor Management Implant"); // Check if we have an augmentation that lets us not have to focus at work (always nicer if we can background it)
             shouldFocusAtWork = !noFocus && hasFocusPenaly; // Focus at work for the best rate of rep gain, unless focus activities are disabled via command line
             hasSimulacrum = installedAugmentations.includes("The Blade's Simulacrum");
@@ -348,7 +348,7 @@ async function earnFactionInvite(ns, factionName) {
     let player = await getPlayerInfo(ns);
     const joinedFactions = player.factions;
     if (joinedFactions.includes(factionName)) return true;
-    var invitations = await getNsDataThroughFile(ns, 'ns.checkFactionInvitations()', '/Temp/player-faction-invites.txt');
+    var invitations = await getNsDataThroughFile(ns, 'ns.singularity.checkFactionInvitations()', '/Temp/player-faction-invites.txt');
     if (invitations.includes(factionName))
         return await tryJoinFaction(ns, factionName);
 
@@ -436,7 +436,7 @@ async function goToCity(ns, cityName) {
         ns.print(`Already in city ${cityName}`);
         return true;
     }
-    if (await getNsDataThroughFile(ns, `ns.travelToCity('${cityName}')`, '/Temp/travel.txt')) {
+    if (await getNsDataThroughFile(ns, `ns.singularity.travelToCity('${cityName}')`, '/Temp/travel.txt')) {
         lastActionRestart = Date.now();
         announce(ns, `Travelled to ${cityName}`, 'info');
         return true;
@@ -499,7 +499,7 @@ export async function waitForFactionInvite(ns, factionName, maxWaitTime = 20000)
     ns.print(`Waiting for invite from faction "${factionName}"...`);
     let waitTime = maxWaitTime;
     do {
-        var invitations = await getNsDataThroughFile(ns, 'ns.checkFactionInvitations()', '/Temp/player-faction-invites.txt');
+        var invitations = await getNsDataThroughFile(ns, 'ns.singularity.checkFactionInvitations()', '/Temp/player-faction-invites.txt');
         var joinedFactions = (await getPlayerInfo(ns)).factions;
         if (invitations.includes(factionName) || joinedFactions.includes(factionName))
             break;
@@ -519,7 +519,7 @@ export async function tryJoinFaction(ns, factionName) {
     var joinedFactions = (await getPlayerInfo(ns)).factions;
     if (joinedFactions.includes(factionName))
         return true;
-    if (!(await getNsDataThroughFile(ns, `ns.joinFaction('${factionName}')`, '/Temp/join-faction.txt')))
+    if (!(await getNsDataThroughFile(ns, `ns.singularity.joinFaction('${factionName}')`, '/Temp/join-faction.txt')))
         return false;
     announce(ns, `Joined faction "${factionName}"`, 'success');
     return true;
@@ -533,17 +533,12 @@ async function getPlayerInfo(ns) {
 
 /** @param {NS} ns */
 async function getFactionReputation(ns, factionName) {
-    return await getNsDataThroughFile(ns, `ns.getFactionRep('${factionName}')`, '/Temp/faction-rep.txt');
-}
-
-/** @param {NS} ns */
-async function getCompanyReputation(ns, companyName) {
-    return await getNsDataThroughFile(ns, `ns.getCompanyRep('${companyName}')`, '/Temp/company-rep.txt');
+    return await getNsDataThroughFile(ns, `ns.singularity.getFactionRep('${factionName}')`, '/Temp/faction-rep.txt');
 }
 
 /** @param {NS} ns */
 async function getCurrentFactionFavour(ns, factionName) {
-    return await getNsDataThroughFile(ns, `ns.getFactionFavor('${factionName}')`, '/Temp/faction-favor.txt');
+    return await getNsDataThroughFile(ns, `ns.singularity.getFactionFavor('${factionName}')`, '/Temp/faction-favor.txt');
 }
 
 /** @param {NS} ns */
@@ -717,7 +712,7 @@ export async function workForMegacorpFactionInvite(ns, factionName, waitForInvit
 
     let player = (await getPlayerInfo(ns));
     if (player.factions.includes(factionName)) return false; // Only return true if we did work to earn a new faction invite
-    if ((await getNsDataThroughFile(ns, 'ns.checkFactionInvitations()', '/Temp/player-faction-invites.txt')).includes(factionName))
+    if ((await getNsDataThroughFile(ns, 'ns.singularity.checkFactionInvitations()', '/Temp/player-faction-invites.txt')).includes(factionName))
         return waitForInvite ? await waitForFactionInvite(ns, factionName) : false;
     // TODO: In some scenarios, the best career path may require combat stats, this hard-codes the optimal path for hack stats
     const itJob = jobs.find(j => j.name == "it");

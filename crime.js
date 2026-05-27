@@ -20,7 +20,7 @@ async function legacyAutoCrime(ns, crime = "mug") {
     let interval = 100;
     while (true) {
         let maxBusyLoops = 100;
-        while (ns.isBusy() && maxBusyLoops-- > 0) {
+        while (ns.singularity.isBusy() && maxBusyLoops-- > 0) {
             await ns.sleep(interval);
             ns.print("Waiting to no longer be busy...");
         }

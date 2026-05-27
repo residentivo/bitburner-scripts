@@ -38,8 +38,8 @@ export async function main(ns) {
     while (true) {
         while (ns.getPlayer().money > moneyThreshold) {
             for (let i = 0; i < tripsPerCycle; i++) {
-                ns.travelToCity("Aevum");
-                ns.travelToCity("Sector-12");
+                ns.singularity.travelToCity("Aevum");
+                ns.singularity.travelToCity("Sector-12");
             }
             await ns.sleep(1);
             cycles++;
