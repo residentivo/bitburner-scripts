@@ -42,6 +42,22 @@ function convert2DArrayToString(arr) {
 }
 
 // Based on https://github.com/danielyxie/bitburner/blob/master/src/data/codingcontracttypes.ts
+// Helper: largest rectangle area in a histogram using a stack — O(n)
+function largestRectangleInHistogram(heights) {
+    var stack = []
+    var maxArea = 0
+    for (var i = 0; i <= heights.length; i++) {
+        var h = i < heights.length ? heights[i] : 0
+        while (stack.length > 0 && heights[stack[stack.length - 1]] > h) {
+            var height = heights[stack.pop()]
+            var width = stack.length === 0 ? i : i - stack[stack.length - 1] - 1
+            maxArea = Math.max(maxArea, height * width)
+        }
+        stack.push(i)
+    }
+    return maxArea
+}
+
 const codingContractTypesMetadata = [{
     name: 'Find Largest Prime Factor',
     solver: function (data) {
@@ -415,6 +431,206 @@ const codingContractTypesMetadata = [{
         var result = []
         helper(result, '', num, target, 0, 0, 0)
         return result
+    },
+},
+// --- New solvers added for v3.0.1 compatibility ---
+{
+    name: 'Array Jumping Game II',
+    solver: function (data) {
+        // Minimum number of jumps to reach the last index
+        // data[i] = max jump length from position i
+        var n = data.length
+        if (n <= 1) return 0
+        if (data[0] === 0) return -1 // impossible, but shouldn't happen in valid contracts
+        var jumps = 0
+        var currentEnd = 0
+        var farthest = 0
+        for (var i = 0; i < n - 1; ++i) {
+            farthest = Math.max(farthest, i + data[i])
+            if (i === currentEnd) {
+                jumps++
+                currentEnd = farthest
+                if (currentEnd >= n - 1) break
+            }
+        }
+        return jumps
+    },
+},
+{
+    name: 'Compression II: LZ Decompression',
+    solver: function (data) {
+        // LZ decompression: chunks start with length L (1-9)
+        // Literal chunk (L 1-9): next L chars are literal
+        // Back-reference chunk (L=0 ends, or other): next L chars copy from output
+            var result = ""
+            var i = 0
+            while (i < data.length) {
+                var chunkLen = parseInt(data[i])
+                i++
+                if (chunkLen === 0) break // End chunk
+                if (i + chunkLen > data.length) break // Safety
+                // Literal chunk
+                result += data.substring(i, i + chunkLen)
+                i += chunkLen
+                if (i >= data.length) break
+                // Back-reference length
+                if (i >= data.length) break
+                var backLen = parseInt(data[i])
+                i++
+                if (backLen === 0) continue
+                var backIdx = result.length - backLen
+                for (var j = 0; j < backLen; j++) {
+                    result += result[backIdx + j]
+                }
+            }
+        return result
+    },
+},
+{
+    name: 'Encryption II: Vigenère Cipher',
+    solver: function (data) {
+        // data = [plaintext, key] or data = "ciphertext keyword"
+        // In the contract: decrypt a ciphertext using a keyword
+        var ciphertext, key
+        if (Array.isArray(data)) {
+            ciphertext = data[0]
+            key = data[1]
+        } else {
+            // Parse from string format
+            var spaceIdx = data.lastIndexOf(' ')
+            ciphertext = data.substring(0, spaceIdx)
+            key = data.substring(spaceIdx + 1)
+        }
+        var result = ""
+        for (var i = 0; i < ciphertext.length; i++) {
+            var c = ciphertext.charCodeAt(i)
+            var k = key.charCodeAt(i % key.length) - 65 // Key chars are uppercase A-Z
+            // Ciphertext chars can be uppercase or lowercase
+            if (c >= 65 && c <= 90) { // Uppercase A-Z
+                result += String.fromCharCode(((c - 65 - k + 26) % 26) + 65)
+            } else if (c >= 97 && c <= 122) { // Lowercase a-z
+                result += String.fromCharCode(((c - 97 - k + 26) % 26) + 97)
+            } else {
+                result += ciphertext[i] // Non-alphabetic chars unchanged
+            }
+        }
+        return result
+    },
+},
+{
+    name: 'Proper 2-Coloring of a Graph',
+    solver: function (data) {
+        // data = [numVertices, edges] or just edges array
+        // edges is array of [u, v] pairs
+        // Result: array of 0/1 for each vertex, or [] if impossible
+        var numVertices, edges
+        if (Array.isArray(data[0]) && typeof data[0][0] === 'number' && !Array.isArray(data[0][0])) {
+            numVertices = data[0]
+            edges = data[1]
+        } else if (typeof data[0] === 'number' && Array.isArray(data[1])) {
+            // data = [numVertices, [...edges]]
+            numVertices = data[0]
+            edges = data[1]
+        } else {
+            // Just edges, need to figure out vertex count
+            edges = data
+            numVertices = 0
+            for (var i = 0; i < edges.length; i++) {
+                numVertices = Math.max(numVertices, edges[i][0], edges[i][1])
+            }
+            numVertices++
+        }
+        // BFS-based bipartite check and coloring
+        var adj = []
+        for (var i = 0; i < numVertices; i++) adj[i] = []
+        for (var i = 0; i < edges.length; i++) {
+            adj[edges[i][0]].push(edges[i][1])
+            adj[edges[i][1]].push(edges[i][0])
+        }
+        var color = new Array(numVertices).fill(-1)
+        for (var start = 0; start < numVertices; start++) {
+            if (color[start] !== -1) continue
+            color[start] = 0
+            var queue = [start]
+            var head = 0
+            while (head < queue.length) {
+                var u = queue[head++]
+                for (var j = 0; j < adj[u].length; j++) {
+                    var v = adj[u][j]
+                    if (color[v] === -1) {
+                        color[v] = 1 - color[u]
+                        queue.push(v)
+                    } else if (color[v] === color[u]) {
+                        return [] // Not bipartite
+                    }
+                }
+            }
+        }
+        return color.slice(0, numVertices)
+    },
+},
+{
+    name: 'Largest Rectangle in a Matrix',
+    solver: function (data) {
+        // data is a binary string like "101,010,101" or array of strings
+        // Each cell is connected horizontally, vertically, and diagonally
+        // Find the largest rectangle of 1's
+        // Parse
+        var matrix
+        if (typeof data === 'string') {
+            matrix = data.split(',')
+        } else {
+            matrix = data
+        }
+        var rows = matrix.length
+        if (rows === 0) return 0
+        var cols = matrix[0].length
+        if (cols === 0) return 0
+        // Build heights array for histogram approach
+        var heights = new Array(cols).fill(0)
+        var maxArea = 0
+        for (var r = 0; r < rows; r++) {
+            for (var c = 0; c < cols; c++) {
+                if (matrix[r][c] === '1') {
+                    heights[c]++
+                } else {
+                    heights[c] = 0
+                }
+            }
+            // Find largest rectangle in histogram
+            maxArea = Math.max(maxArea, largestRectangleInHistogram(heights))
+        }
+        return maxArea
+    },
+},
+{
+    name: 'Square Root',
+    solver: function (data) {
+        // data = [number, precision] or just a BigInt string representation
+        // The contract asks to find floor(sqrt(n)) for a potentially very large n
+        // which is passed as a BigInt (too large for normal numbers)
+        // Use Newton's method / binary search for integer square root
+        if (data.length === 1 || (data.length === 2 && data[1] === 0)) {
+            // Single large number (as string or BigInt)
+            var n = BigInt(data[0])
+            if (n < 2n) return n.toString()
+            // Newton's method for integer square root
+            var x = n
+            var y = (x + 1n) / 2n
+            while (y < x) {
+                x = y
+                y = (x + n / x) / 2n
+            }
+            return x.toString()
+        }
+        // [number, precision] format - return sqrt with given decimal precision
+        var n = data[0]
+        var precision = data[1]
+        if (n === 0) return '0'
+        var sqrt = Math.sqrt(n)
+        var fixed = sqrt.toFixed(precision)
+        // Remove trailing zeros but keep required precision
+        return fixed
     },
 },
 ]
