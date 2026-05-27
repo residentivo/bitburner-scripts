@@ -99,19 +99,28 @@ const codingContractTypesMetadata = [{
 {
     name: 'Total Ways to Sum II',
     solver: function (data) {
-        // data = [n, allowedNumbers]
-        // Count the number of ways to write n as a sum of integers from allowedNumbers
-        // (order does not matter, repetition allowed) - classic coin change (combinations)
-        var n = data[0];
-        var allowed = data[1];
-        var ways = new Array(n + 1).fill(0);
-        ways[0] = 1;
-        for (var i = 0; i < allowed.length; ++i) {
-            for (var j = allowed[i]; j <= n; ++j) {
-                ways[j] += ways[j - allowed[i]];
+        try {
+            if (!data || !Array.isArray(data) || data.length < 2) return null;
+            var n = Number(data[0]);
+            if (isNaN(n) || n < 0) return null;
+            var allowed = data[1];
+            if (!Array.isArray(allowed)) return null;
+            if (n === 0) return 1;
+            if (allowed.length === 0) return 0;
+            allowed = allowed.filter(function(x) { return typeof x === 'number' && x > 0 && x <= n; }).sort(function(a, b) { return a - b; });
+            if (allowed.length === 0) return 0;
+            var ways = new Array(n + 1).fill(0);
+            ways[0] = 1;
+            for (var i = 0; i < allowed.length; ++i) {
+                var coin = allowed[i];
+                for (var j = coin; j <= n; ++j) {
+                    ways[j] += ways[j - coin];
+                }
             }
+            return ways[n];
+        } catch(e) {
+            return null;
         }
-        return ways[n];
     },
 },
 {
