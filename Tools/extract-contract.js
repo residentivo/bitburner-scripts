@@ -49,7 +49,7 @@ export async function main(ns) {
         ns.tprint(`[${c.hostname}] ${c.contract} (${c.type})`);
         ns.tprint(`Data: ${dataStr}`);
         ns.tprint(`Command:`);
-        ns.tprint(`run Tasks/contractor.js.solver.js '${JSON.stringify({ hostname: c.hostname, type: c.type, data: c.data }, (k, v) => typeof v === 'bigint' ? `__BIGINT__${v}` : v).replace(/"__BIGINT__(\d+)"/g, '$1')}' --tail`);
+        ns.tprint(`run Tasks/contractor.js.solver.js '${JSON.stringify({ hostname: c.hostname, contract: c.contract, type: c.type, data: c.data }, (k, v) => typeof v === 'bigint' ? `__BIGINT__${v}` : v).replace(/"__BIGINT__(\d+)"/g, '$1')}' --tail`);
         ns.tprint('---');
     }
 }
