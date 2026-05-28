@@ -1,10 +1,17 @@
 // This contract solver has the bare-minimum footprint of 1.6 GB (base) + 10 GB (ns.codingcontract.attempt)
-// It does this by requiring all contract information being gathered in advance and passed in as a JSON blob argument.
+// It reads contract data from a temp file (path passed as arg) to avoid ns.run arg size limits.
 /** @param {NS} ns **/
 export async function main(ns) {
     if (ns.args.length < 1)
         ns.tprint('Contractor solver was incorrectly invoked without arguments.')
-    var contractsDb = JSON.parse(ns.args[0], (k, v) => typeof v === 'string' && v.startsWith('__BIGINT__') ? BigInt(v.slice(10)) : v);
+    // Read batch from temp file
+    const batchFile = ns.args[0];
+    const raw = ns.read(batchFile);
+    if (!raw || raw === '') {
+        ns.tprint(`ERROR: Could not read batch file: ${batchFile}`)
+        return;
+    }
+    var contractsDb = JSON.parse(raw, (k, v) => typeof v === 'string' && v.startsWith('__BIGINT__') ? BigInt(v.slice(10)) : v);
     for (const contractInfo of contractsDb) {
         const answer = findAnswer(contractInfo, ns)
         if (answer != null) {

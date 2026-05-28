@@ -78,23 +78,23 @@ export async function main(ns) {
     for (let i = 0; i < allContracts.length; i += BATCH_SIZE) {
         batches.push(allContracts.slice(i, i + BATCH_SIZE));
     }
-    // Spawn batches sequentially, waiting for each to finish before next
-    ns.tprint(`Spawning ${batches.length} batch(es) sequentially (each needs ~12GB RAM)...`);
+    // Spawn batches sequentially using temp files (bypasses arg size limits)
+    ns.tprint(`Spawning ${batches.length} batch(es) sequentially (each needs ~12GB RAM on home)...`);
     for (let bi = 0; bi < batches.length; bi++) {
-        const payload = JSON.stringify(batches[bi], (k, v) => typeof v === 'bigint' ? '__BIGINT__' + v.toString() : v);
-        ns.tprint(`Batch ${bi + 1}/${batches.length}: ${batches[bi].length} contracts, payload ${payload.length} chars`);
-        const pid = ns.exec(scriptSolver, 'home', 1, payload);
+        const batchPayload = JSON.stringify(batches[bi], (k, v) => typeof v === 'bigint' ? '__BIGINT__' + v.toString() : v);
+        const batchFile = `/Temp/contract-batch-${bi}.txt`;
+        ns.write(batchFile, batchPayload, 'w');
+        ns.tprint(`Batch ${bi + 1}/${batches.length}: ${batches[bi].length} contracts -> ${batchFile} (${batchPayload.length} chars)`);
+        const pid = ns.exec(scriptSolver, 'home', 1, batchFile);
         if (!pid) {
-            ns.tprint(`ERROR: Failed to spawn solver for batch ${bi + 1} (insufficient RAM?)`);
-            // Wait and retry once
+            ns.tprint(`ERROR: Failed to spawn solver for batch ${bi + 1} (insufficient RAM on home?)`);
             await ns.sleep(2000);
-            const pid2 = ns.exec(scriptSolver, 'home', 1, payload);
+            const pid2 = ns.exec(scriptSolver, 'home', 1, batchFile);
             if (!pid2) {
                 ns.tprint(`ERROR: Retry also failed for batch ${bi + 1}, skipping`);
                 continue;
             }
         }
-        // Wait a bit for batch to complete before spawning next
-        await ns.sleep(500);
+        await ns.sleep(1000);
     }
 }
