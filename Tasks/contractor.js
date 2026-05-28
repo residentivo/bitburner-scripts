@@ -29,8 +29,13 @@ export async function main(ns) {
                 try { c.data = JSON.parse(raw); } catch (e2) { ns.tprint(`WARN: Fallback parse also failed for ${c.contract}: ${e2}`); }
             }
         }
+        if (!c.data && c.data !== 0 && c.data !== '') {
+            ns.tprint(`WARN: No data for ${c.contract} (${c.type}). raw="${raw}"`);
+        }
     });
 
     // Let this script die to free up ram, and start up a new script (after a delay) that will solve all these contracts using the minimum ram footprint of 11.6 GB
-    ns.run(getFilePath('/Tasks/run-with-delay.js'), 1, scriptSolver, 1, JSON.stringify(contractsDb));
+    const payload = JSON.stringify(contractsDb, (k, v) => typeof v === 'bigint' ? '__BIGINT__' + v.toString() : v);
+    ns.tprint(`DEBUG: Sending ${contractsDb.length} contracts to solver. Payload size: ${payload.length}`);
+    ns.run(getFilePath('/Tasks/run-with-delay.js'), 1, scriptSolver, 1, payload);
 }
