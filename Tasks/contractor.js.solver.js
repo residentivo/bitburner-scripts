@@ -24,26 +24,26 @@ export async function main(ns) {
 
 function findAnswer(contract, ns) {
     if (!contract || !contract.type) {
-        if (ns) ns.print('WARN: Skipping contract ' + (contract ? contract.contract : 'unknown') + ' - missing type');
+        if (ns) ns.tprint('WARN: Skipping contract ' + (contract ? contract.contract : 'unknown') + ' - missing type');
         return null;
     }
-    if (!contract.data && contract.data !== 0 && contract.data !== '' && contract.data !== false) {
-        if (ns) ns.print('WARN: Skipping contract ' + (contract ? contract.contract : 'unknown') + ' - missing data. Keys: ' + JSON.stringify(Object.keys(contract)));
+    if (contract.data === undefined || contract.data === null) {
+        if (ns) ns.tprint('WARN: Skipping contract ' + (contract ? contract.contract : 'unknown') + ' - missing data. Keys: ' + JSON.stringify(Object.keys(contract)));
         return null;
     }
     const codingContractSolution = codingContractTypesMetadata.find((codingContractTypeMetadata) => codingContractTypeMetadata.name === contract.type);
     if (!codingContractSolution) {
-        if (ns) ns.print('WARN: No solver found for type: ' + contract.type);
+        if (ns) ns.tprint('WARN: No solver found for type: ' + contract.type);
         return null;
     }
     try {
         const result = codingContractSolution.solver(contract.data);
         if (result === null || result === undefined) {
-            if (ns) ns.print('WARN: Solver returned null/undefined for ' + contract.contract + ' type=' + contract.type);
+            if (ns) ns.tprint('WARN: Solver returned null/undefined for ' + contract.contract + ' type=' + contract.type);
         }
         return result;
     } catch(e) {
-        if (ns) ns.print('ERROR: Solver threw for ' + contract.contract + ' type=' + contract.type + ': ' + e.toString());
+        if (ns) ns.tprint('ERROR: Solver threw for ' + contract.contract + ' type=' + contract.type + ': ' + e.toString());
         return null;
     }
 }
