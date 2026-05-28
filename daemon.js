@@ -285,8 +285,10 @@ export async function main(ns) {
                 return utilization >= maxUtilization || utilization > 0.80 && maxTargets < 20 || utilization > 0.50 && maxTargets < 5;
             }
         },
-        // Check if any new servers can be backdoored. If there are many, this can eat up a lot of RAM, so make this the last script scheduled at startup.
+        // Check if any new servers can be backdoored. If there are many, this can eat up a lot of RAM, so make this this the last script scheduled at startup.
         { interval: 33000, name: "/Tasks/backdoor-all-servers.js", requiredServer: "home", shouldRun: () => 4 in dictSourceFiles },
+        // Periodically ensure darknet.js is running (probes, maps, and exploits the darknet)
+        { interval: 30000, name: "/Tasks/darknet-keepalive.js", requiredServer: "home", shouldRun: () => addedServerNames.includes("darkweb") },
     ];
     periodicScripts.forEach(tool => tool.name = getFilePath(tool.name));
     hackTools = [
