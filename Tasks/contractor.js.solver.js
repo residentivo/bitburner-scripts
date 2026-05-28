@@ -4,7 +4,7 @@
 export async function main(ns) {
     if (ns.args.length < 1)
         ns.tprint('Contractor solver was incorrectly invoked without arguments.')
-    var contractsDb = JSON.parse(ns.args[0]);
+    var contractsDb = JSON.parse(ns.args[0], (k, v) => typeof v === 'string' && v.startsWith('__BIGINT__') ? BigInt(v.slice(10)) : v);
     for (const contractInfo of contractsDb) {
         const answer = findAnswer(contractInfo, ns)
         if (answer != null) {
@@ -61,15 +61,27 @@ function largestRectangleInHistogram(heights) {
 const codingContractTypesMetadata = [{
     name: 'Find Largest Prime Factor',
     solver: function (data) {
-        var fac = 2
-        var n = data
+        // Handles both Number and BigInt
+        if (typeof data === 'bigint') {
+            var n = data;
+            var fac = 2n;
+            while (n > (fac - 1n) * (fac - 1n)) {
+                while (n % fac === 0n) {
+                    n = n / fac;
+                }
+                ++fac;
+            }
+            return (n === 1n ? fac - 1n : n).toString();
+        }
+        var n = data;
+        var fac = 2;
         while (n > (fac - 1) * (fac - 1)) {
             while (n % fac === 0) {
-                n = Math.round(n / fac)
+                n = Math.round(n / fac);
             }
-            ++fac
+            ++fac;
         }
-        return n === 1 ? fac - 1 : n
+        return n === 1 ? fac - 1 : n;
     },
 },
 {
@@ -239,10 +251,11 @@ const codingContractTypesMetadata = [{
 {
     name: 'Algorithmic Stock Trader I',
     solver: function (data) {
+        var prices = data.map(v => Number(v));
         var maxCur = 0
         var maxSoFar = 0
-        for (var i = 1; i < data.length; ++i) {
-            maxCur = Math.max(0, (maxCur += data[i] - data[i - 1]))
+        for (var i = 1; i < prices.length; ++i) {
+            maxCur = Math.max(0, (maxCur += prices[i] - prices[i - 1]))
             maxSoFar = Math.max(maxCur, maxSoFar)
         }
         return maxSoFar.toString()
@@ -307,7 +320,7 @@ const codingContractTypesMetadata = [{
                 hold[j] = Math.max(hold[j], rele[j - 1] - cur)
             }
         }
-        return rele[k]
+        return rele[k].toString()
     },
 },
 {
@@ -642,4 +655,43 @@ const codingContractTypesMetadata = [{
         return fixed
     },
 },
+{
+    name: 'HammingCodes: Integer to Encoded Binary',
+    solver: function (data) {
+        // data is an integer (can be BigInt)
+        // Encode it using Hamming code
+        var n = typeof data === 'bigint' ? data : BigInt(data);
+        // Convert to binary string
+        var binary = n.toString(2);
+        var m = binary.length;
+        // Number of parity bits needed: 2^r >= m + r + 1
+        var r = 0;
+        while ((1 << r) < m + r + 1) r++;
+        var totalLen = m + r;
+        // Place data bits (non-power-of-2 positions), LSB first
+        var dataBits = binary.split('').reverse();
+        var result = [];
+        var dataIdx = 0;
+        for (var pos = 1; pos <= totalLen; pos++) {
+            if ((pos & (pos - 1)) === 0) {
+                result.push(0); // parity bit placeholder (power of 2)
+            } else {
+                result.push(parseInt(dataBits[dataIdx]));
+                dataIdx++;
+            }
+        }
+        // Calculate parity bits
+        for (var i = 0; i < r; i++) {
+            var parityPos = 1 << i;
+            var parity = 0;
+            for (var pos = 1; pos <= totalLen; pos++) {
+                if (pos & parityPos) {
+                    parity ^= result[pos - 1];
+                }
+            }
+            result[parityPos - 1] = parity;
+        }
+        return result.join('');
+    },
+}
 ]
