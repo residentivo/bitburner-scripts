@@ -74,6 +74,7 @@ export async function main(ns) {
 
     // Build payload and split into batches to avoid ns.run arg size limits
     const BATCH_SIZE = 10;
+    const batches = [];
     for (let i = 0; i < allContracts.length; i += BATCH_SIZE) {
         batches.push(allContracts.slice(i, i + BATCH_SIZE));
     }
