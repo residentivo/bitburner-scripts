@@ -78,14 +78,23 @@ export async function main(ns) {
     for (let i = 0; i < allContracts.length; i += BATCH_SIZE) {
         batches.push(allContracts.slice(i, i + BATCH_SIZE));
     }
-    ns.tprint(`Sending ${dataCount} contracts to solver in ${batches.length} batches of up to ${BATCH_SIZE}...`);
+    // Spawn batches sequentially, waiting for each to finish before next
+    ns.tprint(`Spawning ${batches.length} batch(es) sequentially (each needs ~12GB RAM)...`);
     for (let bi = 0; bi < batches.length; bi++) {
         const payload = JSON.stringify(batches[bi], (k, v) => typeof v === 'bigint' ? '__BIGINT__' + v.toString() : v);
         ns.tprint(`Batch ${bi + 1}/${batches.length}: ${batches[bi].length} contracts, payload ${payload.length} chars`);
-        const pid = ns.run(scriptSolver, 1, payload);
+        const pid = ns.exec(scriptSolver, 'home', 1, payload);
         if (!pid) {
-            ns.tprint(`ERROR: Failed to spawn solver for batch ${bi + 1}`);
+            ns.tprint(`ERROR: Failed to spawn solver for batch ${bi + 1} (insufficient RAM?)`);
+            // Wait and retry once
+            await ns.sleep(2000);
+            const pid2 = ns.exec(scriptSolver, 'home', 1, payload);
+            if (!pid2) {
+                ns.tprint(`ERROR: Retry also failed for batch ${bi + 1}, skipping`);
+                continue;
+            }
         }
-        await ns.sleep(200); // Stagger spawns to avoid RAM contention
+        // Wait a bit for batch to complete before spawning next
+        await ns.sleep(500);
     }
 }
