@@ -60,7 +60,30 @@ export async function main(ns) {
     if (dataCount == 0)
         return ns.tprint("ERROR: No contract data available. Aborting.");
 
-    const payload = JSON.stringify(contractsDb, (k, v) => typeof v === 'bigint' ? '__BIGINT__' + v.toString() : v);
-    ns.tprint(`Sending ${dataCount} contracts to solver. Payload: ${payload.length} chars`);
-    ns.run(getFilePath('/Tasks/run-with-delay.js'), 1, scriptSolver, 1, payload);
+    // Summary log: list contract types and servers
+    allContracts.forEach(c => {
+        var dataStr;
+        if (typeof c.data === 'bigint') dataStr = '__BIGINT__(' + c.data.toString().substring(0, 20) + '...)';
+        else if (typeof c.data === 'string' && c.data.length > 40) dataStr = JSON.stringify(c.data.substring(0, 40)) + '...';
+        else dataStr = JSON.stringify(c.data);
+        ns.tprint(`  ${c.contract} @ ${c.hostname}: ${c.type} | data=${dataStr}`);
+    });
+
+    // Build payload and split into batches to avoid ns.run arg size limits
+    const BATCH_SIZE = 10; // Max contracts per batch (keeps payload small)
+    const allContracts = contractsDb.filter(c => c.data !== undefined && c.data !== null);
+    const batches = [];
+    for (let i = 0; i < allContracts.length; i += BATCH_SIZE) {
+        batches.push(allContracts.slice(i, i + BATCH_SIZE));
+    }
+    ns.tprint(`Sending ${dataCount} contracts to solver in ${batches.length} batches of up to ${BATCH_SIZE}...`);
+    for (let bi = 0; bi < batches.length; bi++) {
+        const payload = JSON.stringify(batches[bi], (k, v) => typeof v === 'bigint' ? '__BIGINT__' + v.toString() : v);
+        ns.tprint(`Batch ${bi + 1}/${batches.length}: ${batches[bi].length} contracts, payload ${payload.length} chars`);
+        const pid = ns.run(scriptSolver, 1, payload);
+        if (!pid) {
+            ns.tprint(`ERROR: Failed to spawn solver for batch ${bi + 1}`);
+        }
+        await ns.sleep(200); // Stagger spawns to avoid RAM contention
+    }
 }
