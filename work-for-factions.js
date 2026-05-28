@@ -599,7 +599,7 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
     while ((currentReputation = (await getFactionReputation(ns, factionName))) < factionRepRequired) {
         if (breakToMainLoop()) return ns.print('INFO: Interrupting faction work to check on high-level priorities.');
         const factionWork = await detectBestFactionWork(ns, factionName); // Before each loop - determine what work gives the most rep/second for our current stats
-        if (await getNsDataThroughFile(ns, `ns.workForFaction('${factionName}', '${factionWork}',  ${shouldFocusAtWork})`, '/Temp/work-for-faction.txt')) {
+        if (await getNsDataThroughFile(ns, `ns.singularity.workForFaction('${factionName}', '${factionWork}',  ${shouldFocusAtWork})`, '/Temp/work-for-faction.txt')) {
             if (shouldFocusAtWork) ns.ui.openTail(); // Force a tail window open to help the user kill this script if they accidentally closed the tail window and don't want to keep stealing focus
             currentReputation = await getFactionReputation(ns, factionName); // Update to capture the reputation earned when restarting work
             if (currentReputation > factionRepRequired) break;
@@ -649,7 +649,7 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
 async function detectBestFactionWork(ns, factionName) {
     let bestWork, bestRepRate = 0;
     for (const work of ["security", "field", "hacking"]) {
-        if (!await getNsDataThroughFile(ns, `ns.workForFaction('${factionName}', '${work}',  ${shouldFocusAtWork})`, '/Temp/work-for-faction.txt')) {
+        if (!await getNsDataThroughFile(ns, `ns.singularity.workForFaction('${factionName}', '${work}',  ${shouldFocusAtWork})`, '/Temp/work-for-faction.txt')) {
             //ns.print(`"${factionName}" work ${work} not supported.`);
             continue; // This type of faction work must not be supported
         }
