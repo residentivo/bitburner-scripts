@@ -528,32 +528,32 @@ const codingContractTypesMetadata = [{
 {
     name: 'Encryption II: Vigenère Cipher',
     solver: function (data) {
-        // data = [plaintext, key] or data = "ciphertext keyword"
-        // In the contract: decrypt a ciphertext using a keyword
-        var ciphertext, key
+        // data = [plaintext, key] - Encrypt plaintext using Vigenère cipher
+        var plaintext, key;
         if (Array.isArray(data)) {
-            ciphertext = data[0]
-            key = data[1]
+            plaintext = data[0];
+            key = data[1];
         } else {
-            // Parse from string format
-            var spaceIdx = data.lastIndexOf(' ')
-            ciphertext = data.substring(0, spaceIdx)
-            key = data.substring(spaceIdx + 1)
+            var spaceIdx = data.lastIndexOf(' ');
+            plaintext = data.substring(0, spaceIdx);
+            key = data.substring(spaceIdx + 1);
         }
-        var result = ""
-        for (var i = 0; i < ciphertext.length; i++) {
-            var c = ciphertext.charCodeAt(i)
-            var k = key.charCodeAt(i % key.length) - 65 // Key chars are uppercase A-Z
-            // Ciphertext chars can be uppercase or lowercase
+        var result = "";
+        var keyIdx = 0;
+        for (var i = 0; i < plaintext.length; i++) {
+            var c = plaintext.charCodeAt(i);
+            var k = key.charCodeAt(keyIdx % key.length) - 65; // Key chars are uppercase A-Z
             if (c >= 65 && c <= 90) { // Uppercase A-Z
-                result += String.fromCharCode(((c - 65 - k + 26) % 26) + 65)
+                result += String.fromCharCode(((c - 65 + k) % 26) + 65);
+                keyIdx++;
             } else if (c >= 97 && c <= 122) { // Lowercase a-z
-                result += String.fromCharCode(((c - 97 - k + 26) % 26) + 97)
+                result += String.fromCharCode(((c - 97 + k) % 26) + 97);
+                keyIdx++;
             } else {
-                result += ciphertext[i] // Non-alphabetic chars unchanged
+                result += plaintext[i]; // Non-alphabetic chars unchanged, don't advance key
             }
         }
-        return result
+        return result;
     },
 },
 {
@@ -611,35 +611,35 @@ const codingContractTypesMetadata = [{
 {
     name: 'Largest Rectangle in a Matrix',
     solver: function (data) {
-        // data is a binary string like "101,010,101" or array of strings
-        // Each cell is connected horizontally, vertically, and diagonally
-        // Find the largest rectangle of 1's
-        // Parse
-        var matrix
+        // data is a binary string like "101,010,101" or array of strings, or array of arrays with 0/1 numbers
+        var matrix;
         if (typeof data === 'string') {
-            matrix = data.split(',')
+            matrix = data.split(',');
         } else {
-            matrix = data
+            matrix = data;
         }
-        var rows = matrix.length
-        if (rows === 0) return 0
-        var cols = matrix[0].length
-        if (cols === 0) return 0
+        var rows = matrix.length;
+        if (rows === 0) return 0;
+        // Convert each row to string of '0'/'1' chars if it's an array of arrays
+        if (Array.isArray(matrix[0])) {
+            matrix = matrix.map(row => row.join(''));
+        }
+        var cols = matrix[0].length;
+        if (cols === 0) return 0;
         // Build heights array for histogram approach
-        var heights = new Array(cols).fill(0)
-        var maxArea = 0
+        var heights = new Array(cols).fill(0);
+        var maxArea = 0;
         for (var r = 0; r < rows; r++) {
             for (var c = 0; c < cols; c++) {
-                if (matrix[r][c] === '1') {
-                    heights[c]++
+                if (matrix[r][c] == '1') {
+                    heights[c]++;
                 } else {
-                    heights[c] = 0
+                    heights[c] = 0;
                 }
             }
-            // Find largest rectangle in histogram
-            maxArea = Math.max(maxArea, largestRectangleInHistogram(heights))
+            maxArea = Math.max(maxArea, largestRectangleInHistogram(heights));
         }
-        return maxArea
+        return maxArea;
     },
 },
 {
@@ -709,6 +709,127 @@ const codingContractTypesMetadata = [{
             result[parityPos - 1] = parity;
         }
         return result.join('');
+    },
+},
+{
+    name: 'HammingCodes: Encoded Binary to Integer',
+    solver: function (data) {
+        // data is a binary string like "0100000000000000100000000001000101110111110010001010001100000001"
+        // Decode Hamming code: detect error, correct, extract data bits, convert to integer
+        var encoded = data;
+        if (Array.isArray(encoded)) encoded = encoded.join('');
+        var n = encoded.length;
+
+        // Find number of parity bits
+        var r = 0;
+        while ((1 << r) <= n) r++;
+
+        // Check parity bits to find error position
+        var errorPos = 0;
+        for (var i = 0; i < r; i++) {
+            var parityPos = 1 << i;
+            var parity = 0;
+            for (var pos = 1; pos <= n; pos++) {
+                if (pos & parityPos) {
+                    parity ^= parseInt(encoded[pos - 1]);
+                }
+            }
+            if (parity !== 0) errorPos += parityPos;
+        }
+
+        // Correct error if found
+        if (errorPos > 0 && errorPos <= n) {
+            var arr = encoded.split('');
+            arr[errorPos - 1] = arr[errorPos - 1] === '0' ? '1' : '0';
+            encoded = arr.join('');
+        }
+
+        // Extract data bits (non-power-of-2 positions)
+        var dataBits = '';
+        for (var pos = 1; pos <= n; pos++) {
+            if ((pos & (pos - 1)) !== 0) {
+                // Not a power of 2 — data bit
+                dataBits += encoded[pos - 1];
+            }
+        }
+
+        // Convert binary string (MSB first) to integer
+        var result = 0;
+        for (var i = 0; i < dataBits.length; i++) {
+            result = result * 2 + parseInt(dataBits[i]);
+        }
+        return result;
+    },
+},
+{
+    name: 'Compression I: RLE Compression',
+    solver: function (data) {
+        // data is a string, compress using Run-Length Encoding
+        if (!data || data.length === 0) return '';
+        var result = '';
+        var count = 1;
+        for (var i = 1; i <= data.length; i++) {
+            if (i < data.length && data[i] === data[i - 1]) {
+                count++;
+            } else {
+                result += count + data[i - 1];
+                count = 1;
+            }
+        }
+        return result;
+    },
+},
+{
+    name: 'Shortest Path in a Grid',
+    solver: function (data) {
+        // data is a 2D grid (array of arrays with 0/1)
+        // 0 = open, 1 = wall
+        // Find shortest path from top-left to bottom-right
+        // Return as a string of moves: D=down, R=right, U=up, L=left
+        var grid = data;
+        var rows = grid.length;
+        var cols = grid[0].length;
+
+        if (grid[0][0] === 1 || grid[rows - 1][cols - 1] === 1) return '';
+
+        // BFS
+        var dist = [];
+        var parent = [];
+        for (var i = 0; i < rows; i++) {
+            dist[i] = new Array(cols).fill(-1);
+            parent[i] = new Array(cols).fill(null);
+        }
+        dist[0][0] = 0;
+        var queue = [[0, 0]];
+        var head = 0;
+        var dirs = [['D', 1, 0], ['R', 0, 1], ['U', -1, 0], ['L', 0, -1]];
+
+        while (head < queue.length) {
+            var cur = queue[head++];
+            if (cur[0] === rows - 1 && cur[1] === cols - 1) break;
+            for (var d = 0; d < dirs.length; d++) {
+                var nr = cur[0] + dirs[d][1];
+                var nc = cur[1] + dirs[d][2];
+                if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc] === 0 && dist[nr][nc] === -1) {
+                    dist[nr][nc] = dist[cur[0]][cur[1]] + 1;
+                    parent[nr][nc] = [cur[0], cur[1], dirs[d][0]];
+                    queue.push([nr, nc]);
+                }
+            }
+        }
+
+        // Reconstruct path
+        if (dist[rows - 1][cols - 1] === -1) return '';
+        var path = [];
+        var cr = rows - 1, cc = cols - 1;
+        while (cr !== 0 || cc !== 0) {
+            var p = parent[cr][cc];
+            path.push(p[2]);
+            cr = p[0];
+            cc = p[1];
+        }
+        path.reverse();
+        return path.join('');
     },
 }
 ]
