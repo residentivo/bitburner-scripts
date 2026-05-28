@@ -37,6 +37,9 @@ function findAnswer(contract, ns) {
         return null;
     }
     try {
+        if (contract.type === 'Square Root') {
+            ns.tprint('DEBUG Square Root: data type=' + typeof contract.data + ' value=' + (typeof contract.data === 'bigint' ? contract.data.toString().substring(0, 50) + '...' : String(contract.data).substring(0, 100)));
+        }
         const result = codingContractSolution.solver(contract.data);
         if (result === null || result === undefined) {
             if (ns) ns.tprint('WARN: Solver returned null/undefined for ' + contract.contract + ' type=' + contract.type);
@@ -657,31 +660,31 @@ const codingContractTypesMetadata = [{
 {
     name: 'Square Root',
     solver: function (data) {
-        // data = [number, precision] or just a BigInt string representation
-        // The contract asks to find floor(sqrt(n)) for a potentially very large n
-        // which is passed as a BigInt (too large for normal numbers)
-        // Use Newton's method / binary search for integer square root
-        if (data.length === 1 || (data.length === 2 && data[1] === 0)) {
-            // Single large number (as string or BigInt)
-            var n = BigInt(data[0])
-            if (n < 2n) return n.toString()
-            // Newton's method for integer square root
-            var x = n
-            var y = (x + 1n) / 2n
-            while (y < x) {
-                x = y
-                y = (x + n / x) / 2n
-            }
-            return x.toString()
+        // Based on official Bitburner v3 source
+        // data is a BigInt value (~200 digits), may come as string from JSON serialization
+        // Return floor(sqrt(data)) as string
+        var n;
+        if (typeof data === 'bigint') {
+            n = data;
+        } else if (typeof data === 'string') {
+            // Handle __BIGINT__ prefix from contractor.js serialization
+            var str = data.startsWith('__BIGINT__') ? data.slice(10) : data;
+            try { n = BigInt(str); } catch(e) { return null; }
+        } else if (typeof data === 'number' && !isNaN(data) && isFinite(data)) {
+            return Math.floor(Math.sqrt(data)).toString();
+        } else {
+            return null;
         }
-        // [number, precision] format - return sqrt with given decimal precision
-        var n = data[0]
-        var precision = data[1]
-        if (n === 0) return '0'
-        var sqrt = Math.sqrt(n)
-        var fixed = sqrt.toFixed(precision)
-        // Remove trailing zeros but keep required precision
-        return fixed
+        if (n < 0n) return null;
+        if (n < 2n) return n.toString();
+        // Newton's method for integer square root
+        var x = n;
+        var y = (x + 1n) / 2n;
+        while (y < x) {
+            x = y;
+            y = (x + n / x) / 2n;
+        }
+        return x.toString();
     },
 },
 {
