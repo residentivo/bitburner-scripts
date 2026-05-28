@@ -498,37 +498,49 @@ const codingContractTypesMetadata = [{
 {
     name: 'Compression II: LZ Decompression',
     solver: function (data) {
-        // LZ decompression: chunks start with length L (1-9)
-        // Literal chunk (L 1-9): next L chars are literal
-        // Back-reference chunk (L=0 ends, or other): next L chars copy from output
-            var result = ""
-            var i = 0
-            while (i < data.length) {
-                var chunkLen = parseInt(data[i])
-                i++
-                if (chunkLen === 0) break // End chunk
-                if (i + chunkLen > data.length) break // Safety
-                // Literal chunk
-                result += data.substring(i, i + chunkLen)
-                i += chunkLen
-                if (i >= data.length) break
-                // Back-reference length
-                if (i >= data.length) break
-                var backLen = parseInt(data[i])
-                i++
-                if (backLen === 0) continue
-                var backIdx = result.length - backLen
-                for (var j = 0; j < backLen; j++) {
-                    result += result[backIdx + j]
-                }
+        // Based on official Bitburner source - comprLZDecode
+        // Format: alternating literal and backreference chunks
+        // [literal_length][literal_chars][backref_length][backref_offset]...
+        // length=0 means end of current chunk type
+        var plain = "";
+        var i = 0;
+        while (i < data.length) {
+            // Literal chunk
+            var literal_length = data.charCodeAt(i) - 0x30; // parseInt
+            if (literal_length < 0 || literal_length > 9 || i + 1 + literal_length > data.length) {
+                return null; // Invalid
             }
-        return result
+            plain += data.substring(i + 1, i + 1 + literal_length);
+            i += 1 + literal_length;
+            if (i >= data.length) break;
+            // Backreference chunk
+            var backref_length = data.charCodeAt(i) - 0x30;
+            if (backref_length < 0 || backref_length > 9) {
+                return null; // Invalid
+            } else if (backref_length === 0) {
+                i++;
+            } else {
+                if (i + 1 >= data.length) return null;
+                var backref_offset = data.charCodeAt(i + 1) - 0x30;
+                if (backref_length > 0 && (backref_offset < 1 || backref_offset > 9)) {
+                    return null;
+                }
+                if (backref_offset > plain.length) return null;
+                for (var j = 0; j < backref_length; j++) {
+                    plain += plain[plain.length - backref_offset];
+                }
+                i += 2;
+            }
+        }
+        return plain;
     },
 },
 {
     name: 'Encryption II: Vigenère Cipher',
     solver: function (data) {
-        // data = [plaintext, key] - Encrypt plaintext using Vigenère cipher
+        // Based on official Bitburner source
+        // data = [plaintext, keyword]
+        // Encrypt: cipher[i] = ((plain[i] - 2*65 + key[i % key.length]) % 26) + 65
         var plaintext, key;
         if (Array.isArray(data)) {
             plaintext = data[0];
@@ -538,22 +550,18 @@ const codingContractTypesMetadata = [{
             plaintext = data.substring(0, spaceIdx);
             key = data.substring(spaceIdx + 1);
         }
-        var result = "";
-        var keyIdx = 0;
+        var cipher = "";
         for (var i = 0; i < plaintext.length; i++) {
-            var c = plaintext.charCodeAt(i);
-            var k = key.charCodeAt(keyIdx % key.length) - 65; // Key chars are uppercase A-Z
-            if (c >= 65 && c <= 90) { // Uppercase A-Z
-                result += String.fromCharCode(((c - 65 + k) % 26) + 65);
-                keyIdx++;
-            } else if (c >= 97 && c <= 122) { // Lowercase a-z
-                result += String.fromCharCode(((c - 97 + k) % 26) + 97);
-                keyIdx++;
+            var a = plaintext.charCodeAt(i);
+            if (a === 32) { // Space
+                cipher += " ";
             } else {
-                result += plaintext[i]; // Non-alphabetic chars unchanged, don't advance key
+                cipher += String.fromCharCode(
+                    ((a - 2 * 65 + key.charCodeAt(i % key.length)) % 26) + 65
+                );
             }
         }
-        return result;
+        return cipher;
     },
 },
 {
@@ -611,35 +619,39 @@ const codingContractTypesMetadata = [{
 {
     name: 'Largest Rectangle in a Matrix',
     solver: function (data) {
-        // data is a binary string like "101,010,101" or array of strings, or array of arrays with 0/1 numbers
-        var matrix;
-        if (typeof data === 'string') {
-            matrix = data.split(',');
-        } else {
-            matrix = data;
-        }
-        var rows = matrix.length;
-        if (rows === 0) return 0;
-        // Convert each row to string of '0'/'1' chars if it's an array of arrays
-        if (Array.isArray(matrix[0])) {
-            matrix = matrix.map(row => row.join(''));
-        }
-        var cols = matrix[0].length;
-        if (cols === 0) return 0;
-        // Build heights array for histogram approach
-        var heights = new Array(cols).fill(0);
-        var maxArea = 0;
-        for (var r = 0; r < rows; r++) {
-            for (var c = 0; c < cols; c++) {
-                if (matrix[r][c] == '1') {
-                    heights[c]++;
+        // Returns [[r1,c1],[r2,c2]] - corners of largest rectangle containing only 0s
+        // Based on official Bitburner source
+        const histograms = Array.from({ length: data.length }, () => Array(data[0].length).fill(0));
+        for (let i = 0; i < data[0].length; i++) {
+            let count = 0;
+            for (let j = 0; j < data.length; j++) {
+                if (data[j][i] == 0) {
+                    count++;
                 } else {
-                    heights[c] = 0;
+                    count = 0;
+                }
+                histograms[j][i] = count;
+            }
+        }
+        let maxArea = 0;
+        let maxL = 0, maxR = 0, maxU = 0, maxD = 0;
+        for (let i = 0; i < histograms.length; i++) {
+            const row = histograms[i];
+            for (let j = 0; j < row.length; j++) {
+                if (row[j] == 0) continue;
+                let left = j, right = j;
+                while (left - 1 >= 0 && row[left - 1] >= row[j]) left--;
+                while (right + 1 < row.length && row[right + 1] >= row[j]) right++;
+                if ((right - left + 1) * row[j] > maxArea) {
+                    maxArea = (right - left + 1) * row[j];
+                    maxL = left;
+                    maxR = right;
+                    maxU = i - row[j] + 1;
+                    maxD = i;
                 }
             }
-            maxArea = Math.max(maxArea, largestRectangleInHistogram(heights));
         }
-        return maxArea;
+        return [[maxU, maxL], [maxD, maxR]];
     },
 },
 {
@@ -714,51 +726,48 @@ const codingContractTypesMetadata = [{
 {
     name: 'HammingCodes: Encoded Binary to Integer',
     solver: function (data) {
-        // data is a binary string like "0100000000000000100000000001000101110111110010001010001100000001"
-        // Decode Hamming code: detect error, correct, extract data bits, convert to integer
-        var encoded = data;
-        if (Array.isArray(encoded)) encoded = encoded.join('');
-        var n = encoded.length;
-
-        // Find number of parity bits
-        var r = 0;
-        while ((1 << r) <= n) r++;
-
-        // Check parity bits to find error position
-        var errorPos = 0;
-        for (var i = 0; i < r; i++) {
-            var parityPos = 1 << i;
-            var parity = 0;
-            for (var pos = 1; pos <= n; pos++) {
-                if (pos & parityPos) {
-                    parity ^= parseInt(encoded[pos - 1]);
-                }
-            }
-            if (parity !== 0) errorPos += parityPos;
-        }
-
-        // Correct error if found
-        if (errorPos > 0 && errorPos <= n) {
-            var arr = encoded.split('');
-            arr[errorPos - 1] = arr[errorPos - 1] === '0' ? '1' : '0';
-            encoded = arr.join('');
-        }
-
-        // Extract data bits (non-power-of-2 positions)
-        var dataBits = '';
-        for (var pos = 1; pos <= n; pos++) {
-            if ((pos & (pos - 1)) !== 0) {
-                // Not a power of 2 — data bit
-                dataBits += encoded[pos - 1];
+        // Based on official Bitburner source - HammingDecode
+        var err = 0;
+        var bits = [];
+        var bitStringArray = data.split("");
+        for (var i = 0; i < bitStringArray.length; i++) {
+            var bit = parseInt(bitStringArray[i]);
+            bits[i] = bit;
+            if (bit) {
+                err ^= i;
             }
         }
-
-        // Convert binary string (MSB first) to integer
-        var result = 0;
-        for (var i = 0; i < dataBits.length; i++) {
-            result = result * 2 + parseInt(dataBits[i]);
+        // If err != 0 then it spells out the index of the bit that was flipped
+        if (err) {
+            bits[err] = bits[err] ? 0 : 1;
         }
-        return result;
+        // Extract data bits (non-power-of-2 positions), position 0 is overall parity (skip)
+        var ans = "";
+        for (var i = 1; i < bits.length; i++) {
+            if ((i & (i - 1)) != 0) {
+                ans += bits[i];
+            }
+        }
+        return parseInt(ans, 2);
+    },
+},
+{
+    name: 'Encryption I: Caesar Cipher',
+    solver: function (data) {
+        // data = [plaintext, shift]
+        // Caesar cipher: shift each letter left by shift amount
+        var plaintext = data[0];
+        var shift = data[1];
+        var cipher = "";
+        for (var i = 0; i < plaintext.length; i++) {
+            var a = plaintext.charCodeAt(i);
+            if (a === 32) {
+                cipher += " ";
+            } else {
+                cipher += String.fromCharCode(((a - 65 - shift + 26) % 26) + 65);
+            }
+        }
+        return cipher;
     },
 },
 {
