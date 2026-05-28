@@ -23,12 +23,29 @@ export async function main(ns) {
 }
 
 function findAnswer(contract, ns) {
-    if (!contract || !contract.type || !contract.data) {
-        if (ns) ns.print('WARN: Skipping contract ' + (contract ? contract.contract : 'unknown') + ' - missing type or data');
+    if (!contract || !contract.type) {
+        if (ns) ns.print('WARN: Skipping contract ' + (contract ? contract.contract : 'unknown') + ' - missing type');
         return null;
     }
-    const codingContractSolution = codingContractTypesMetadata.find((codingContractTypeMetadata) => codingContractTypeMetadata.name === contract.type)
-    return codingContractSolution ? codingContractSolution.solver(contract.data) : null;
+    if (!contract.data && contract.data !== 0 && contract.data !== '' && contract.data !== false) {
+        if (ns) ns.print('WARN: Skipping contract ' + (contract ? contract.contract : 'unknown') + ' - missing data. Keys: ' + JSON.stringify(Object.keys(contract)));
+        return null;
+    }
+    const codingContractSolution = codingContractTypesMetadata.find((codingContractTypeMetadata) => codingContractTypeMetadata.name === contract.type);
+    if (!codingContractSolution) {
+        if (ns) ns.print('WARN: No solver found for type: ' + contract.type);
+        return null;
+    }
+    try {
+        const result = codingContractSolution.solver(contract.data);
+        if (result === null || result === undefined) {
+            if (ns) ns.print('WARN: Solver returned null/undefined for ' + contract.contract + ' type=' + contract.type);
+        }
+        return result;
+    } catch(e) {
+        if (ns) ns.print('ERROR: Solver threw for ' + contract.contract + ' type=' + contract.type + ': ' + e.toString());
+        return null;
+    }
 }
 
 function convert2DArrayToString(arr) {
