@@ -60,7 +60,10 @@ export async function main(ns) {
     if (dataCount == 0)
         return ns.tprint("ERROR: No contract data available. Aborting.");
 
-    // Summary log: list contract types and servers
+    // Filter contracts with data first
+    const allContracts = contractsDb.filter(c => c.data !== undefined && c.data !== null);
+
+    // Summary log: list contract types and servers (data truncated for readability)
     allContracts.forEach(c => {
         var dataStr;
         if (typeof c.data === 'bigint') dataStr = '__BIGINT__(' + c.data.toString().substring(0, 20) + '...)';
@@ -70,9 +73,7 @@ export async function main(ns) {
     });
 
     // Build payload and split into batches to avoid ns.run arg size limits
-    const BATCH_SIZE = 10; // Max contracts per batch (keeps payload small)
-    const allContracts = contractsDb.filter(c => c.data !== undefined && c.data !== null);
-    const batches = [];
+    const BATCH_SIZE = 10;
     for (let i = 0; i < allContracts.length; i += BATCH_SIZE) {
         batches.push(allContracts.slice(i, i + BATCH_SIZE));
     }
