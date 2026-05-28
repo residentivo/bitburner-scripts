@@ -24,7 +24,10 @@ export async function main(ns) {
         const raw = dictContractData[c.contract];
         if (raw && raw !== "undefined" && raw !== "") {
             try { c.data = JSON.parse(raw, (k, v) => typeof v === 'string' && v.startsWith('__BIGINT__') ? BigInt(v.slice(10)) : v); }
-            catch (e) { ns.print(`WARN: Failed to parse contract data for ${c.contract}: ${e}`); }
+            catch (e) {
+                ns.tprint(`WARN: Failed to parse contract data for ${c.contract} (${c.type}): ${e}. Raw: ${raw.substring(0, 200)}`);
+                try { c.data = JSON.parse(raw); } catch (e2) { ns.tprint(`WARN: Fallback parse also failed for ${c.contract}: ${e2}`); }
+            }
         }
     });
 
