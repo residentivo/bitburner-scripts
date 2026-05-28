@@ -1638,7 +1638,7 @@ function removeServerByName(deletedHostName) {
             log(`ERROR: Failed to find server by name ${hostname}.`, true, 'error');
         else {
             list.splice(toRemove, 1);
-            log(`${hostname} was found at index ${toRemove} of list ${listname} and removed leaving ${list.length} items.`);
+            // log(`${hostname} was found at index ${toRemove} of list ${listname} and removed leaving ${list.length} items.`);
         }
     }
     removeByName(deletedHostName, serverListByFreeRam, 'serverListByFreeRam');
