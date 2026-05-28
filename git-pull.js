@@ -42,14 +42,14 @@ export async function main(ns) {
     ns.tprint(`INFO: Pull complete. If you have any questions or issues, head over to the Bitburner #alains-scripts Discord channel: ` +
         `https://discord.com/channels/415207508303544321/935667531111342200`);
     // Start the daemon after pull
-    ns.tprint(`INFO: Starting daemon.js with tail...`);
     const daemonPath = pathJoin(options.subfolder, 'daemon.js');
+    ns.tprint("INFO: Spawning daemon.js from: " + daemonPath);
     const pid = ns.exec(daemonPath, 'home', 1);
     if (pid) {
-        ns.tprint(`SUCCESS: daemon.js started (pid=${pid})`);
-        ns.tail(pid);
+        ns.tprint("SUCCESS: daemon.js started (pid=" + pid + ")");
+        ns.tail(daemonPath);
     } else {
-        ns.tprint(`WARNING: Failed to start daemon.js`);
+        ns.tprint("WARNING: Failed to start daemon.js");
     }
 }
 
@@ -61,7 +61,7 @@ function pathJoin(...args) {
 /** @param {NS} ns
  * Rewrites a file with path substitions to handle downloading to a subfolder. **/
 export async function rewriteFileForSubfolder(ns, path) {
-    if (!options.subfolder || path.includes('git-pull.js'))
+    if (!options.subfolder || path.includes('git-pull.js') || path.includes('daemon.js'))
         return true;
     let contents = ns.read(path);
     // Replace subfolder reference in helpers.js getFilePath:
