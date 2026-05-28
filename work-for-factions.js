@@ -598,7 +598,7 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
     let lastRepMeasurement = await getFactionReputation(ns, factionName);
     while ((currentReputation = (await getFactionReputation(ns, factionName))) < factionRepRequired) {
         if (breakToMainLoop()) return ns.print('INFO: Interrupting faction work to check on high-level priorities.');
-        const factionWork = await detectBestFactionWork(ns, factionName); // Before each loop - determine what work gives the most rep/second for our current stats
+        const factionWork = await detectBestFactionWork(ns, factionName, shouldFocusAtWork); // Before each loop - determine what work gives the most rep/second for our current stats
         if (await getNsDataThroughFile(ns, `ns.singularity.workForFaction('${factionName}', '${factionWork}',  ${shouldFocusAtWork})`, '/Temp/work-for-faction.txt')) {
             if (shouldFocusAtWork) ns.ui.openTail(); // Force a tail window open to help the user kill this script if they accidentally closed the tail window and don't want to keep stealing focus
             currentReputation = await getFactionReputation(ns, factionName); // Update to capture the reputation earned when restarting work
@@ -646,10 +646,10 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
 
 /** @param {NS} ns 
  * Try all work types and see what gives the best rep gain with this faction! */
-async function detectBestFactionWork(ns, factionName) {
+async function detectBestFactionWork(ns, factionName, focusAtWork) {
     let bestWork, bestRepRate = 0;
     for (const work of ["security", "field", "hacking"]) {
-        if (!await getNsDataThroughFile(ns, `ns.singularity.workForFaction('${factionName}', '${work}',  ${shouldFocusAtWork})`, '/Temp/work-for-faction.txt')) {
+        if (!await getNsDataThroughFile(ns, `ns.singularity.workForFaction('${factionName}', '${work}',  ${focusAtWork})`, '/Temp/work-for-faction.txt')) {
             //ns.print(`"${factionName}" work ${work} not supported.`);
             continue; // This type of faction work must not be supported
         }
