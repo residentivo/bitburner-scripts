@@ -737,34 +737,20 @@ const codingContractTypesMetadata = [{
 {
     name: 'Total Primes in Range',
     solver: function (data) {
-        // Based on official Bitburner source - primeSieve
-        // data = [low, high] - count primes in range [low, high]
         var low = Number(data[0]);
         var high = Number(data[1]);
         if (high < 2) return 0;
         if (low < 2) low = 2;
-
-        // Simple sieve for small ranges, segmented sieve for large
         if (high <= 10000000) {
-            // Simple sieve
             var sieve = new Array(high + 1).fill(true);
             sieve[0] = sieve[1] = false;
             for (var i = 2; i * i <= high; i++) {
-                if (sieve[i]) {
-                    for (var j = i * i; j <= high; j += i) {
-                        sieve[j] = false;
-                    }
-                }
+                if (sieve[i]) { for (var j = i * i; j <= high; j += i) sieve[j] = false; }
             }
             var count = 0;
-            for (var i = low; i <= high; i++) {
-                if (sieve[i]) count++;
-            }
+            for (var i = low; i <= high; i++) { if (sieve[i]) count++; }
             return count;
         }
-
-        // Segmented sieve for large ranges (up to ~6M)
-        // First find all primes up to sqrt(high)
         var sqrtHigh = Math.ceil(Math.sqrt(high));
         var smallPrimes = [];
         var smallSieve = new Array(sqrtHigh + 1).fill(true);
@@ -772,56 +758,94 @@ const codingContractTypesMetadata = [{
         for (var i = 2; i <= sqrtHigh; i++) {
             if (smallSieve[i]) {
                 smallPrimes.push(i);
-                for (var j = i * i; j <= sqrtHigh; j += i) {
-                    smallSieve[j] = false;
-                }
+                for (var j = i * i; j <= sqrtHigh; j += i) smallSieve[j] = false;
             }
         }
-
-        // Segmented sieve
         var rangeSize = high - low + 1;
         var segment = new Array(rangeSize).fill(true);
         for (var p = 0; p < smallPrimes.length; p++) {
             var prime = smallPrimes[p];
             var start = Math.max(prime, Math.ceil(low / prime)) * prime;
-            for (var j = start; j <= high; j += prime) {
-                segment[j - low] = false;
-            }
+            for (var j = start; j <= high; j += prime) segment[j - low] = false;
         }
-
         var count = 0;
-        for (var i = 0; i < rangeSize; i++) {
-            if (segment[i]) count++;
-        }
+        for (var i = 0; i < rangeSize; i++) { if (segment[i]) count++; }
         return count;
     },
 },
 {
-    name: 'HammingCodes: Encoded Binary to Integer',
+    name: 'Total Number of Primes',
     solver: function (data) {
-        // Based on official Bitburner source - HammingDecode
-        var err = 0;
-        var bits = [];
-        var bitStringArray = data.split("");
-        for (var i = 0; i < bitStringArray.length; i++) {
-            var bit = parseInt(bitStringArray[i]);
-            bits[i] = bit;
-            if (bit) {
-                err ^= i;
+        var low = Number(data[0]);
+        var high = Number(data[1]);
+        if (high < 2) return 0;
+        if (low < 2) low = 2;
+        if (high <= 10000000) {
+            var sieve = new Array(high + 1).fill(true);
+            sieve[0] = sieve[1] = false;
+            for (var i = 2; i * i <= high; i++) {
+                if (sieve[i]) { for (var j = i * i; j <= high; j += i) sieve[j] = false; }
+            }
+            var count = 0;
+            for (var i = low; i <= high; i++) { if (sieve[i]) count++; }
+            return count;
+        }
+        var sqrtHigh = Math.ceil(Math.sqrt(high));
+        var smallPrimes = [];
+        var smallSieve = new Array(sqrtHigh + 1).fill(true);
+        smallSieve[0] = smallSieve[1] = false;
+        for (var i = 2; i <= sqrtHigh; i++) {
+            if (smallSieve[i]) {
+                smallPrimes.push(i);
+                for (var j = i * i; j <= sqrtHigh; j += i) smallSieve[j] = false;
             }
         }
-        // If err != 0 then it spells out the index of the bit that was flipped
-        if (err) {
-            bits[err] = bits[err] ? 0 : 1;
+        var rangeSize = high - low + 1;
+        var segment = new Array(rangeSize).fill(true);
+        for (var p = 0; p < smallPrimes.length; p++) {
+            var prime = smallPrimes[p];
+            var start = Math.max(prime, Math.ceil(low / prime)) * prime;
+            for (var j = start; j <= high; j += prime) segment[j - low] = false;
         }
-        // Extract data bits (non-power-of-2 positions), position 0 is overall parity (skip)
-        var ans = "";
-        for (var i = 1; i < bits.length; i++) {
-            if ((i & (i - 1)) != 0) {
-                ans += bits[i];
+        var count = 0;
+        for (var i = 0; i < rangeSize; i++) { if (segment[i]) count++; }
+        return count;
+    },
+},
+{
+    name: 'HammingCodes: Integer to Encoded Binary',
+    solver: function (data) {
+        // Based on official Bitburner source - HammingEncode
+        // data is a number, encode as extended Hamming code
+        var n = typeof data === 'bigint' ? data : BigInt(data);
+        // Convert to binary string, reverse for LSB-first
+        var data_bits = n.toString(2).split("").reverse().map(function(v) { return parseInt(v); });
+        var k = data_bits.length;
+        // Build encoded array with parity placeholders at power-of-2 positions
+        var enc = [0];
+        for (var i = 1; k > 0; i++) {
+            if ((i & (i - 1)) !== 0) {
+                enc[i] = data_bits[--k];
+            } else {
+                enc[i] = 0;
             }
         }
-        return parseInt(ans, 2);
+        // Calculate subsection parities
+        var parityNumber = 0;
+        for (var i = 0; i < enc.length; i++) {
+            if (enc[i]) parityNumber ^= i;
+        }
+        var parityArray = parityNumber.toString(2).split("").reverse().map(function(v) { return parseInt(v); });
+        for (var i = 0; i < parityArray.length; i++) {
+            enc[Math.pow(2, i)] = parityArray[i] ? 1 : 0;
+        }
+        // Calculate overall parity
+        parityNumber = 0;
+        for (var i = 0; i < enc.length; i++) {
+            if (enc[i]) parityNumber++;
+        }
+        enc[0] = parityNumber % 2 === 0 ? 0 : 1;
+        return enc.join("");
     },
 },
 {
