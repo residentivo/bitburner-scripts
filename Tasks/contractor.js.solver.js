@@ -37,9 +37,6 @@ function findAnswer(contract, ns) {
         return null;
     }
     try {
-        if (contract.type === 'Square Root') {
-            ns.tprint('DEBUG Square Root: data type=' + typeof contract.data + ' value=' + (typeof contract.data === 'bigint' ? contract.data.toString().substring(0, 50) + '...' : String(contract.data).substring(0, 100)));
-        }
         const result = codingContractSolution.solver(contract.data);
         if (result === null || result === undefined) {
             if (ns) ns.tprint('WARN: Solver returned null/undefined for ' + contract.contract + ' type=' + contract.type);
@@ -543,7 +540,8 @@ const codingContractTypesMetadata = [{
     solver: function (data) {
         // Based on official Bitburner source
         // data = [plaintext, keyword]
-        // Encrypt: cipher[i] = ((plain[i] - 2*65 + key[i % key.length]) % 26) + 65
+        // All chars are uppercase letters (A-Z), no spaces, no numbers
+        // Official formula: ((charCode - 2*65 + keyCode) % 26) + 65
         var plaintext, key;
         if (Array.isArray(data)) {
             plaintext = data[0];
@@ -553,15 +551,20 @@ const codingContractTypesMetadata = [{
             plaintext = data.substring(0, spaceIdx);
             key = data.substring(spaceIdx + 1);
         }
+        // Safety: if data contains non-uppercase chars, try alternative parsing
+        if (!/^[A-Z]+$/.test(key)) {
+            return null;
+        }
         var cipher = "";
         for (var i = 0; i < plaintext.length; i++) {
             var a = plaintext.charCodeAt(i);
-            if (a === 32) { // Space
-                cipher += " ";
-            } else {
+            if (a >= 65 && a <= 90) {
                 cipher += String.fromCharCode(
                     ((a - 2 * 65 + key.charCodeAt(i % key.length)) % 26) + 65
                 );
+            } else {
+                // Non-uppercase char, keep as-is
+                cipher += plaintext[i];
             }
         }
         return cipher;
@@ -661,13 +664,11 @@ const codingContractTypesMetadata = [{
     name: 'Square Root',
     solver: function (data) {
         // Based on official Bitburner v3 source
-        // data is a BigInt value (~200 digits), may come as string from JSON serialization
-        // Return floor(sqrt(data)) as string
+        // data is a BigInt value (~200 digits), find floor(sqrt(data))
         var n;
         if (typeof data === 'bigint') {
             n = data;
         } else if (typeof data === 'string') {
-            // Handle __BIGINT__ prefix from contractor.js serialization
             var str = data.startsWith('__BIGINT__') ? data.slice(10) : data;
             try { n = BigInt(str); } catch(e) { return null; }
         } else if (typeof data === 'number' && !isNaN(data) && isFinite(data)) {
@@ -677,14 +678,21 @@ const codingContractTypesMetadata = [{
         }
         if (n < 0n) return null;
         if (n < 2n) return n.toString();
-        // Newton's method for integer square root
-        var x = n;
-        var y = (x + 1n) / 2n;
-        while (y < x) {
-            x = y;
-            y = (x + n / x) / 2n;
+        // Binary search for integer square root - more reliable than Newton for BigInt
+        var lo = 1n;
+        var hi = n;
+        while (lo <= hi) {
+            var mid = (lo + hi) / 2n;
+            var midSq = mid * mid;
+            if (midSq === n) return mid.toString();
+            if (midSq < n) {
+                lo = mid + 1n;
+            } else {
+                hi = mid - 1n;
+            }
         }
-        return x.toString();
+        // hi is now floor(sqrt(n))
+        return hi.toString();
     },
 },
 {
@@ -724,6 +732,68 @@ const codingContractTypesMetadata = [{
             result[parityPos - 1] = parity;
         }
         return result.join('');
+    },
+},
+{
+    name: 'Total Primes in Range',
+    solver: function (data) {
+        // Based on official Bitburner source - primeSieve
+        // data = [low, high] - count primes in range [low, high]
+        var low = Number(data[0]);
+        var high = Number(data[1]);
+        if (high < 2) return 0;
+        if (low < 2) low = 2;
+
+        // Simple sieve for small ranges, segmented sieve for large
+        if (high <= 10000000) {
+            // Simple sieve
+            var sieve = new Array(high + 1).fill(true);
+            sieve[0] = sieve[1] = false;
+            for (var i = 2; i * i <= high; i++) {
+                if (sieve[i]) {
+                    for (var j = i * i; j <= high; j += i) {
+                        sieve[j] = false;
+                    }
+                }
+            }
+            var count = 0;
+            for (var i = low; i <= high; i++) {
+                if (sieve[i]) count++;
+            }
+            return count;
+        }
+
+        // Segmented sieve for large ranges (up to ~6M)
+        // First find all primes up to sqrt(high)
+        var sqrtHigh = Math.ceil(Math.sqrt(high));
+        var smallPrimes = [];
+        var smallSieve = new Array(sqrtHigh + 1).fill(true);
+        smallSieve[0] = smallSieve[1] = false;
+        for (var i = 2; i <= sqrtHigh; i++) {
+            if (smallSieve[i]) {
+                smallPrimes.push(i);
+                for (var j = i * i; j <= sqrtHigh; j += i) {
+                    smallSieve[j] = false;
+                }
+            }
+        }
+
+        // Segmented sieve
+        var rangeSize = high - low + 1;
+        var segment = new Array(rangeSize).fill(true);
+        for (var p = 0; p < smallPrimes.length; p++) {
+            var prime = smallPrimes[p];
+            var start = Math.max(prime, Math.ceil(low / prime)) * prime;
+            for (var j = start; j <= high; j += prime) {
+                segment[j - low] = false;
+            }
+        }
+
+        var count = 0;
+        for (var i = 0; i < rangeSize; i++) {
+            if (segment[i]) count++;
+        }
+        return count;
     },
 },
 {
@@ -842,6 +912,59 @@ const codingContractTypesMetadata = [{
         }
         path.reverse();
         return path.join('');
+    },
+},
+{
+    name: 'Compression III: LZ Compression',
+    solver: function (data) {
+        // Based on official Bitburner source - comprLZEncode
+        // Simplified greedy LZ compression
+        // Format: alternating literal and backreference chunks
+        // [literal_length][literal_chars][backref_length][backref_offset]...
+        if (!data || data.length === 0) return '';
+        var plain = data;
+        var result = '';
+        var i = 0;
+        while (i < plain.length) {
+            // Try to find the longest backreference
+            var bestLen = 0;
+            var bestOff = 0;
+            for (var off = 1; off <= Math.min(9, i); off++) {
+                var len = 0;
+                while (len < 9 && i + len < plain.length && plain[i + len] === plain[i - off + (len % off)]) {
+                    len++;
+                }
+                // Actually, backreference copies from the output stream
+                // So we need to check against what's already in the output
+                len = 0;
+                while (len < 9 && i + len < plain.length &&
+                       plain[i + len] === result[result.length - off + (len % off)]) {
+                    len++;
+                }
+                // Simpler: check against plain[0..i-1] with offset
+                len = 0;
+                while (len < 9 && i + len < plain.length && plain[i + len] === plain[i - off + len]) {
+                    len++;
+                }
+                if (len > bestLen) {
+                    bestLen = len;
+                    bestOff = off;
+                }
+            }
+            // Decide: literal or backreference
+            if (bestLen >= 3) {
+                // Use backreference
+                result += String(bestLen) + String(bestOff);
+                i += bestLen;
+            } else {
+                // Use literal - collect up to 9 chars
+                var litLen = Math.min(9, plain.length - i);
+                // Check if we should stop literal early for a good backreference
+                result += String(litLen) + plain.substring(i, i + litLen);
+                i += litLen;
+            }
+        }
+        return result;
     },
 }
 ]
