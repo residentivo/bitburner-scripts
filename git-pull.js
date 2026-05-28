@@ -61,7 +61,7 @@ function pathJoin(...args) {
 /** @param {NS} ns
  * Rewrites a file with path substitions to handle downloading to a subfolder. **/
 export async function rewriteFileForSubfolder(ns, path) {
-    if (!options.subfolder || path.includes('git-pull.js') || path.includes('daemon.js') || path.includes('contractor.js'))
+    if (!options.subfolder || path.includes('git-pull.js') || path.includes('daemon.js') || path.includes('contractor.js') || path.includes('solver-functions.js'))
         return true;
     let contents = ns.read(path);
     // Replace subfolder reference in helpers.js getFilePath:
