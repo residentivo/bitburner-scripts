@@ -696,45 +696,6 @@ const codingContractTypesMetadata = [{
     },
 },
 {
-    name: 'HammingCodes: Integer to Encoded Binary',
-    solver: function (data) {
-        // data is an integer (can be BigInt)
-        // Encode it using Hamming code
-        var n = typeof data === 'bigint' ? data : BigInt(data);
-        // Convert to binary string
-        var binary = n.toString(2);
-        var m = binary.length;
-        // Number of parity bits needed: 2^r >= m + r + 1
-        var r = 0;
-        while ((1 << r) < m + r + 1) r++;
-        var totalLen = m + r;
-        // Place data bits (non-power-of-2 positions), LSB first
-        var dataBits = binary.split('').reverse();
-        var result = [];
-        var dataIdx = 0;
-        for (var pos = 1; pos <= totalLen; pos++) {
-            if ((pos & (pos - 1)) === 0) {
-                result.push(0); // parity bit placeholder (power of 2)
-            } else {
-                result.push(parseInt(dataBits[dataIdx]));
-                dataIdx++;
-            }
-        }
-        // Calculate parity bits
-        for (var i = 0; i < r; i++) {
-            var parityPos = 1 << i;
-            var parity = 0;
-            for (var pos = 1; pos <= totalLen; pos++) {
-                if (pos & parityPos) {
-                    parity ^= result[pos - 1];
-                }
-            }
-            result[parityPos - 1] = parity;
-        }
-        return result.join('');
-    },
-},
-{
     name: 'Total Primes in Range',
     solver: function (data) {
         var low = Number(data[0]);
@@ -870,18 +831,18 @@ const codingContractTypesMetadata = [{
 {
     name: 'Compression I: RLE Compression',
     solver: function (data) {
-        // data is a string, compress using Run-Length Encoding
         if (!data || data.length === 0) return '';
         var result = '';
         var count = 1;
-        for (var i = 1; i <= data.length; i++) {
-            if (i < data.length && data[i] === data[i - 1]) {
+        for (var i = 1; i < data.length; i++) {
+            if (data[i] === data[i - 1]) {
                 count++;
             } else {
                 result += count + data[i - 1];
                 count = 1;
             }
         }
+        result += count + data[data.length - 1];
         return result;
     },
 },
@@ -941,54 +902,56 @@ const codingContractTypesMetadata = [{
 {
     name: 'Compression III: LZ Compression',
     solver: function (data) {
-        // Based on official Bitburner source - comprLZEncode
-        // Simplified greedy LZ compression
+        // Based on official Bitburner comprLZEncode
         // Format: alternating literal and backreference chunks
         // [literal_length][literal_chars][backref_length][backref_offset]...
+        // backref_length=0 means no backref (separator between literals)
         if (!data || data.length === 0) return '';
-        var plain = data;
-        var result = '';
-        var i = 0;
-        while (i < plain.length) {
-            // Try to find the longest backreference
-            var bestLen = 0;
-            var bestOff = 0;
-            for (var off = 1; off <= Math.min(9, i); off++) {
-                var len = 0;
-                while (len < 9 && i + len < plain.length && plain[i + len] === plain[i - off + (len % off)]) {
-                    len++;
+        var compressed = '';
+        var decoded = '';
+        var pos = 0;
+        while (pos < data.length) {
+            var litChars = '';
+            var backLenFound = 0;
+            var backOffFound = 0;
+            while (pos + litChars.length < data.length) {
+                var testDecoded = decoded + litChars;
+                var bestBL = 0;
+                var bestBO = 0;
+                var matchStart = pos + litChars.length;
+                if (litChars.length > 0) {
+                    for (var off = 1; off <= Math.min(9, testDecoded.length); off++) {
+                        var fl = 0;
+                        while (fl < 9 && matchStart + fl < data.length) {
+                            var srcIdx = testDecoded.length - off + (fl % off);
+                            if (srcIdx < 0 || srcIdx >= testDecoded.length) break;
+                            if (data[matchStart + fl] === testDecoded[srcIdx]) fl++;
+                            else break;
+                        }
+                        if (fl > bestBL) { bestBL = fl; bestBO = off; }
+                    }
                 }
-                // Actually, backreference copies from the output stream
-                // So we need to check against what's already in the output
-                len = 0;
-                while (len < 9 && i + len < plain.length &&
-                       plain[i + len] === result[result.length - off + (len % off)]) {
-                    len++;
-                }
-                // Simpler: check against plain[0..i-1] with offset
-                len = 0;
-                while (len < 9 && i + len < plain.length && plain[i + len] === plain[i - off + len]) {
-                    len++;
-                }
-                if (len > bestLen) {
-                    bestLen = len;
-                    bestOff = off;
-                }
+                if (bestBL >= 3) { backLenFound = bestBL; backOffFound = bestBO; break; }
+                if (litChars.length >= 9) break;
+                litChars += data[pos + litChars.length];
             }
-            // Decide: literal or backreference
-            if (bestLen >= 3) {
-                // Use backreference
-                result += String(bestLen) + String(bestOff);
-                i += bestLen;
+            if (litChars.length === 0) litChars = data[pos];
+            pos += litChars.length;
+            decoded += litChars;
+            compressed += String(litChars.length) + litChars;
+            if (pos >= data.length) break;
+            if (backLenFound >= 3) {
+                var backref = '';
+                for (var j = 0; j < backLenFound; j++)
+                    backref += decoded[decoded.length - backOffFound + (j % backOffFound)];
+                compressed += String(backLenFound) + String(backOffFound);
+                decoded += backref;
+                pos += backLenFound;
             } else {
-                // Use literal - collect up to 9 chars
-                var litLen = Math.min(9, plain.length - i);
-                // Check if we should stop literal early for a good backreference
-                result += String(litLen) + plain.substring(i, i + litLen);
-                i += litLen;
+                compressed += '0';
             }
         }
-        return result;
+        return compressed;
     },
-}
+}]
 ]
