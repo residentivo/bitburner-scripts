@@ -739,7 +739,7 @@ export async function workForMegacorpFactionInvite(ns, factionName, waitForInvit
         const bestJobTier = Math.max(qualifyingItTier, qualifyingSoftwareTier); // Go with whatever job promotes us higher
         const bestRoleName = qualifyingItTier > qualifyingSoftwareTier ? "it" : "software"; // If tied for qualifying tier, go for software
         if (currentJobTier < bestJobTier || currentRole != bestRoleName) { // We are ready for a promotion, ask for one!
-            if (await getNsDataThroughFile(ns, `ns.applyToCompany('${companyName}','${bestRoleName}')`, '/Temp/apply-to-company.txt'))
+            if (await getNsDataThroughFile(ns, `ns.singularity.applyToCompany('${companyName}','${bestRoleName}')`, '/Temp/apply-to-company.txt'))
                 announce(ns, `Successfully applied to "${companyName}" for a '${bestRoleName}' Job or Promotion`, 'success');
             else if (currentJobTier !== -1) // Unless we just restarted "work-for-factions" and lost track of our current job, this is an error
                 announce(ns, `Application to "${companyName}" for a '${bestRoleName}' Job or Promotion failed.`, 'error');
@@ -782,7 +782,7 @@ export async function workForMegacorpFactionInvite(ns, factionName, waitForInvit
         await tryBuyReputation(ns);
 
         // Regardless of the earlier promotion logic, always try for a promotion to make sure we don't miss a promotion due to buggy logic 
-        if (await getNsDataThroughFile(ns, `ns.applyToCompany('${companyName}','${currentRole}')`, '/Temp/apply-to-company.txt'))
+        if (await getNsDataThroughFile(ns, `ns.singularity.applyToCompany('${companyName}','${currentRole}')`, '/Temp/apply-to-company.txt'))
             announce(ns, `Unexpected '${currentRole}' promotion from ${currentJob} to "${(await getPlayerInfo(ns)).jobs[companyName]}. Promotion logic must be off..."`, 'warning');
         // TODO: If we ever get rid of the below periodic restart-work, we will need to monitor for interruptions with player.workType == e.g. "Work for Company"
         if (!studying && (!working || (Date.now() - lastActionRestart >= restartWorkInteval) /* We must periodically restart work to collect Rep Gains */)) {
