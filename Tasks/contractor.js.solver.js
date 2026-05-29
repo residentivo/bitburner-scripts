@@ -961,4 +961,3 @@ const codingContractTypesMetadata = [{
         return compressed;
     },
 }]
-]
