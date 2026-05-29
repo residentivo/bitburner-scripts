@@ -103,7 +103,7 @@ function solveProblem(type, input) {
   // === Largest Rectangle in a Matrix ===
   if (type === "Largest Rectangle in a Matrix") {
     let grid = input;
-    if (!grid || grid.length === 0 || grid[0].length === 0) return 0;
+    if (!grid || grid.length === 0 || grid[0].length === 0) return "0";
     let rows = grid.length;
     let cols = grid[0].length;
     let heights = new Array(cols).fill(0);
@@ -124,7 +124,7 @@ function solveProblem(type, input) {
         stack.push(h);
       }
     }
-    return best;
+    return String(best);
   }
 
   // === HammingCodes: Encoded Binary to Integer ===
