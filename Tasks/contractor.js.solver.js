@@ -671,7 +671,8 @@ const codingContractTypesMetadata = [{
     name: 'Square Root',
     solver: function (data) {
         // Based on official Bitburner v3 source
-        // data is a BigInt value (~200 digits), find floor(sqrt(data))
+        // data is a BigInt value (~200 digits), find round(sqrt(data))
+        // "to the nearest integer" means round, not floor!
         var n;
         if (typeof data === 'bigint') {
             n = data;
@@ -679,13 +680,13 @@ const codingContractTypesMetadata = [{
             var str = data.startsWith('__BIGINT__') ? data.slice(10) : data;
             try { n = BigInt(str); } catch(e) { return null; }
         } else if (typeof data === 'number' && !isNaN(data) && isFinite(data)) {
-            return Math.floor(Math.sqrt(data)).toString();
+            return Math.round(Math.sqrt(data)).toString();
         } else {
             return null;
         }
         if (n < 0n) return null;
         if (n < 2n) return n.toString();
-        // Binary search for integer square root - more reliable than Newton for BigInt
+        // Binary search for integer square root
         var lo = 1n;
         var hi = n;
         while (lo <= hi) {
@@ -698,8 +699,12 @@ const codingContractTypesMetadata = [{
                 hi = mid - 1n;
             }
         }
-        // hi is now floor(sqrt(n))
-        return hi.toString();
+        // hi is floor(sqrt(n)), check if we should round up
+        var floorSq = hi * hi;
+        var ceilSq = (hi + 1n) * (hi + 1n);
+        var distToFloor = n - floorSq;
+        var distToCeil = ceilSq - n;
+        return distToFloor <= distToCeil ? hi.toString() : (hi + 1n).toString();
     },
 },
 {
