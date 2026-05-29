@@ -429,6 +429,13 @@ const funcResultOrValue = fnOrVal => (fnOrVal instanceof Function ? fnOrVal() : 
 // Returns true if the tool is running (including if it was already running), false if it could not be run.
 /** @param {NS} ns **/
 async function tryRunTool(ns, tool) {
+    if (tool.name.includes('contractor')) {
+        log(`DEBUG tryRunTool: tool.name="${tool.name}" daemonHost="${daemonHost}"`, true);
+        log(`DEBUG tryRunTool: doesFileExist result = ${doesFileExist(tool.name)}`, true);
+        log(`DEBUG tryRunTool: ns.fileExists("${tool.name}") = ${ns.fileExists(tool.name)}`, true);
+        const lsResult = ns.ls(ns.getHostname(), 'contractor');
+        log(`DEBUG tryRunTool: ls(contractor) = ${JSON.stringify(lsResult)}`, true);
+    }
     if (!doesFileExist(tool.name)) {
         log(`ERROR: Tool ${tool.name} was not found on ${daemonHost}`, true, 'error');
         return false;
@@ -471,8 +478,11 @@ async function exec(ns, script, host, numThreads, ...args) {
     dictScriptsRun[key] = true;
     // Try to run the script with auto-retry if it fails to start
     const pid = await autoRetry(ns, async () => {
-        const p = ns.exec(script, host, numThreads, ...args)
-        if (firstRun) await ns.asleep(5); // Reports have come in that putting a brief sleep after the calls to exec works around the issue
+        const p = ns.exec(script, host, numThreads, ...args);
+        if (script.includes('contractor')) {
+            log(`DEBUG exec: ns.exec("${script}", "${host}", ${numThreads}) = ${p}`, true);
+        }
+        if (firstRun) await ns.asleep(5);
         return p;
     }, p => p !== 0, () => `Attempt to exec ${script} on ${host} returned no pid.\nYou may be too low on RAM, or the script may be invalid.`);
     return pid; // Caller is responsible for handling errors if final pid returned is 0 (indicating failure)
