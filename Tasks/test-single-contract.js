@@ -15,40 +15,51 @@ export async function main(ns) {
     const type = ns.codingcontract.getContractType(targetFile, targetServer);
     const data = ns.codingcontract.getData(targetFile, targetServer);
     ns.tprint("Type: " + type);
-    ns.tprint("Data: " + data.toString());
 
     // Solve it
     const contractObj = { type, data, contract: targetFile, hostname: targetServer };
     const answer = findAnswer(contractObj, ns);
     ns.tprint("Answer (string): " + answer);
-    ns.tprint("Answer type: " + typeof answer);
+    ns.tprint("Answer length: " + answer.length);
 
-    // Try 1: submit as string (what solver returns)
-    ns.tprint("--- Test 1: submit string ---");
-    const r1 = ns.codingcontract.attempt(answer, targetFile, targetServer, { returnReward: true });
-    ns.tprint("Result: '" + r1 + "' Success: " + (r1 ? "YES" : "NO"));
-
-    // Only continue if first attempt failed
-    if (!r1) {
-        // Try 2: submit as BigInt
-        ns.tprint("--- Test 2: submit BigInt ---");
-        try {
-            const bigAnswer = BigInt(answer);
-            const r2 = ns.codingcontract.attempt(bigAnswer, targetFile, targetServer, { returnReward: true });
-            ns.tprint("Result: '" + r2 + "' Success: " + (r2 ? "YES" : "NO"));
-        } catch (e) {
-            ns.tprint("BigInt conversion failed: " + e);
-        }
-
-        // Try 3: submit as number
-        ns.tprint("--- Test 3: submit number ---");
-        try {
-            const numAnswer = Number(answer);
-            ns.tprint("Number: " + numAnswer);
-            const r3 = ns.codingcontract.attempt(numAnswer, targetFile, targetServer, { returnReward: true });
-            ns.tprint("Result: '" + r3 + "' Success: " + (r3 ? "YES" : "NO"));
-        } catch (e) {
-            ns.tprint("Number conversion failed: " + e);
-        }
+    // Try 1: submit BigInt (convert string to BigInt first)
+    ns.tprint("--- Test 1: submit BigInt ---");
+    try {
+        const bigAnswer = BigInt(answer);
+        ns.tprint("BigInt created: " + bigAnswer.toString().substring(0, 50) + "...");
+        const r1 = ns.codingcontract.attempt(bigAnswer, targetFile, targetServer, { returnReward: true });
+        ns.tprint("Result: '" + r1 + "' Success: " + (r1 ? "YES" : "NO"));
+        if (r1) { ns.tprint("=== DONE ==="); return; }
+    } catch (e) {
+        ns.tprint("BigInt submit error: " + String(e).substring(0, 120));
     }
+
+    // Try 2: submit as object {type: "BigInt", value: ...}
+    ns.tprint("--- Test 2: submit object ---");
+    try {
+        const r2 = ns.codingcontract.attempt({ value: answer }, targetFile, targetServer, { returnReward: true });
+        ns.tprint("Result: '" + r2 + "' Success: " + (r2 ? "YES" : "NO"));
+        if (r2) { ns.tprint("=== DONE ==="); return; }
+    } catch (e) {
+        ns.tprint("Object submit error: " + String(e).substring(0, 120));
+    }
+
+    // Try 3: Check what the contracts API expects
+    ns.tprint("--- Test 3: check contract description ---");
+    try {
+        const desc = ns.codingcontract.getDescription(targetFile, targetServer);
+        ns.tprint("Description (first 300): " + desc.substring(0, 300));
+    } catch (e) {
+        ns.tprint("getDescription error: " + String(e));
+    }
+
+    // Try 4: Check contract numTries
+    try {
+        const tries = ns.codingcontract.getNumTriesRemaining(targetFile, targetServer);
+        ns.tprint("Tries remaining: " + tries);
+    } catch (e) {
+        ns.tprint("getNumTries error: " + String(e));
+    }
+
+    ns.tprint("=== DONE ===");
 }
