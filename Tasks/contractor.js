@@ -295,7 +295,7 @@ function solveProblem(type, contractInput) {
         result = (result << 1n) | BigInt(bits[dataBit - 1]);
       }
     }
-    return result;
+    return result.toString();
   }
 
   return null; // Unknown type
