@@ -8,7 +8,6 @@
  * Usage: run /Tasks/test-solver.js
  */
 
-// Import the solver (embedded in contractor.js.solver.js)
 import { findAnswer } from '/Tasks/contractor.js.solver.js';
 
 export async function main(ns) {
@@ -29,7 +28,7 @@ export async function main(ns) {
         } catch (_) {}
     }
 
-    let ok = 0, fail = 0, err = 0;
+    let ok = 0, fail = 0, skip = 0, err = 0;
     const results = [];
 
     for (const server of [...allServers].sort()) {
@@ -39,29 +38,35 @@ export async function main(ns) {
         } catch (_) { continue; }
 
         for (const contract of contracts) {
-            let type;
+            let type, data;
             try {
                 type = ns.codingcontract.getContractType(contract, server);
-            } catch (_) { type = "unknown"; }
+                data = ns.codingcontract.getData(contract, server);
+            } catch (e) {
+                results.push(`  ERROR | ${server} | ${contract} | read: ${String(e).substring(0, 60)}`);
+                err++;
+                continue;
+            }
 
-            // Try to get the contract data and solve it
+            // Build contract object for the solver
+            const contractObj = { type, data, contract, hostname: server };
+
             try {
-                const data = ns.codingcontract.getData(contract, server);
-                const answer = await findAnswer(ns, type, data, () => {}, server, contract);
+                const answer = findAnswer(contractObj, ns);
 
                 if (answer === undefined || answer === null) {
-                    results.push(`  SKIP  | ${server} | ${type} | solver returned null/undefined`);
-                    fail++;
+                    results.push(`  SKIP  | ${server} | ${type} | no answer`);
+                    skip++;
                     continue;
                 }
 
                 // Submit the answer
                 const result = ns.codingcontract.attempt(answer, contract, server, { returnReward: true });
                 if (result && result !== "") {
-                    results.push(`  OK    | ${server} | ${type} | reward: ${result.trim().split("\n")[0]}`);
+                    results.push(`  OK    | ${server} | ${type} | ${result.trim().split("\n")[0]}`);
                     ok++;
                 } else {
-                    results.push(`  FAIL  | ${server} | ${type} | answer rejected`);
+                    results.push(`  FAIL  | ${server} | ${type} | rejected`);
                     fail++;
                 }
             } catch (e) {
@@ -73,5 +78,5 @@ export async function main(ns) {
 
     // Print results
     for (const r of results) ns.tprint(r);
-    ns.tprint(`=== RESULTS: ${ok} solved, ${fail} failed, ${err} errors ===`);
+    ns.tprint(`=== RESULTS: ${ok} solved, ${fail} failed, ${skip} skipped, ${err} errors ===`);
 }

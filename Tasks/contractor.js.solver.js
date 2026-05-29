@@ -29,7 +29,7 @@ export async function main(ns) {
     }
 }
 
-function findAnswer(contract, ns) {
+export function findAnswer(contract, ns) {
     if (!contract || !contract.type) {
         if (ns) ns.tprint('WARN: Skipping contract ' + (contract ? contract.contract : 'unknown') + ' - missing type');
         return null;
