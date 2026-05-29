@@ -1,86 +1,101 @@
 /**
- * check-darkweb.js - Diagnostic tool
+ * check-darkweb.js - Diagnostic tool + TOR purchase + darknet launcher
  *
- * Scans all servers and reports:
- * 1. Whether "darkweb" appears in the server list
- * 2. Total number of servers found
- * 3. Any server with "dark" in the name
- * 4. Home server RAM info
- * 5. Attempts to purchase TOR if not present
+ * 1. Scans all servers and checks for darkweb
+ * 2. If not present, attempts to purchase TOR
+ * 3. Waits and re-checks for darkweb
+ * 4. If darkweb appears, launches darknet.js
  */
 
 export async function main(ns) {
     ns.tprint("=== DARKWEB DIAGNOSTIC ===");
 
-    // Scan all servers recursively
-    const allServers = new Set();
-    const queue = ["home"];
-    while (queue.length > 0) {
-        const current = queue.shift();
-        if (allServers.has(current)) continue;
-        allServers.add(current);
-        const neighbors = ns.scan(current);
-        for (const n of neighbors) {
-            if (!allServers.has(n)) queue.push(n);
+    // Helper: scan all servers
+    function scanAll() {
+        const allServers = new Set();
+        const queue = ["home"];
+        while (queue.length > 0) {
+            const current = queue.shift();
+            if (allServers.has(current)) continue;
+            allServers.add(current);
+            try {
+                const neighbors = ns.scan(current);
+                for (const n of neighbors) {
+                    if (!allServers.has(n)) queue.push(n);
+                }
+            } catch (_) {}
+        }
+        return allServers;
+    }
+
+    // Helper: check if darkweb is accessible
+    function hasDarkweb() {
+        return ns.scan("home").includes("darkweb");
+    }
+
+    let servers = scanAll();
+    ns.tprint(`Total servers found: ${servers.size}`);
+    ns.tprint(`darkweb in list: ${servers.has("darkweb")}`);
+
+    if (!hasDarkweb()) {
+        ns.tprint("Attempting to purchase TOR...");
+        try {
+            const result = ns.singularity.purchaseTor();
+            ns.tprint(`purchaseTor() returned: ${result}`);
+        } catch (e) {
+            ns.tprint(`purchaseTor() error: ${String(e)}`);
+            ns.tprint("Try manually: buy -a  (in terminal)");
+            return ns.tprint("=== END DIAGNOSTIC ===");
+        }
+
+        // Wait for darkweb to appear (can take a few game ticks)
+        ns.tprint("Waiting for darkweb to appear...");
+        for (let i = 0; i < 10; i++) {
+            await ns.sleep(500);
+            if (hasDarkweb()) {
+                ns.tprint(`darkweb appeared after ${(i + 1) * 500}ms!`);
+                break;
+            }
+        }
+
+        if (!hasDarkweb()) {
+            ns.tprint("darkweb still not visible after 5 seconds.");
+            ns.tprint("The TOR may need a game tick. Try running this script again.");
+            return ns.tprint("=== END DIAGNOSTIC ===");
         }
     }
 
-    const serverList = [...allServers].sort();
-    ns.tprint(`Total servers found: ${serverList.length}`);
+    // Darkweb is available - check/launch darknet.js
+    ns.tprint("darkweb is available! Checking darknet.js...");
+    const darknetScript = "/darknet.js";
+    const darknetExists = ns.fileExists(darknetScript, "home");
+    ns.tprint(`${darknetScript} exists: ${darknetExists}`);
 
-    // Check for darkweb
-    const hasDarkweb = allServers.has("darkweb");
-    ns.tprint(`darkweb in list: ${hasDarkweb}`);
+    if (!darknetExists) {
+        ns.tprint("ERROR: darknet.js not found on home!");
+        return ns.tprint("=== END DIAGNOSTIC ===");
+    }
 
-    // Find any server with "dark" in name
-    const darkServers = serverList.filter(s => s.toLowerCase().includes("dark"));
-    ns.tprint(`Servers with "dark" in name: ${darkServers.length > 0 ? darkServers.join(", ") : "(none)"}`);
+    // Check if already running
+    const alreadyRunning = ns.ps("home").some(p => p.filename === darknetScript);
+    ns.tprint(`darknet.js already running: ${alreadyRunning}`);
 
-    // Check if darknet.js script exists
-    const darknetExists = ns.fileExists("/darknet.js", "home");
-    ns.tprint(`/darknet.js exists on home: ${darknetExists}`);
+    if (!alreadyRunning) {
+        const scriptRam = ns.getScriptRam(darknetScript, "home");
+        const freeRam = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
+        ns.tprint(`RAM: need ${scriptRam.toFixed(1)}GB, have ${freeRam.toFixed(1)}GB free`);
 
-    // Check RAM
-    const maxRam = ns.getServerMaxRam("home");
-    const usedRam = ns.getServerUsedRam("home");
-    ns.tprint(`Home RAM: ${maxRam}GB total, ${usedRam}GB used, ${(maxRam - usedRam).toFixed(1)}GB free`);
-
-    // Check home neighbors (where darkweb would appear)
-    const homeNeighbors = ns.scan("home");
-    ns.tprint(`Home neighbors: ${homeNeighbors.join(", ")}`);
-
-    // Attempt to purchase TOR if not present
-    if (!hasDarkweb) {
-        ns.tprint("Attempting to purchase TOR...");
-        try {
-            // Try the v3 API
-            const result = ns.singularity.purchaseTor();
-            ns.tprint(`purchaseTor() returned: ${JSON.stringify(result)}`);
-        } catch (e) {
-            ns.tprint(`purchaseTor() error: ${String(e)}`);
-            // Try alternative method
-            try {
-                ns.tprint("Trying terminal buy command...");
-                // Can't run terminal buy from NS script directly
-                ns.tprint("NOTE: You may need to manually run 'buy -a' in terminal");
-            } catch (e2) {
-                ns.tprint(`Alternative also failed: ${String(e2)}`);
-            }
+        if (freeRam < scriptRam) {
+            ns.tprint("ERROR: Not enough RAM to launch darknet.js!");
+            return ns.tprint("=== END DIAGNOSTIC ===");
         }
-        // Re-check after purchase attempt
-        const newNeighbors = ns.scan("home");
-        const nowHasDarkweb = newNeighbors.includes("darkweb");
-        ns.tprint(`After purchase attempt - darkweb in neighbors: ${nowHasDarkweb}`);
-        if (nowHasDarkweb) {
-            ns.tprint("SUCCESS: TOR purchased! darkweb is now available.");
+
+        const pid = ns.exec(darknetScript, "home", 1);
+        if (pid) {
+            ns.tprint(`Launched darknet.js (PID: ${pid})`);
         } else {
-            ns.tprint("TOR not purchased yet. You may need to run 'buy -a' in terminal.");
+            ns.tprint("ERROR: ns.exec returned 0 - failed to launch darknet.js");
         }
-    } else {
-        ns.tprint("darkweb is already available. darknet.js should have been launched by daemon.");
-        // Check if darknet.js is running
-        const darknetRunning = ns.ps("home").some(p => p.filename === "/darknet.js");
-        ns.tprint(`darknet.js running on home: ${darknetRunning}`);
     }
 
     ns.tprint("=== END DIAGNOSTIC ===");
