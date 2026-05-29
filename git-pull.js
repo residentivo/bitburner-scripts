@@ -47,7 +47,6 @@ export async function main(ns) {
     const pid = ns.exec(daemonPath, 'home', 1);
     if (pid) {
         ns.tprint("SUCCESS: daemon.js started (pid=" + pid + ")");
-        ns.ui.openTail(daemonPath);
     } else {
         ns.tprint("WARNING: Failed to start daemon.js");
     }

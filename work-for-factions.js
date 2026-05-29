@@ -542,6 +542,11 @@ async function getCurrentFactionFavour(ns, factionName) {
 }
 
 /** @param {NS} ns */
+async function getCompanyReputation(ns, companyName) {
+    return await getNsDataThroughFile(ns, `ns.singularity.getCompanyRep('${companyName}')`, '/Temp/company-rep.txt');
+}
+
+/** @param {NS} ns */
 async function getServerRequiredHackLevel(ns, serverName) {
     return await getNsDataThroughFile(ns, `ns.getServerRequiredHackingLevel('${serverName}')`, '/Temp/server-required-hacking-level.txt');
 }
