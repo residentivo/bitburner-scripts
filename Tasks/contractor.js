@@ -131,19 +131,26 @@ function solveProblem(type, input) {
   if (type === "HammingCodes: Encoded Binary to Integer") {
     let bits = input.split("").map(Number);
     let len = bits.length;
-    let err = 0;
-    for (let p = 1; p <= len; p *= 2) {
+    // Extended Hamming code: positions 1-indexed
+    // Parity positions are powers of 2; data positions are everything else
+    // Compute syndrome to find single-bit error
+    let numParity = Math.round(Math.log2(len));
+    let syndrome = 0;
+    for (let pi = 0; pi < numParity; pi++) {
+      let pbit = 1 << pi;
       let par = 0;
-      for (let j = p; j <= len; j++) {
-        if ((j & p) !== 0) par ^= bits[j - 1];
+      for (let j = 1; j <= len; j++) {
+        if ((j & pbit) !== 0) par ^= bits[j - 1];
       }
-      err += par * p;
+      syndrome |= (par << pi);
     }
-    if (err > 0 && err <= len) bits[err - 1] ^= 1;
+    // Correct error at syndrome position
+    if (syndrome > 0 && syndrome <= len) bits[syndrome - 1] ^= 1;
+    // Extract data bits (non-power-of-2 positions)
     let result = 0;
-    for (let d = 3; d <= len; d++) {
-      if ((d & (d - 1)) !== 0) {
-        result = (result << 1) | bits[d - 1];
+    for (let pos = 1; pos <= len; pos++) {
+      if ((pos & (pos - 1)) !== 0) {
+        result = (result << 1) | bits[pos - 1];
       }
     }
     return result;
