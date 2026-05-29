@@ -1,12 +1,11 @@
 /**
  * contractor.js - In-process coding contract solver for Bitburner v3
- * Periodically scans all servers for coding contracts and solves them inline.
- * All solver functions are embedded (no external imports beyond helpers.js).
+ * Uses getNsDataThroughFile for all game API calls - no modules.
  */
 
-import { getFilePath, getNsDataThroughFile, disableLogs, scanAllServers } from '../helpers.js';
+import { getNsDataThroughFile, disableLogs, scanAllServers } from '../helpers.js';
 
-// ---- SOLVERS (embedded from solver-functions.js) ----
+// ---- SOLVERS ----
 
 const SOLVERS = [
     { name: 'Find Largest Prime Factor', fn: function(d) {
@@ -32,7 +31,7 @@ const SOLVERS = [
     { name: 'Find All Valid Math Expressions', fn: function(d) { var num=d[0],target=d[1];function helper(res,path,s,tar,pos,eval,mult){if(pos===s.length){if(tar===eval)res.push(path);return;}for(var i=pos;i<s.length;i++){if(i!=pos&&s[pos]==='0')break;var cur=parseInt(s.substring(pos,i+1));if(pos===0)helper(res,path+cur,s,tar,i+1,cur,cur);else{helper(res,path+'+'+cur,s,tar,i+1,eval+cur,cur);helper(res,path+'-'+cur,s,tar,i+1,eval-cur,-cur);helper(res,path+'*'+cur,s,tar,i+1,eval-mult+mult*cur,mult*cur);}}}if(!num||num.length===0)return[];var result=[];helper(result,'',num,target,0,0,0);return result; }},
     { name: 'Compression I: RLE Compression', fn: function(d) { if(!d||d.length===0)return'';var r='',c=1;for(var i=1;i<d.length;i++){if(d[i]===d[i-1])c++;else{r+=c+d[i-1];c=1;}}r+=c+d[d.length-1];return r; }},
     { name: 'Compression II: LZ Decompression', fn: function(d) { var p='',i=0;while(i<d.length){var ll=d.charCodeAt(i)-0x30;if(ll<0||ll>9||i+1+ll>d.length)return null;p+=d.substring(i+1,i+1+ll);i+=1+ll;if(i>=d.length)break;var bl=d.charCodeAt(i)-0x30;if(bl<0||bl>9)return null;if(bl===0){i++;continue;}if(i+1>=d.length)return null;var bo=d.charCodeAt(i+1)-0x30;if(bo<1||bo>9)return null;if(bo>p.length)return null;for(var j=0;j<bl;j++)p+=p[p.length-bo];i+=2;}return p; }},
-    { name: 'Compression III: LZ Compression', fn: function(d) { if(!d||d.length===0)return'';var compressed='',decoded='',pos=0;while(pos<d.length){var litChars='',backLenFound=0,backOffFound=0;while(pos+litChars.length<d.length){var testDec=decoded+litChars,bestBL=0,bestBO=0,matchStart=pos+litChars.length;if(litChars.length>0){for(var off=1;off<=Math.min(9,testDec.length);off++){var fl=0;while(fl<9&&matchStart+fl<d.length){var si=testDec.length-off+(fl%off);if(si<0||si>=testDec.length)break;if(d[matchStart+fl]===testDec[si])fl++;else break;}if(fl>bestBL){bestBL=fl;bestBO=off;}}}if(bestBL>=3){backLenFound=bestBL;backOffFound=bestBO;break;}if(litChars.length>=9)break;litChars+=d[pos+litChars.length];}if(litChars.length===0)litChars=d[pos];pos+=litChars.length;decoded+=litChars;compressed+=String(litChars.length)+litChars;if(pos>=d.length)break;if(backLenFound>=3){var backref='';for(var j=0;j<backLenFound;j++)backref+=decoded[decoded.length-backOffFound+(j%backOffFound)];compressed+=String(backLenFound)+String(backOffFound);decoded+=backref;pos+=backLenFound;}else compressed+='0';}return compressed; }},
+    { name: 'Compression III: LZ Compression', fn: function(d) { if(!d||d.length===0)return'';var compressed='',decoded='',pos=0;while(pos<d.length){var lit='',bl=0,bo=0;while(pos+lit.length<d.length){var td=decoded+lit,bestBL=0,bestBO=0,ms=pos+lit.length;if(lit.length>0){for(var off=1;off<=Math.min(9,td.length);off++){var fl=0;while(fl<9&&ms+fl<d.length){var si=td.length-off+(fl%off);if(si<0||si>=td.length)break;if(d[ms+fl]===td[si])fl++;else break;}if(fl>bestBL){bestBL=fl;bestBO=off;}}}if(bestBL>=3){bl=bestBL;bo=bestBO;break;}if(lit.length>=9)break;lit+=d[pos+lit.length];}if(lit.length===0)lit=d[pos];pos+=lit.length;decoded+=lit;compressed+=String(lit.length)+lit;if(pos>=d.length)break;if(bl>=3){var br='';for(var j=0;j<bl;j++)br+=decoded[decoded.length-bo+(j%bo)];compressed+=String(bl)+String(bo);decoded+=br;pos+=bl;}else compressed+='0';}return compressed; }},
     { name: 'Encryption I: Caesar Cipher', fn: function(d) { var pt=d[0],sh=d[1],r='';for(var i=0;i<pt.length;i++){var a=pt.charCodeAt(i);if(a===32)r+=' ';else r+=String.fromCharCode(((a-65-sh+26)%26)+65);}return r; }},
     { name: 'Encryption II: Vigenère Cipher', fn: function(d) { var pt,key;if(Array.isArray(d)){pt=d[0];key=d[1];}else{var si=d.lastIndexOf(' ');pt=d.substring(0,si);key=d.substring(si+1);}if(!/^[A-Z]+$/.test(key))return null;var r='';for(var i=0;i<pt.length;i++){var a=pt.charCodeAt(i);if(a>=65&&a<=90)r+=String.fromCharCode(((a-2*65+key.charCodeAt(i%key.length))%26)+65);else r+=pt[i];}return r; }},
     { name: 'Proper 2-Coloring of a Graph', fn: function(d) { var nv,edges;if(Array.isArray(d[0])&&typeof d[0][0]==='number'&&!Array.isArray(d[0][0])){nv=d[0];edges=d[1];}else if(typeof d[0]==='number'&&Array.isArray(d[1])){nv=d[0];edges=d[1];}else{edges=d;nv=0;for(var i=0;i<edges.length;i++)nv=Math.max(nv,edges[i][0],edges[i][1]);nv++;}var adj=[];for(var i=0;i<nv;i++)adj[i]=[];for(var i=0;i<edges.length;i++){adj[edges[i][0]].push(edges[i][1]);adj[edges[i][1]].push(edges[i][0]);}var color=new Array(nv).fill(-1);for(var s=0;s<nv;s++){if(color[s]!==-1)continue;color[s]=0;var q=[s],h=0;while(h<q.length){var u=q[h++];for(var j=0;j<adj[u].length;j++){var v=adj[u][j];if(color[v]===-1){color[v]=1-color[u];q.push(v);}else if(color[v]===color[u])return[];}}}return color.slice(0,nv); }},
@@ -41,42 +40,8 @@ const SOLVERS = [
     { name: 'HammingCodes: Integer to Encoded Binary', fn: function(d) { var n=typeof d==='bigint'?d:BigInt(d);var bits=n.toString(2).split('').reverse().map(function(v){return parseInt(v);});var k=bits.length;var enc=[0];for(var i=1;k>0;i++){if((i&(i-1))!==0)enc[i]=bits[--k];else enc[i]=0;}var pn=0;for(var i=0;i<enc.length;i++)if(enc[i])pn^=i;var pa=pn.toString(2).split('').reverse().map(function(v){return parseInt(v);});for(var i=0;i<pa.length;i++)enc[Math.pow(2,i)]=pa[i]?1:0;pn=0;for(var i=0;i<enc.length;i++)if(enc[i])pn++;enc[0]=pn%2===0?0:1;return enc.join(''); }},
     { name: 'HammingCodes: Encoded Binary to Integer', fn: function(d) { var enc=d.split('').map(function(v){return parseInt(v);});var m=0,n2=enc.length;while(Math.pow(2,m)<m+n2+1)m++;var pn=0;for(var i=0;i<n2;i++){var expected=0;for(var j=0;j<m;j++)if(i&(1<<j))expected^=enc[Math.pow(2,j)];if(enc[i]!==expected)pn^=i;}if(pn!==0&&pn<n2)enc[pn]=1-enc[pn];var dataBits=[];for(var i=1;i<n2;i++)if((i&(i-1))!==0)dataBits.push(enc[i]);dataBits.reverse();return parseInt(dataBits.join(''),2); }},
     { name: 'Shortest Path in a Grid', fn: function(d) { var g=d,rows=g.length,cols=g[0].length;if(g[0][0]===1||g[rows-1][cols-1]===1)return'';var dist=[],parent=[];for(var i=0;i<rows;i++){dist[i]=new Array(cols).fill(-1);parent[i]=new Array(cols).fill(null);}dist[0][0]=0;var q=[[0,0]],h=0;var dirs=[['D',1,0],['R',0,1],['U',-1,0],['L',0,-1]];while(h<q.length){var cur=q[h++];if(cur[0]===rows-1&&cur[1]===cols-1)break;for(var x=0;x<dirs.length;x++){var nr=cur[0]+dirs[x][1],nc=cur[1]+dirs[x][2];if(nr>=0&&nr<rows&&nc>=0&&nc<cols&&g[nr][nc]===0&&dist[nr][nc]===-1){dist[nr][nc]=dist[cur[0]][cur[1]]+1;parent[nr][nc]=[cur[0],cur[1],dirs[x][0]];q.push([nr,nc]);}}}if(dist[rows-1][cols-1]===-1)return'';var path=[],cr=rows-1,cc=cols-1;while(cr!==0||cc!==0){var p=parent[cr][cc];path.push(p[2]);cr=p[0];cc=p[1];}path.reverse();return path.join(''); }},
-    { name: 'Total Primes in Range', fn: function(d) {
-        var low=Number(d[0]),high=Number(d[1]);
-        if(high<2)return 0;
-        if(low<2)low=2;
-        if(high<=10000000){
-            var s=new Array(high+1).fill(true);s[0]=s[1]=false;
-            for(var i=2;i*i<=high;i++)if(s[i])for(var j=i*i;j<=high;j+=i)s[j]=false;
-            var c=0;for(var i=low;i<=high;i++)if(s[i])c++;
-            return c;
-        }
-        var sqH=Math.ceil(Math.sqrt(high)),sp=[],ss=new Array(sqH+1).fill(true);
-        ss[0]=ss[1]=false;
-        for(var i=2;i<=sqH;i++){if(ss[i]){sp.push(i);for(var j=i*i;j<=sqH;j+=i)ss[j]=false;}}
-        var rs=high-low+1,seg=new Array(rs).fill(true);
-        for(var p=0;p<sp.length;p++){var pr=sp[p],st=Math.max(pr,Math.ceil(low/pr))*pr;for(var j=st;j<=high;j+=pr)seg[j-low]=false;}
-        var c=0;for(var i=0;i<rs;i++)if(seg[i])c++;
-        return c;
-    }},
-    { name: 'Total Number of Primes', fn: function(d) {
-        var low=Number(d[0]),high=Number(d[1]);
-        if(high<2)return 0;
-        if(low<2)low=2;
-        if(high<=10000000){
-            var s=new Array(high+1).fill(true);s[0]=s[1]=false;
-            for(var i=2;i*i<=high;i++)if(s[i])for(var j=i*i;j<=high;j+=i)s[j]=false;
-            var c=0;for(var i=low;i<=high;i++)if(s[i])c++;
-            return c;
-        }
-        var sqH=Math.ceil(Math.sqrt(high)),sp=[],ss=new Array(sqH+1).fill(true);
-        ss[0]=ss[1]=false;
-        for(var i=2;i<=sqH;i++){if(ss[i]){sp.push(i);for(var j=i*i;j<=sqH;j+=i)ss[j]=false;}}
-        var rs=high-low+1,seg=new Array(rs).fill(true);
-        for(var p=0;p<sp.length;p++){var pr=sp[p],st=Math.max(pr,Math.ceil(low/pr))*pr;for(var j=st;j<=high;j+=pr)seg[j-low]=false;}
-        var c=0;for(var i=0;i<rs;i++)if(seg[i])c++;
-        return c;
-    }},
+    { name: 'Total Primes in Range', fn: function(d) { var low=Number(d[0]),high=Number(d[1]);if(high<2)return 0;if(low<2)low=2;if(high<=10000000){var s=new Array(high+1).fill(true);s[0]=s[1]=false;for(var i=2;i*i<=high;i++)if(s[i])for(var j=i*i;j<=high;j+=i)s[j]=false;var c=0;for(var i=low;i<=high;i++)if(s[i])c++;return c;}var sqH=Math.ceil(Math.sqrt(high)),sp=[],ss=new Array(sqH+1).fill(true);ss[0]=ss[1]=false;for(var i=2;i<=sqH;i++){if(ss[i]){sp.push(i);for(var j=i*i;j<=sqH;j+=i)ss[j]=false;}}var rs=high-low+1,seg=new Array(rs).fill(true);for(var p=0;p<sp.length;p++){var pr=sp[p],st=Math.max(pr,Math.ceil(low/pr))*pr;for(var j=st;j<=high;j+=pr)seg[j-low]=false;}var c=0;for(var i=0;i<rs;i++)if(seg[i])c++;return c; }},
+    { name: 'Total Number of Primes', fn: function(d) { var low=Number(d[0]),high=Number(d[1]);if(high<2)return 0;if(low<2)low=2;if(high<=10000000){var s=new Array(high+1).fill(true);s[0]=s[1]=false;for(var i=2;i*i<=high;i++)if(s[i])for(var j=i*i;j<=high;j+=i)s[j]=false;var c=0;for(var i=low;i<=high;i++)if(s[i])c++;return c;}var sqH=Math.ceil(Math.sqrt(high)),sp=[],ss=new Array(sqH+1).fill(true);ss[0]=ss[1]=false;for(var i=2;i<=sqH;i++){if(ss[i]){sp.push(i);for(var j=i*i;j<=sqH;j+=i)ss[j]=false;}}var rs=high-low+1,seg=new Array(rs).fill(true);for(var p=0;p<sp.length;p++){var pr=sp[p],st=Math.max(pr,Math.ceil(low/pr))*pr;for(var j=st;j<=high;j+=pr)seg[j-low]=false;}var c=0;for(var i=0;i<rs;i++)if(seg[i])c++;return c; }},
 ];
 
 function findAnswer(contract) {
@@ -89,98 +54,66 @@ function findAnswer(contract) {
     return null;
 }
 
-// ---- MAIN ----
-
 /** @param {NS} ns **/
 export async function main(ns) {
     disableLogs(ns, ["scan", "run", "isRunning"]);
-    ns.print("Getting server list...");
+    ns.tprint("contractor.js starting...");
+
     const servers = scanAllServers(ns);
-    ns.print(`Got ${servers.length} servers. Searching for contracts on each...`);
-    const contractsDb = servers.map(hostname => ({ hostname, contracts: ns.ls(hostname, '.cct') }))
-        .filter(o => o.contracts.length > 0)
-        .map(o => o.contracts.map(contract => ({ contract, hostname: o.hostname }))).flat();
-    if (contractsDb.length == 0)
-        return ns.print("Found no contracts to solve.");
+    ns.tprint("Scanning " + servers.length + " servers for contracts...");
 
-    ns.print(`Found ${contractsDb.length} contracts. Gathering types and data...`);
+    const contractsDb = [];
+    for (const srv of servers) {
+        const c = ns.ls(srv, '.cct');
+        for (const ct of c) contractsDb.push({ contract: ct, hostname: srv });
+    }
 
-    // Get all types in one shot
-    let contractsDictCommand = command => `Object.fromEntries(${JSON.stringify(contractsDb)}.map(c => [c.contract, ${command}]))`;
-    let dictContractTypes = await getNsDataThroughFile(ns, contractsDictCommand('ns.codingcontract.getContractType(c.contract, c.hostname)'), '/Temp/contract-types.txt');
+    if (contractsDb.length === 0) return ns.tprint("No contracts found.");
 
-    // Get data per-contract
-    const getDataCommand = `JSON.stringify(ns.codingcontract.getData(ns.args[0], ns.args[1]), (k, v) => typeof v === 'bigint' ? '__BIGINT__' + v.toString() : v)`;
-    let dictContractData = {};
+    ns.tprint("Found " + contractsDb.length + " contracts. Getting data...");
+
+    // Get types
+    let types = {};
+    try {
+        const cmd = 'JSON.stringify([' + contractsDb.map(c => 'ns.codingcontract.getContractType(' + JSON.stringify(c.contract) + ',' + JSON.stringify(c.hostname) + ')').join(',') + '])';
+        const raw = await getNsDataThroughFile(ns, cmd, '/Temp/contract-types.txt');
+        if (raw) {
+            const arr = JSON.parse(raw);
+            contractsDb.forEach((c, i) => { c.type = arr[i]; });
+        }
+    } catch(e) {
+        ns.tprint("WARN: Failed to get types: " + e);
+    }
+
+    // Get data per contract
+    let dataCount = 0;
     for (const c of contractsDb) {
         try {
-            const safeName = c.contract.replace(/[^a-zA-Z0-9]/g, '_');
-            const raw = await getNsDataThroughFile(ns, getDataCommand, `/Temp/contract-data-${safeName}.txt`, [c.contract, c.hostname]);
-            if (raw !== undefined && raw !== null && raw !== "" && raw !== "undefined" && raw !== "null") {
-                dictContractData[c.contract] = raw;
-            } else {
-                ns.tprint(`WARN: getData returned "${raw}" for ${c.contract} on ${c.hostname}`);
+            const cmd = 'JSON.stringify(ns.codingcontract.getData(' + JSON.stringify(c.contract) + ',' + JSON.stringify(c.hostname) + '),(k,v)=>typeof v==="bigint"?"__BIGINT__"+v.toString():v)';
+            const raw = await getNsDataThroughFile(ns, cmd, '/Temp/contract-data-' + c.contract.replace(/[^a-zA-Z0-9]/g,'_') + '.txt');
+            if (raw && raw !== 'undefined' && raw !== 'null') {
+                c.data = JSON.parse(raw, (k, v) => typeof v === 'string' && v.startsWith('__BIGINT__') ? BigInt(v.slice(10)) : v);
+                dataCount++;
             }
-        } catch (e) {
-            ns.tprint(`WARN: getData exception for ${c.contract} on ${c.hostname}: ${e}`);
-        }
+        } catch(e) { ns.tprint("WARN: getData failed for " + c.contract + ": " + e); }
     }
 
-    // Parse data into contracts
-    let dataCount = 0;
-    contractsDb.forEach(c => {
-        c.type = dictContractTypes[c.contract];
-        const raw = dictContractData[c.contract];
-        if (raw) {
-            try { c.data = JSON.parse(raw, (k, v) => typeof v === 'string' && v.startsWith('__BIGINT__') ? BigInt(v.slice(10)) : v); }
-            catch (e) {
-                ns.tprint(`WARN: Failed to parse data for ${c.contract} (${c.type}): ${e}. Raw: ${raw.substring(0, 200)}`);
-                try { c.data = JSON.parse(raw); } catch (e2) { ns.tprint(`WARN: Fallback parse also failed: ${e2}`); }
-            }
-        }
-        if (c.data !== undefined && c.data !== null) {
-            dataCount++;
-        } else {
-            ns.tprint(`WARN: No data for ${c.contract} (${c.type})`);
-        }
-    });
+    ns.tprint(dataCount + "/" + contractsDb.length + " contracts have data.");
+    if (dataCount === 0) return ns.tprint("No data. Aborting.");
 
-    ns.tprint(`${dataCount}/${contractsDb.length} contracts have data.`);
-    if (dataCount == 0)
-        return ns.tprint("ERROR: No contract data available. Aborting.");
+    const allContracts = contractsDb.filter(c => c.data != null);
 
-    // Filter contracts with data
-    const allContracts = contractsDb.filter(c => c.data !== undefined && c.data !== null);
-
-    // Summary log
-    allContracts.forEach(c => {
-        var dataStr;
-        if (typeof c.data === 'bigint') dataStr = '__BIGINT__(' + c.data.toString().substring(0, 20) + '...)';
-        else if (typeof c.data === 'string' && c.data.length > 40) dataStr = JSON.stringify(c.data.substring(0, 40)) + '...';
-        else dataStr = JSON.stringify(c.data);
-        ns.tprint(`  ${c.contract} @ ${c.hostname}: ${c.type} | data=${dataStr}`);
-    });
-
-    // Solve all contracts in-process
-    ns.tprint(`Solving ${dataCount} contracts in-process...`);
-    let totalSolved = 0, totalFailed = 0, totalSkipped = 0;
+    // Solve
+    let solved = 0, failed = 0, skipped = 0;
     for (const c of allContracts) {
         const answer = findAnswer(c);
-        if (answer == null) { totalSkipped++; continue; }
+        if (answer == null) { skipped++; continue; }
         try {
             const ok = ns.codingcontract.attempt(answer, c.contract, c.hostname, { returnReward: true });
-            if (ok) {
-                totalSolved++;
-                ns.tprint(`  SOLVED: ${c.contract} on ${c.hostname} (${c.type})`);
-            } else {
-                totalFailed++;
-                ns.tprint(`  WRONG:  ${c.contract} on ${c.hostname} (${c.type}) -> ${JSON.stringify(answer).substring(0,60)}`);
-            }
-        } catch (e) {
-            totalFailed++;
-            ns.tprint(`  ERROR:  ${c.contract}: ${e.toString().substring(0,60)}`);
-        }
+            if (ok) { solved++; ns.tprint("SOLVED: " + c.contract + " on " + c.hostname + " (" + c.type + ")"); }
+            else { failed++; ns.tprint("WRONG: " + c.contract + " (" + c.type + ") -> " + JSON.stringify(answer).substring(0,60)); }
+        } catch(e) { failed++; ns.tprint("ERROR: " + c.contract + ": " + String(e).substring(0,60)); }
         await ns.sleep(10);
     }
-    ns.tprint(`Done: ${totalSolved} solved, ${totalFailed} wrong, ${totalSkipped} skipped`);
+    ns.tprint("Done: " + solved + " solved, " + failed + " wrong, " + skipped + " skipped");
 }
