@@ -304,9 +304,6 @@ export async function main(ns) {
     await getStaticServerData(ns, scanAllServers(ns)); // Gather information about servers that will never change
     buildServerList(ns); // create the exhaustive server list
     // DEBUG: log darknet launch condition
-    if (addedServerNames.includes("darkweb")) {
-        log('DEBUG: darkweb found in addedServerNames, darknet.js should launch', true);
-    }
     await establishMultipliers(ns); // figure out the various bitnode and player multipliers
     maxTargets = stockFocus ? Object.keys(serverStockSymbols).length : options['initial-max-targets']; // Ensure we immediately attempt to target all servers that represent stocks if in stock-focus mode
 
@@ -389,13 +386,9 @@ async function runStartupScripts(ns) {
     for (const helper of asynchronousHelpers) {
         if (launched > 0) await ns.asleep(200);
         if (!helper.isLaunched && (helper.shouldRun === undefined || helper.shouldRun())) {
-            log('DEBUG: Attempting to launch ' + helper.name + ' (shouldRun=' + (helper.shouldRun ? helper.shouldRun() : 'undefined') + ')', true);
             helper.isLaunched = await tryRunTool(ns, getTool(helper))
             if (helper.isLaunched) {
-                log('DEBUG: Successfully launched ' + helper.name, true);
                 launched++;
-            } else {
-                log('DEBUG: Failed to launch ' + helper.name, true);
             }
         }
     }
@@ -429,13 +422,6 @@ const funcResultOrValue = fnOrVal => (fnOrVal instanceof Function ? fnOrVal() : 
 // Returns true if the tool is running (including if it was already running), false if it could not be run.
 /** @param {NS} ns **/
 async function tryRunTool(ns, tool) {
-    if (tool.name.includes('contractor')) {
-        log(`DEBUG tryRunTool: tool.name="${tool.name}" daemonHost="${daemonHost}"`, true);
-        log(`DEBUG tryRunTool: doesFileExist result = ${doesFileExist(tool.name)}`, true);
-        log(`DEBUG tryRunTool: ns.fileExists("${tool.name}") = ${ns.fileExists(tool.name)}`, true);
-        const lsResult = ns.ls(ns.getHostname(), 'contractor');
-        log(`DEBUG tryRunTool: ls(contractor) = ${JSON.stringify(lsResult)}`, true);
-    }
     if (!doesFileExist(tool.name)) {
         log(`ERROR: Tool ${tool.name} was not found on ${daemonHost}`, true, 'error');
         return false;
@@ -479,9 +465,6 @@ async function exec(ns, script, host, numThreads, ...args) {
     // Try to run the script with auto-retry if it fails to start
     const pid = await autoRetry(ns, async () => {
         const p = ns.exec(script, host, numThreads, ...args);
-        if (script.includes('contractor')) {
-            log(`DEBUG exec: ns.exec("${script}", "${host}", ${numThreads}) = ${p}`, true);
-        }
         if (firstRun) await ns.asleep(5);
         return p;
     }, p => p !== 0, () => `Attempt to exec ${script} on ${host} returned no pid.\nYou may be too low on RAM, or the script may be invalid.`);
