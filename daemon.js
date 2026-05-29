@@ -501,6 +501,11 @@ async function doTargetingLoop(ns) {
             if (loops % 60 == 0) { // For more expensive updates, only do these every so often
                 // If we have not yet launched all helpers (e.g. awaiting more home ram, or TIX API to be purchased) see if any are now ready to be run
                 if (!allHelpersRunning) allHelpersRunning = await runStartupScripts(ns);
+                // Ensure darknet.js is running if darkweb server is available
+                if (addedServerNames.includes("darkweb") && !whichServerIsRunning(ns, getFilePath("darknet.js"))) {
+                    const darknetTool = tools.find(t => t.name === getFilePath("darknet.js"));
+                    if (darknetTool) await tryRunTool(ns, darknetTool);
+                }
                 // Pull additional data about servers that infrequently changes
                 await refreshDynamicServerData(ns, addedServerNames);
                 // Occassionally print our current targetting order (todo, make this controllable with a flag or custom UI?)

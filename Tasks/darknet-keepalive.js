@@ -9,7 +9,7 @@
  */
 
 export async function main(ns) {
-    const darknetScript = "/Tasks/darknet.js";
+    const darknetScript = "/darknet.js";
 
     // Check if darknet.js is already running (on home or any server)
     const isRunning = ns.isRunning(darknetScript, "home") ||
