@@ -306,6 +306,10 @@ async function mainLoop(ns) {
 
     // Detect our current action (API returns an object like { "type":"Operation", "name":"Investigation" })
     const currentAction = await getBBInfo(ns, `getCurrentAction()`);
+    if (!currentAction) {
+        log(ns, 'WARN: getCurrentAction() returned null - no current bladeburner action');
+        return;
+    }
 
     // Normally, we don't switch tasks if our previously assigned task hasn't had time to complete once.
     // EXCEPTION: Early after a reset, this time is LONG, and in a few seconds it may be faster to just stop and restart it.
