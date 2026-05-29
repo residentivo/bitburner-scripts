@@ -40,7 +40,7 @@ export async function main(ns) {
 
     // Check TOR purchase status
     const homeMoney = ns.getServerMoneyAvailable("home");
-    ns.tprint(`Home money: ${ns.nFormat(homeMoney, "$0.00a")}`);
+    ns.tprint(`Home money: ${ns.formatNumber(homeMoney, 2)}`);
 
     // Check if darknet.js script exists
     const darknetExists = ns.fileExists("/darknet.js", "home");
