@@ -1,57 +1,23 @@
 /**
- * test-single-contract.js - Test with a fresh contract, comparing submit methods
- *
- * Usage: run /Tasks/test-single-contract.js
- * IMPORTANT: Only tests contracts with 3 tries remaining to not waste attempts
+ * test-single-contract.js - Test round vs floor sqrt on depleted contract
+ * WARNING: This will use the last remaining try on 4sigma contract-MlxLkh.cct
  */
 
-import { findAnswer } from '/Tasks/contractor.js.solver.js';
-
 export async function main(ns) {
-    ns.tprint("=== FRESH CONTRACT TEST ===");
+    const server = "4sigma";
+    const file = "contract-MlxLkh.cct";
+    const answer = "16001829399512391106487654851923863598148325129907224558983740239726882674142332884176095616681568323";
 
-    // Scan all servers for contracts
-    const allServers = new Set();
-    const queue = ["home"];
-    while (queue.length > 0) {
-        const current = queue.shift();
-        if (allServers.has(current)) continue;
-        allServers.add(current);
-        try {
-            for (const n of ns.scan(current)) {
-                if (!allServers.has(n)) queue.push(n);
-            }
-        } catch (_) {}
+    ns.tprint("=== LAST TRY: floor(sqrt(n)) ===");
+    ns.tprint("Submitting: " + answer);
+    const r = ns.codingcontract.attempt(answer, file, server, { returnReward: true });
+    ns.tprint("Result: '" + r + "' Success: " + (r && r !== "" ? "YES" : "NO"));
+
+    if (!r) {
+        ns.tprint("FAILED. The answer appears correct mathematically.");
+        ns.tprint("Possible issues:");
+        ns.tprint("1. Contract data changed between reads");
+        ns.tprint("2. The 'nearest integer' means round(), not floor()");
+        ns.tprint("3. The contract solver has a bug for this specific number");
     }
-
-    // Find a contract with full tries (3) that has a solver
-    for (const server of [...allServers].sort()) {
-        let contracts;
-        try { contracts = ns.ls(server, ".cct"); } catch (_) { continue; }
-
-        for (const c of contracts) {
-            const tries = ns.codingcontract.getNumTriesRemaining(c, server);
-            if (tries !== 3) continue; // Only test fresh contracts
-
-            const type = ns.codingcontract.getContractType(c, server);
-            const data = ns.codingcontract.getData(c, server);
-
-            const contractObj = { type, data, contract: c, hostname: server };
-            const answer = findAnswer(contractObj, ns);
-            if (!answer) continue;
-
-            ns.tprint("Testing: " + server + " | " + c + " | " + type);
-
-            // Submit as string
-            const result = ns.codingcontract.attempt(answer, c, server, { returnReward: true });
-            if (result && result !== "") {
-                ns.tprint("  -> SUCCESS with string! Reward: " + result.trim().split("\n")[0]);
-            } else {
-                ns.tprint("  -> FAILED with string (tries left: " + ns.codingcontract.getNumTriesRemaining(c, server) + ")");
-            }
-            return; // Only test one contract
-        }
-    }
-
-    ns.tprint("No suitable fresh contract found.");
 }
