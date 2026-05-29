@@ -19,12 +19,12 @@ export async function main(ns) {
     const type = ns.codingcontract.getContractType(targetFile, targetServer);
     const data = ns.codingcontract.getData(targetFile, targetServer);
     ns.tprint(`Type: ${type}`);
-    ns.tprint(`Data: ${JSON.stringify(data, null, 2).substring(0, 500)}`);
+    ns.tprint(`Data: ${JSON.stringify(data, (_, v) => typeof v === 'bigint' ? v.toString() : v).substring(0, 500)}`);
 
     // Solve it
     const contractObj = { type, data, contract: targetFile, hostname: targetServer };
     const answer = findAnswer(contractObj, ns);
-    ns.tprint(`Answer: ${JSON.stringify(answer)}`);
+    ns.tprint(`Answer: ${JSON.stringify(answer, (_, v) => typeof v === 'bigint' ? v.toString() : v)}`);
     ns.tprint(`Answer type: ${typeof answer}`);
 
     // Try to submit
