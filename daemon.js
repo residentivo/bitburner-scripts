@@ -438,7 +438,7 @@ async function tryRunTool(ns, tool) {
         if (verbose) log(`Ran tool: ${tool.name} ` + (args.length > 0 ? `with args ${JSON.stringify(args)} ` : '') + (runningOnServer ? `on server ${runningOnServer}.` : 'but it shut down right away.'));
         if (tool.tail === true && runningOnServer) {
             log(`Tailing Tool: ${tool.name} on server ${runningOnServer}` + (args.length > 0 ? ` with args ${JSON.stringify(args)}` : ''));
-            // ns.ui.openTail(tool.name, runningOnServer, ...args); // Disabled: causes enum dump spam in v3
+            ns.ui.openTail(tool.name, runningOnServer, ...args);
             tool.tail = false; // Avoid popping open additional tail windows in the future
         }
         return true;
