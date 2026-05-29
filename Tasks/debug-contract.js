@@ -108,7 +108,7 @@ export async function main(ns) {
 
       if (ctype === "Compression III: LZ Compression") {
         let cdata = ns.codingcontract.getData(cct, srv);
-        r = solveLZ(cdata);
+        let r = solveLZ(cdata);
         ns.tprint(`LZCOMP ${srv} | ${cct} | tries=${tries} | in=${r.inputLen} enc=${r.encodedLen}`);
         ns.tprint(`  input(50):  ${cdata.substring(0, 50)}`);
         ns.tprint(`  encoded(50): ${r.encoded.substring(0, 50)}`);
