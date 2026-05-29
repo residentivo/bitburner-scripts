@@ -1,9 +1,14 @@
 /**
- * contractor.js - In-process coding contract solver for Bitburner v3
- * Uses getNsDataThroughFile for all game API calls - no modules.
+ * contractor.js - Coding contract solver for Bitburner v3
+ * Self-contained - minimal imports, no helpers.js dependency for core logic.
  */
 
-import { getNsDataThroughFile, disableLogs, scanAllServers } from '../helpers.js';
+// Minimal scan implementation - no import needed
+function scanAll(ns, prefix = 'home', found = new Set()) {
+    found.add(prefix);
+    for (const s of ns.scan(prefix)) if (!found.has(s)) scanAll(ns, s, found);
+    return [...found];
+}
 
 // ---- SOLVERS ----
 
@@ -56,46 +61,32 @@ function findAnswer(contract) {
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    disableLogs(ns, ["scan", "run", "isRunning"]);
-    ns.tprint("contractor.js starting...");
-
-    const servers = scanAllServers(ns);
-    ns.tprint("Scanning " + servers.length + " servers for contracts...");
+    const servers = scanAll(ns);
+    ns.tprint("contractor.js: scanning " + servers.length + " servers...");
 
     const contractsDb = [];
     for (const srv of servers) {
-        const c = ns.ls(srv, '.cct');
-        for (const ct of c) contractsDb.push({ contract: ct, hostname: srv });
+        for (const ct of ns.ls(srv, '.cct')) {
+            contractsDb.push({ contract: ct, hostname: srv });
+        }
     }
 
     if (contractsDb.length === 0) return ns.tprint("No contracts found.");
-
     ns.tprint("Found " + contractsDb.length + " contracts. Getting data...");
 
-    // Get types
-    let types = {};
-    try {
-        const cmd = 'JSON.stringify([' + contractsDb.map(c => 'ns.codingcontract.getContractType(' + JSON.stringify(c.contract) + ',' + JSON.stringify(c.hostname) + ')').join(',') + '])';
-        const raw = await getNsDataThroughFile(ns, cmd, '/Temp/contract-types.txt');
-        if (raw) {
-            const arr = JSON.parse(raw);
-            contractsDb.forEach((c, i) => { c.type = arr[i]; });
-        }
-    } catch(e) {
-        ns.tprint("WARN: Failed to get types: " + e);
-    }
-
-    // Get data per contract
+    // Get types and data per contract
     let dataCount = 0;
     for (const c of contractsDb) {
         try {
-            const cmd = 'JSON.stringify(ns.codingcontract.getData(' + JSON.stringify(c.contract) + ',' + JSON.stringify(c.hostname) + '),(k,v)=>typeof v==="bigint"?"__BIGINT__"+v.toString():v)';
-            const raw = await getNsDataThroughFile(ns, cmd, '/Temp/contract-data-' + c.contract.replace(/[^a-zA-Z0-9]/g,'_') + '.txt');
-            if (raw && raw !== 'undefined' && raw !== 'null') {
-                c.data = JSON.parse(raw, (k, v) => typeof v === 'string' && v.startsWith('__BIGINT__') ? BigInt(v.slice(10)) : v);
+            c.type = ns.codingcontract.getContractType(c.contract, c.hostname);
+            let data = ns.codingcontract.getData(c.contract, c.hostname);
+            if (data !== undefined && data !== null) {
+                c.data = data;
                 dataCount++;
             }
-        } catch(e) { ns.tprint("WARN: getData failed for " + c.contract + ": " + e); }
+        } catch(e) {
+            ns.tprint("WARN: " + c.contract + " on " + c.hostname + ": " + String(e).substring(0,80));
+        }
     }
 
     ns.tprint(dataCount + "/" + contractsDb.length + " contracts have data.");
@@ -107,11 +98,11 @@ export async function main(ns) {
     let solved = 0, failed = 0, skipped = 0;
     for (const c of allContracts) {
         const answer = findAnswer(c);
-        if (answer == null) { skipped++; continue; }
+        if (answer == null) { skipped++; ns.tprint("SKIP: " + c.type); continue; }
         try {
             const ok = ns.codingcontract.attempt(answer, c.contract, c.hostname, { returnReward: true });
-            if (ok) { solved++; ns.tprint("SOLVED: " + c.contract + " on " + c.hostname + " (" + c.type + ")"); }
-            else { failed++; ns.tprint("WRONG: " + c.contract + " (" + c.type + ") -> " + JSON.stringify(answer).substring(0,60)); }
+            if (ok) { solved++; ns.tprint("SOLVED: " + c.contract + " (" + c.type + ")"); }
+            else { failed++; ns.tprint("WRONG: " + c.contract + " (" + c.type + ") -> " + String(answer).substring(0,60)); }
         } catch(e) { failed++; ns.tprint("ERROR: " + c.contract + ": " + String(e).substring(0,60)); }
         await ns.sleep(10);
     }
