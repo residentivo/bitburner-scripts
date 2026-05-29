@@ -1,5 +1,7 @@
 /**
  * debug-contract.js — debug failing contracts
+ * Usage: run debug-contract.js <server> <contractFile>
+ * If no args, scan all and debug failing types
  */
 
 function solveProblem(type, input) {
@@ -43,9 +45,7 @@ function solveProblem(type, input) {
           bestOff = pos - sp;
         }
       }
-      // Use backref only if it strictly saves tokens: 3 tokens for backref
-      // vs bestLen tokens for literals. But need to account for flush overhead too
-      if (bestLen > 3) { // strictly better: 3 backref tokens < bestLen literal tokens
+      if (bestLen > 3) {
         flushLit();
         encoded += bestOff + "0" + bestLen;
         pos += bestLen;
@@ -130,27 +130,21 @@ function solveProblem(type, input) {
   return null;
 }
 
-// Also provide a decoder to verify roundtrip
 function decodeLZ(encoded) {
   let output = "";
   let i = 0;
   while (i < encoded.length) {
-    if (encoded[i] === '0') {
-      // backref: offset + "0" + length
-      let offset = parseInt(encoded[i - 1]);
-      let length = parseInt(encoded[i + 1]);
-      let srcPos = output.length - offset;
-      for (let k = 0; k < length; k++) {
-        output += output[srcPos + k];
-      }
-      i += 2;
-    } else if (parseInt(encoded[i]) >= 1 && parseInt(encoded[i]) <= 9) {
-      // literal count + chars
-      let count = parseInt(encoded[i]);
+    let num = parseInt(encoded[i]);
+    if (num >= 1 && num <= 9) {
+      let count = num;
       let str = encoded.substring(i + 1, i + 1 + count);
       output += str;
       i += 1 + count;
+    } else if (encoded[i] === '0') {
+      // This shouldn't happen at position 0 in valid encoding
+      i++;
     } else {
+      // Should not happen in valid encoding
       i++;
     }
   }
@@ -159,34 +153,55 @@ function decodeLZ(encoded) {
 
 /** @param {NS} ns */
 export async function main(ns) {
-  let targets = [
-    { srv: "foodnstuff", file: "contract-LdFuwj.cct" },
-    { srv: "silver-helix", file: "contract-M4gZKF.cct" },
-    { srv: "netlink", file: "contract-sOQCNt.cct" },
-    { srv: "computek", file: "contract-joj41q.cct" },
-    { srv: "zb-institute", file: "contract-eWbM8x.cct" },
-  ];
+  // Scan all servers for HammingCodes and Compression III contracts
+  let allServers = new Set(["home"]);
+  let queue = ["home"];
+  while (queue.length > 0) {
+    let host = queue.pop();
+    for (let n of ns.scan(host)) {
+      if (!allServers.has(n)) {
+        allServers.add(n);
+        queue.push(n);
+      }
+    }
+  }
 
-  for (let t of targets) {
-    let ctype = ns.codingcontract.getContractType(t.file, t.srv);
-    let cdata = ns.codingcontract.getData(t.file, t.srv);
-    let answer = solveProblem(ctype, cdata);
+  for (let srv of allServers) {
+    for (let cct of ns.ls(srv, ".cct")) {
+      let ctype = ns.codingcontract.getContractType(cct, srv);
 
-    ns.tprint(`=== ${t.srv} | ${t.file} | ${ctype} ===`);
+      if (ctype === "HammingCodes: Encoded Binary to Integer") {
+        let cdata = ns.codingcontract.getData(cct, srv);
+        let answer = solveProblem(ctype, cdata);
+        let bits = cdata.split("").map(Number);
+        let len = bits.length;
+        ns.tprint(`=== HAMMING ${srv} | ${cct} ===`);
+        ns.tprint(`Input length: ${len}`);
+        ns.tprint(`Input: ${cdata.substring(0, 80)}`);
+        ns.tprint(`Answer: ${answer} (type: ${typeof answer})`);
 
-    if (ctype === "HammingCodes: Encoded Binary to Integer") {
-      ns.tprint(`Input (first 80): ${cdata.substring(0, 80)}...`);
-      ns.tprint(`Input length: ${cdata.length}`);
-      ns.tprint(`Answer: ${answer} (type: ${typeof answer})`);
-    } else if (ctype === "Compression III: LZ Compression") {
-      ns.tprint(`Input (first 80): ${cdata.substring(0, 80)}...`);
-      ns.tprint(`Input length: ${cdata.length}`);
-      ns.tprint(`Encoded (first 80): ${answer.substring(0, 80)}...`);
-      ns.tprint(`Encoded length: ${answer.length}`);
-      // Verify roundtrip
-      let decoded = decodeLZ(answer);
-      ns.tprint(`Decoded length: ${decoded.length}`);
-      ns.tprint(`Roundtrip OK: ${decoded === cdata}`);
+        // Show attempt result
+        let res = ns.codingcontract.attempt(answer, cct, srv);
+        ns.tprint(`Attempt result: ${res}`);
+      }
+
+      if (ctype === "Compression III: LZ Compression") {
+        let cdata = ns.codingcontract.getData(cct, srv);
+        let answer = solveProblem(ctype, cdata);
+        let decoded = decodeLZ(answer);
+        let roundtrip = decoded === cdata;
+        ns.tprint(`=== LZ COMP ${srv} | ${cct} ===`);
+        ns.tprint(`Input length: ${cdata.length}`);
+        ns.tprint(`Input (60): ${cdata.substring(0, 60)}`);
+        ns.tprint(`Encoded length: ${answer.length}`);
+        ns.tprint(`Encoded (60): ${answer.substring(0, 60)}`);
+        ns.tprint(`Roundtrip OK: ${roundtrip}`);
+        if (!roundtrip) {
+          ns.tprint(`Decoded (60): ${decoded.substring(0, 60)}`);
+        }
+        let res = ns.codingcontract.attempt(answer, cct, srv);
+        ns.tprint(`Attempt result: ${res}`);
+      }
     }
   }
 }
