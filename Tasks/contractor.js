@@ -289,25 +289,17 @@ function solveProblem(type, contractInput) {
       bits[errorPos - 1] ^= 1;
     }
     // Extract data bits (non-power-of-2 positions)
-    let result = 0n;
+    let result = 0;
     for (let dataBit = 3; dataBit <= bitLen; dataBit++) {
       if ((dataBit & (dataBit - 1)) !== 0) { // Not a power of 2
-        result = (result << 1n) | BigInt(bits[dataBit - 1]);
+        result = (result << 1) | bits[dataBit - 1];
       }
     }
-    return result.toString();
+    return result;
   }
 
   return null; // Unknown type
 }
-
-/** @param {NS} ns */
-export async function main(ns) {
-  function getFilePath(relativePath) {
-    let path = relativePath.startsWith("/") ? relativePath : "/" + relativePath;
-    let fullPath = path.startsWith("/Tasks/") ? path : "/Tasks" + path;
-    return fullPath;
-  }
 
   let allServers = new Set(["home"]);
   let scanQueue = ["home"];
