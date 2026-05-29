@@ -8,7 +8,6 @@ const argsSchema = [
     ['subfolder', ''], // Can be set to download to a sub-folder that is not part of the remote repository structure
     ['extension', ['.js', '.ns', '.txt', '.script']], // Files to download by extension
     ['omit-folder', ['/Temp/']], // Folders to omit
-    ['delete-local', false], // If true, delete all local script files before downloading
 ];
 
 export function autocomplete(data, args) {
@@ -30,19 +29,18 @@ export async function main(ns) {
     if (options.subfolder && !options.subfolder.startsWith('/'))
         options.subfolder = '/' + options.subfolder;
 
-    // Delete local files if requested
-    if (options['delete-local']) {
-        const filesToDelete = ns.ls('home').filter(f =>
-            options.extension.some(ext => f.endsWith(ext)) &&
-            !f.startsWith('/Temp/') &&
-            !options['omit-folder'].some(dir => f.startsWith(dir))
-        );
-        for (const file of filesToDelete) {
-            ns.rm(file);
-            ns.print(`Deleted ${file}`);
-        }
-        ns.tprint(`INFO: Deleted ${filesToDelete.length} local files before pull`);
+    // Always delete local script files before pulling to get a clean state
+    const filesToDelete = ns.ls('home').filter(f =>
+        options.extension.some(ext => f.endsWith(ext)) &&
+        !f.startsWith('/Temp/') &&
+        f !== 'git-pull.js' && // Don't delete ourselves!
+        !options['omit-folder'].some(dir => f.startsWith(dir))
+    );
+    for (const file of filesToDelete) {
+        ns.rm(file);
+        ns.print(`Deleted ${file}`);
     }
+    ns.tprint(`INFO: Deleted ${filesToDelete.length} local files before pull`);
 
     const baseUrl = `https://raw.githubusercontent.com/${options.github}/${options.repository}/${options.branch}/`;
     const filesToDownload = options['new-file'].concat(options.download.length > 0 ? options.download : await repositoryListing(ns));
