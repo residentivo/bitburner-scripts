@@ -682,12 +682,13 @@ async function doTargetingLoop(ns) {
                 loopInterval = Math.min(1000, time || 1000); // Wake up earlier if we're almost done an XP cycle
             } else if (!isWorkCapped() && lowUtilizationIterations > 10) {
                 let xpFarmTarget = getXPFarmTarget();
-                if (!xpFarmTarget) return ns.print("WARN: No XP farm target available");
-                let expectedRunTime = xpFarmTarget.timeToHack();
-                let freeRamToUse = (expectedRunTime < loopInterval) ? // If expected runtime is fast, use as much RAM as we want, it'll all be free by our next loop.
-                    1 - (1 - lowUtilizationThreshold) / (1 - utilizationPercent) : // Take us just up to the threshold for 'lowUtilization' so we don't cause unecessary server purchases
-                    1 - (1 - maxUtilizationPreppingAboveHackLevel - 0.05) / (1 - utilizationPercent); // Otherwise, leave more room (e.g. for scheduling new batches.)
-                await farmHackXp(ns, freeRamToUse, verbose && (expectedRunTime > 10000 || lowUtilizationIterations % 10 == 0), 1);
+                if (xpFarmTarget) {
+                    let expectedRunTime = xpFarmTarget.timeToHack();
+                    let freeRamToUse = (expectedRunTime < loopInterval) ? // If expected runtime is fast, use as much RAM as we want, it'll all be free by our next loop.
+                        1 - (1 - lowUtilizationThreshold) / (1 - utilizationPercent) : // Take us just up to the threshold for 'lowUtilization' so we don't cause unecessary server purchases
+                        1 - (1 - maxUtilizationPreppingAboveHackLevel - 0.05) / (1 - utilizationPercent); // Otherwise, leave more room (e.g. for scheduling new batches.)
+                    await farmHackXp(ns, freeRamToUse, verbose && (expectedRunTime > 10000 || lowUtilizationIterations % 10 == 0), 1);
+                }
             }
 
             // Use any unspent RAM on share if we are currently working for a faction
