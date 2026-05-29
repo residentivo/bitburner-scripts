@@ -198,7 +198,7 @@ export async function main(ns) {
 
     await updatePlayerStats();
     dictSourceFiles = await getActiveSourceFiles_Custom(ns, getNsDataThroughFile);
-    log("The following source files are active: " + JSON.stringify(dictSourceFiles));
+    if (verbose) log("Source files: " + JSON.stringify(dictSourceFiles));
 
     // Process command line args (if any)
     options = ns.flags(argsSchema);
@@ -438,7 +438,7 @@ async function tryRunTool(ns, tool) {
         if (verbose) log(`Ran tool: ${tool.name} ` + (args.length > 0 ? `with args ${JSON.stringify(args)} ` : '') + (runningOnServer ? `on server ${runningOnServer}.` : 'but it shut down right away.'));
         if (tool.tail === true && runningOnServer) {
             log(`Tailing Tool: ${tool.name} on server ${runningOnServer}` + (args.length > 0 ? ` with args ${JSON.stringify(args)}` : ''));
-            ns.ui.openTail(tool.name, runningOnServer, ...args);
+            // ns.ui.openTail(tool.name, runningOnServer, ...args); // Disabled: causes enum dump spam in v3
             tool.tail = false; // Avoid popping open additional tail windows in the future
         }
         return true;
