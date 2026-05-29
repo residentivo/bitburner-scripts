@@ -301,6 +301,8 @@ function solveProblem(type, contractInput) {
   return null; // Unknown type
 }
 
+/** @param {NS} ns */
+export async function main(ns) {
   let allServers = new Set(["home"]);
   let scanQueue = ["home"];
   while (scanQueue.length > 0) {
