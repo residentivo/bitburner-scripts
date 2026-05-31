@@ -243,43 +243,59 @@ export async function main(ns) {
     if (options.tail) ns.tail()
     disableLogs(ns, ['getServerMaxRam', 'getServerUsedRam', 'scan', 'asleep', 'exec', 'scp'])
 
-    // Check darknet API access
-    const disabledFlag = '/Temp/darknet-disabled.txt'
+    // Check darknet API access - we must be on a darknet-connected server
+    const disabledFlag = '/Temp/dnet-disabled.txt';
+    let dnetAvailable = false;
     try {
-        ns.dnet.probe()
+        ns.dnet.probe();
+        dnetAvailable = true;
     } catch {
-        ns.tprint('INFO: ns.dnet API not available. Trying to connect to darkweb...')
+        // Not on a darknet server - try to connect
+        ns.tprint('INFO: ns.dnet API not available on ' + ns.getHostname() + '. Trying to connect to darkweb...');
         try {
-            ns.singularity.connect('darkweb')
-            await ns.sleep(500)
-            ns.dnet.probe()
-            ns.tprint('SUCCESS: Connected to darkweb!')
+            if (ns.singularity) {
+                ns.singularity.connect('darkweb');
+                await ns.sleep(1000);
+            }
+            // After connecting, check again
+            try {
+                ns.dnet.probe();
+                dnetAvailable = true;
+                ns.tprint('SUCCESS: Connected to darkweb!');
+            } catch {
+                ns.tprint('WARN: Still no dnet access after connect. Will try running on remote darknet servers.');
+            }
         } catch (connectErr) {
-            ns.tprint('ERROR: Cannot access darknet. Need to: 1) buy DarkscapeNavigator.exe, 2) connect darkweb')
-            try { ns.write(disabledFlag, 'no darknet access', 'w') } catch (_) {}
-            return
+            ns.tprint('ERROR: Cannot connect to darkweb: ' + String(connectErr));
+            ns.tprint('Manual: buy DarkscapeNavigator.exe; connect darkweb');
+            try { ns.write(disabledFlag, 'no darknet access', 'w'); } catch (_) {}
+            return;
         }
     }
-    try { ns.rm(disabledFlag) } catch (_) {}
+    try { ns.rm(disabledFlag); } catch (_) {}
 
     loadPasswords(ns)
 
-    // Main loop
-    let loopCount = 0
-    while (isAlive()) {
+    // Main loop - keep running even if dnet is not available on this server
+    // (we may be on home, but we can still spread to darknet servers)
+    let loopCount = 0;
+    while (true) {
         try {
-            loopCount++
-            if (loopCount % 12 === 0) {
-                try { ns.write(logFile, ns.getHostname() + ' Loop #' + loopCount + '\n', 'a') } catch (_) {}
+            loopCount++;
+            if (dnetAvailable) {
+                await exploreFromServer(ns);
+            } else {
+                // If dnet is not available, we can't do anything useful on this server
+                if (loopCount <= 3) {
+                    ns.tprint('WARN: dnet not available on ' + ns.getHostname() + ', skipping exploration');
+                }
             }
-            // DEBUG: log every loop
-            log('DEBUG LOOP #' + loopCount + ' on ' + ns.getHostname())
-            await exploreFromServer(ns)
         } catch (e) {
-            log('ERROR in loop: ' + String(e))
-            try { ns.write(logFile, ns.getHostname() + ' ERROR: ' + String(e) + '\n', 'a') } catch (_) {}
+            if (loopCount <= 3 || loopCount % 10 === 0) {
+                log('ERROR in loop #' + loopCount + ': ' + String(e));
+            }
         }
-        await ns.sleep(probeInterval)
+        await ns.sleep(probeInterval);
     }
 
     try { ns.write(logFile, ns.getHostname() + ' DARKNET EXPLORER exiting pid=' + _pid + '\n', 'a') } catch (_) {}
