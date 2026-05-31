@@ -41,7 +41,7 @@ function solveProblem(type, input) {
             if (fl > bestBL) { bestBL = fl; bestBO = off; }
           }
         }
-        if (bestBL >= 3) { backLenFound = bestBL; backOffFound = bestBO; break; }
+        if (bestBL >= 4) { backLenFound = bestBL; backOffFound = bestBO; break; }
         if (litChars.length >= 9) break;
         litChars += input[pos + litChars.length];
       }
@@ -50,7 +50,7 @@ function solveProblem(type, input) {
       decoded += litChars;
       compressed += String(litChars.length) + litChars;
       if (pos >= input.length) break;
-      if (backLenFound >= 3) {
+      if (backLenFound >= 4) {
         let backref = "";
         for (let j = 0; j < backLenFound; j++)
           backref += decoded[decoded.length - backOffFound + (j % backOffFound)];

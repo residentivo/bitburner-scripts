@@ -149,10 +149,13 @@ export async function main(ns) {
     }
 }
 
-// Calculate the chance a sleeve has of committing homicide successfully
+// Calculate the chance a sleeve has of committing a crime successfully
 async function calculateCrimeChance(ns, sleeveStats, crimeName) {
+    // In v3, getCrimeStats requires a CrimeType enum, not a string
+    // Use ns.enums.CrimeType to get the enum value
+    const crimeTypeEnum = `ns.enums.CrimeType.${crimeName}`;
     const crimeStats = cachedCrimeStats[crimeName] ?? // If not in the cache, retrieve this crime's stats
-        (cachedCrimeStats[crimeName] = await getNsDataThroughFile(ns, `ns.singularity.getCrimeStats("${crimeName}")`, '/Temp/get-crime-stats.txt'));
+        (cachedCrimeStats[crimeName] = await getNsDataThroughFile(ns, `ns.singularity.getCrimeStats(${crimeTypeEnum})`, '/Temp/get-crime-stats.txt'));
     let chance =
         crimeStats.hacking_success_weight * sleeveStats['hacking'] +
         crimeStats.strength_success_weight * sleeveStats.strength +
