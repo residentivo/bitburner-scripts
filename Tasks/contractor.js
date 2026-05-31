@@ -555,6 +555,36 @@ function solveProblem(type, input) {
     return color.slice(0, nv);
   }
 
+  // === Sanitize Parentheses in Expression ===
+  if (type === "Sanitize Parentheses in Expression") {
+    let d = input;
+    let l = 0, r = 0, res = [];
+    for (let i = 0; i < d.length; i++) {
+      if (d[i] === '(') ++l;
+      else if (d[i] === ')') l > 0 ? --l : ++r;
+    }
+    function dfs(p, idx, cl, cr, s, sol) {
+      if (s.length === idx) {
+        if (cl === 0 && cr === 0 && p === 0) {
+          for (let i = 0; i < res.length; i++) if (res[i] === sol) return;
+          res.push(sol);
+        }
+        return;
+      }
+      if (s[idx] === '(') {
+        if (cl > 0) dfs(p, idx + 1, cl - 1, cr, s, sol);
+        dfs(p + 1, idx + 1, cl, cr, s, sol + s[idx]);
+      } else if (s[idx] === ')') {
+        if (cr > 0) dfs(p, idx + 1, cl, cr - 1, s, sol);
+        if (p > 0) dfs(p - 1, idx + 1, cl, cr, s, sol + s[idx]);
+      } else {
+        dfs(p, idx + 1, cl, cr, s, sol + s[idx]);
+      }
+    }
+    dfs(0, 0, l, r, d, '');
+    return res;
+  }
+
   // === Find Largest Prime Factor ===
   if (type === "Find Largest Prime Factor") {
     let n = input;
