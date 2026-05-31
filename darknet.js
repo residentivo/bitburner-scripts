@@ -315,9 +315,21 @@ export async function main(ns) {
     try { ns.write(logFile, ns.getHostname() + ' DARKNET started pid=' + _pid + '\n', 'w') } catch (_) {}
 
     // Check darknet API access
-    try { ns.dnet.probe() } catch {
-        ns.tprint('ERROR: ns.dnet API not available.')
-        return
+    try {
+        ns.dnet.probe();
+    } catch {
+        // ns.dnet not available - need to connect to darkweb first
+        ns.tprint('INFO: ns.dnet API not available. Trying to connect to darkweb...');
+        try {
+            ns.singularity.connect("darkweb");
+            await ns.sleep(500);
+            ns.dnet.probe(); // Re-check
+            ns.tprint('SUCCESS: Connected to darkweb!');
+        } catch (connectErr) {
+            ns.tprint('ERROR: Cannot access darknet. Need to: 1) buy DarkscapeNavigator.exe, 2) connect darkweb');
+            ns.tprint('Detail: ' + String(connectErr));
+            return;
+        }
     }
 
     loadPasswords(ns)
