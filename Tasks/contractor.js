@@ -103,9 +103,13 @@ function solveProblem(type, input) {
   // === Largest Rectangle in a Matrix ===
   if (type === "Largest Rectangle in a Matrix") {
     // input can be:
-    //   - 2D array of numbers (binary or any values) → find largest rectangle of ANY identical value
+    //   - 2D array of numbers
     //   - [rows, cols, ...flatData]
+    //   - JSON string (parse it)
     let grid = input;
+    if (typeof grid === "string") {
+      try { grid = JSON.parse(grid); } catch(e) { return null; }
+    }
     let rows, cols;
     if (grid.length > 0 && Array.isArray(grid[0])) {
       rows = grid.length;
@@ -119,24 +123,32 @@ function solveProblem(type, input) {
         grid.push(flat.slice(r * cols, (r + 1) * cols));
       }
     } else {
-      return 0;
+      return null;
     }
-    if (rows === 0 || cols === 0) return 0;
+    if (rows === 0 || cols === 0) return null;
 
     // For each unique value, run histogram-based largest rectangle
-    // Collect all unique values in the grid
     const allVals = new Set();
     for (let r = 0; r < rows; r++)
       for (let c = 0; c < cols; c++)
         allVals.add(grid[r][c]);
 
-    let best = 0;
+    // Track best rectangle: area + coordinates
+    let bestArea = 0;
+    let bestCoords = null;
+
     for (let val of allVals) {
       let heights = new Array(cols).fill(0);
+      let startRow = new Array(cols).fill(0); // track starting row for each height
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
-          heights[c] = grid[r][c] === val ? heights[c] + 1 : 0;
+          if (grid[r][c] === val) {
+            heights[c] = heights[c] + 1;
+          } else {
+            heights[c] = 0;
+          }
         }
+        // Stack-based largest rectangle in histogram, tracking coordinates
         let stack = [];
         for (let h = 0; h <= cols; h++) {
           let ch = h < cols ? heights[h] : 0;
@@ -144,14 +156,25 @@ function solveProblem(type, input) {
             let top = stack.pop();
             let height = heights[top];
             let width = stack.length === 0 ? h : h - stack[stack.length - 1] - 1;
-            best = Math.max(best, height * width);
+            let area = height * width;
+            if (area > bestArea) {
+              bestArea = area;
+              let c1 = stack.length === 0 ? 0 : stack[stack.length - 1] + 1;
+              let c2 = h - 1;
+              let r2 = r;
+              let r1 = r - height + 1;
+              bestCoords = [[r1, c1], [r2, c2]];
+            }
           }
           stack.push(h);
         }
       }
     }
-    // v3: return bare number, not string (string conversion broken in v3)
-    return best;
+
+    // v3 format: coordinates as [[r1,c1],[r2,c2]] array
+    // Based on reference: convertAnswer parses array string → return [[r1,c1],[r2,c2]]
+    if (bestCoords) return bestCoords;
+    return null;
   }
 
   // === HammingCodes: Encoded Binary to Integer ===
