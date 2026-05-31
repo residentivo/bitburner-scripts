@@ -287,9 +287,7 @@ export async function main(ns) {
         },
         // Check if any new servers can be backdoored. If there are many, this can eat up a lot of RAM, so make this this the last script scheduled at startup.
         { interval: 33000, name: "/Tasks/backdoor-all-servers.js", requiredServer: "home", shouldRun: () => 4 in dictSourceFiles },
-        // Periodically ensure darknet.js is running (probes, maps, and exploits the darknet)
-        { interval: 30000, name: "/Tasks/darknet-keepalive.js", requiredServer: "home", shouldRun: () => doesFileExist("/darknet.js") },
-        // Launch darknet explorer+extractor on darknet servers periodically
+        // Periodically launch darknet explorer+extractor on darknet servers (managed by launcher, not keepalive)
         { interval: 60000, name: "/Tasks/darknet-launcher.js", requiredServer: "home", shouldRun: () => doesFileExist("/darknet.js") },
     ];
     periodicScripts.forEach(tool => tool.name = getFilePath(tool.name));
@@ -503,11 +501,7 @@ async function doTargetingLoop(ns) {
             if (loops % 60 == 0) { // For more expensive updates, only do these every so often
                 // If we have not yet launched all helpers (e.g. awaiting more home ram, or TIX API to be purchased) see if any are now ready to be run
                 if (!allHelpersRunning) allHelpersRunning = await runStartupScripts(ns);
-                // Ensure darknet.js is running if darkweb server is available
-                if (addedServerNames.includes("darkweb") && !whichServerIsRunning(ns, getFilePath("darknet.js"))) {
-                    const darknetTool = tools.find(t => t.name === getFilePath("darknet.js"));
-                    if (darknetTool) await tryRunTool(ns, darknetTool);
-                }
+                // Note: darknet.js is managed exclusively by darknet-launcher.js to avoid conflicts
                 // Pull additional data about servers that infrequently changes
                 await refreshDynamicServerData(ns, addedServerNames);
                 // Occassionally print our current targetting order (todo, make this controllable with a flag or custom UI?)

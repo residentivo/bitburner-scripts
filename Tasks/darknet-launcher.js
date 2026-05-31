@@ -1,110 +1,149 @@
 /**
- * darknet-launcher.js — Conecta ao darkweb e inicia darknet.js + darknet-extractor.js
+ * darknet-launcher.js — Ensures darknet explorer and extractor run on darknet servers.
  *
- * Este script é executado pelo daemon no home, conecta ao darkweb,
- * e inicia os scripts de exploração e extração diretamente no servidor darkweb.
+ * Run periodically from daemon.js. Connects to darkweb, discovers darknet servers,
+ * and ensures darknet.js (explorer) and darknet-extractor.js are running on each.
  */
 
-/** @param {NS} ns */
 export async function main(ns) {
-    // Check if dnet is available
+    const DEBUG = true;
+    const logFile = '/Temp/darknet-launcher-log.txt';
+
+    function log(msg) {
+        const line = '[' + new Date().toISOString().substring(11, 19) + '] ' + msg;
+        try { ns.write(logFile, line + '\n', 'a'); } catch (_) {}
+        if (DEBUG) try { ns.tprint('[LAUNCHER] ' + msg); } catch (_) {}
+    }
+
+    // Check if dnet API is available (we might already be on darknet server)
+    let dnetAvailable = false;
     try {
         ns.dnet.probe();
+        dnetAvailable = true;
+        log('dnet API available');
     } catch {
-        // Try to connect to darkweb
+        // Try connecting to darkweb
+        log('dnet not available, connecting to darkweb...');
         try {
-            if (!ns.singularity) {
-                ns.tprint('ERROR: ns.singularity not available');
-                return;
-            }
-            ns.tprint('INFO: Connecting to darkweb...');
             ns.singularity.connect('darkweb');
-            await ns.sleep(1000);
-
-            // Verify dnet is now available
-            try {
-                ns.dnet.probe();
-                ns.tprint('SUCCESS: Connected to darkweb!');
-            } catch {
-                ns.tprint('ERROR: dnet still not available after connect. Need to buy DarkscapeNavigator.exe first.');
-                return;
-            }
+            await ns.sleep(500);
+            ns.dnet.probe();
+            dnetAvailable = true;
+            log('dnet API available after connect');
         } catch (e) {
-            ns.tprint('ERROR: Failed to connect to darkweb: ' + String(e));
+            log('Cannot access darknet: ' + String(e));
+            try { ns.write('/Temp/dnet-disabled.txt', 'no access', 'w'); } catch (_) {}
             return;
         }
     }
 
-    const darknetServers = ['darkweb'];
+    try { ns.rm('/Temp/dnet-disabled.txt'); } catch (_) {}
 
-    // Probe for all reachable darknet servers
+    // Discover darknet servers by BFS from darkweb
+    const visited = new Set(['home']);
+    const darknetServers = [];
+    const queue = [];
+
+    // Start from darkweb neighbors
     try {
-        const nearby = ns.dnet.probe();
-        if (nearby) {
-            for (const s of nearby) {
-                if (!darknetServers.includes(s)) darknetServers.push(s);
-            }
+        const darkwebNeighbors = ns.scan('darkweb');
+        for (const n of darkwebNeighbors) {
+            if (!visited.has(n)) queue.push(n);
+        }
+    } catch (e) {
+        log('Cannot scan darkweb: ' + String(e));
+        return;
+    }
+
+    // Also check if darkweb itself is a darknet server
+    try {
+        const details = ns.dnet.getServerDetails('darkweb');
+        if (details) {
+            darknetServers.push('darkweb');
+            log('darkweb is a darknet server');
         }
     } catch (_) {}
 
-    ns.tprint('INFO: Found ' + darknetServers.length + ' darknet server(s): ' + darknetServers.join(', '));
+    // BFS to find all darknet servers
+    while (queue.length > 0) {
+        const current = queue.shift();
+        if (visited.has(current)) continue;
+        visited.add(current);
 
-    for (const server of darknetServers) {
-        // Copy and run darknet.js (explorer) on each darknet server
-        const explorerScript = '/darknet.js';
-        const extractorScript = '/darknet-extractor.js';
-
-        // Copy scripts to target
         try {
-            if (!ns.fileExists(explorerScript, server)) {
-                await ns.scp(explorerScript, server);
-                ns.tprint('Copied ' + explorerScript + ' to ' + server);
-            }
-            if (!ns.fileExists(extractorScript, server)) {
-                await ns.scp(extractorScript, server);
-                ns.tprint('Copied ' + extractorScript + ' to ' + server);
-            }
-        } catch (e) {
-            ns.tprint('ERROR copying to ' + server + ': ' + String(e));
-            continue;
-        }
+            const details = ns.dnet.getServerDetails(current);
+            if (details) {
+                darknetServers.push(current);
+                log('Found darknet server: ' + current);
 
-        // Kill existing instances
-        try {
-            const procs = ns.ps(server);
-            for (const p of procs) {
-                if (p.filename === explorerScript || p.filename === extractorScript) {
-                    ns.kill(p.pid, server);
+                const neighbors = ns.scan(current);
+                for (const n of neighbors) {
+                    if (!visited.has(n)) queue.push(n);
                 }
             }
-        } catch (_) {}
-        await ns.sleep(200);
-
-        // Check RAM
-        const freeRam = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
-        const explorerRam = ns.getScriptRam(explorerScript, server);
-        const extractorRam = ns.getScriptRam(extractorScript, server);
-        const needed = explorerRam + extractorRam;
-
-        if (freeRam < needed) {
-            ns.tprint('WARN: ' + server + ' needs ' + needed.toFixed(1) + 'GB but only has ' + freeRam.toFixed(1) + 'GB free. Skipping extraction.');
-            // At least run explorer
-            if (freeRam >= explorerRam) {
-                const pid = ns.exec(explorerScript, server, 1);
-                ns.tprint(pid ? 'Started explorer on ' + server + ' (pid ' + pid + ')' : 'Failed to start explorer on ' + server);
-            }
-            continue;
+        } catch {
+            // Not a darknet server, scan neighbors anyway
+            try {
+                const neighbors = ns.scan(current);
+                for (const n of neighbors) {
+                    if (!visited.has(n)) queue.push(n);
+                }
+            } catch (_) {}
         }
-
-        // Start both scripts
-        const pid1 = ns.exec(explorerScript, server, 1);
-        ns.tprint(pid1 ? 'Started explorer on ' + server + ' (pid ' + pid1 + ')' : 'Failed to start explorer on ' + server);
-
-        await ns.sleep(100);
-
-        const pid2 = ns.exec(extractorScript, server, 1);
-        ns.tprint(pid2 ? 'Started extractor on ' + server + ' (pid ' + pid2 + ')' : 'Failed to start extractor on ' + server);
     }
 
-    ns.tprint('INFO: Darknet launcher done.');
+    if (darknetServers.length === 0) {
+        log('No darknet servers found');
+        return;
+    }
+
+    log('Managing ' + darknetServers.length + ' darknet servers');
+
+    const scripts = ['darknet.js', 'darknet-extractor.js'];
+
+    for (const server of darknetServers) {
+        for (const script of scripts) {
+            try {
+                // Check if script is already running on this server
+                const procs = ns.ps(server);
+                const running = procs.some(p => p.filename === script);
+
+                if (running) {
+                    log(script + ' already running on ' + server);
+                    continue;
+                }
+
+                // Copy script to server if not there
+                if (!ns.fileExists(script, server)) {
+                    const copied = await ns.scp(script, server);
+                    if (!copied) {
+                        log('FAILED to copy ' + script + ' to ' + server);
+                        continue;
+                    }
+                    log('Copied ' + script + ' to ' + server);
+                }
+
+                // Check free RAM
+                const freeRam = ns.getServerMaxRam(server) - ns.getServerUsedRam(server);
+                const scriptRam = ns.getScriptRam(script, server);
+
+                if (freeRam < scriptRam) {
+                    log('Not enough RAM on ' + server + ' for ' + script);
+                    continue;
+                }
+
+                // Start script
+                const pid = ns.exec(script, server, 1);
+                if (pid === 0) {
+                    log('FAILED to start ' + script + ' on ' + server);
+                } else {
+                    log('Started ' + script + ' on ' + server + ' (pid ' + pid + ')');
+                }
+            } catch (e) {
+                log('Error managing ' + script + ' on ' + server + ': ' + String(e));
+            }
+        }
+    }
+
+    log('Done. Next check in ~60s.');
 }
