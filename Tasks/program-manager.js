@@ -5,6 +5,8 @@
  * once all programs are bought. **/
 export async function main(ns) {
     const programNames = ["BruteSSH.exe", "FTPCrack.exe", "relaySMTP.exe", "HTTPWorm.exe", "SQLInject.exe"];
+    const darknetProgram = "DarkscapeNavigator.exe";
+    const darknetDisabledFlag = "/Temp/darknet-disabled.txt";
     const interval = 2000;
 
     const keepRunning = ns.args.length > 0 && ns.args[0] == "-c";
@@ -13,12 +15,28 @@ export async function main(ns) {
 
     do {
         let foundMissingProgram = false;
+
+        // Buy standard programs
         for (const prog of programNames) {
             if (!ns.fileExists(prog, "home") && ns.singularity.purchaseProgram(prog))
                 ns.toast(`Purchased ${prog}`, 'success');
             else if (keepRunning)
                 foundMissingProgram = true;
         }
+
+        // Buy darknet program if not already owned
+        if (!ns.fileExists(darknetProgram, "home")) {
+            // DarkscapeNavigator.exe is bought via terminal "buy" command
+            // Try to purchase it using ns.singularity (may work in some v3 versions)
+            try {
+                const bought = ns.singularity.purchaseProgram(darknetProgram);
+                if (bought && ns.fileExists(darknetProgram, "home")) {
+                    ns.tprint(`Purchased ${darknetProgram}`, true);
+                    try { ns.rm(darknetDisabledFlag); } catch (_) {}
+                }
+            } catch (_) {}
+        }
+
         if (keepRunning && foundMissingProgram)
             await ns.sleep(interval);
     } while (keepRunning && foundMissingProgram);
