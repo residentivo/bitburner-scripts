@@ -233,20 +233,20 @@ export async function main(ns) {
     homeReservedRam = options['reserved-ram']
 
     // These scripts are started once and expected to run forever (or terminate themselves when no longer needed)
-    const openTailWindows = false; // Don't open tail windows automatically on startup
+    const openTailWindows = !options['no-tail-windows'];
     asynchronousHelpers = [
-        { name: "stats.js", shouldRun: () => ns.getServerMaxRam("home") >= 64 /* Don't waste precious RAM */ }, // Adds stats not usually in the HUD
-        { name: "stockmaster.js", args: openTailWindows ? ["--show-market-summary"] : [], tail: openTailWindows, shouldRun: () => playerStats.hasTixApiAccess }, // Start our stockmaster if we have the required stockmarket access
-        { name: "hacknet-upgrade-manager.js", args: ["-c", "--max-payoff-time", "1h"] }, // Kickstart hash income by buying everything with up to 1h payoff time immediately
-        { name: "spend-hacknet-hashes.js", args: [], shouldRun: () => 9 in dictSourceFiles }, // Always have this running to make sure hashes aren't wasted
-        { name: "sleeve.js", tail: openTailWindows, shouldRun: () => 10 in dictSourceFiles }, // Script to create manage our sleeves for us
-        { name: "gangs.js", tail: openTailWindows, shouldRun: () => 2 in dictSourceFiles }, // Script to create manage our gang for us
+        { name: "stats.js", shouldRun: () => ns.getServerMaxRam("home") >= 64 /* Don't waste precious RAM */ },
+        { name: "stockmaster.js", args: openTailWindows ? ["--show-market-summary"] : [], tail: openTailWindows, shouldRun: () => playerStats.hasTixApiAccess },
+        { name: "hacknet-upgrade-manager.js", args: ["-c", "--max-payoff-time", "1h"] },
+        { name: "spend-hacknet-hashes.js", args: [], shouldRun: () => 9 in dictSourceFiles },
+        { name: "sleeve.js", tail: true, shouldRun: () => 10 in dictSourceFiles },
+        { name: "gangs.js", tail: true, shouldRun: () => 2 in dictSourceFiles },
         {
-            name: "work-for-factions.js", args: ['--fast-crimes-only', '--no-coding-contracts'],  // Singularity script to manage how we use our "focus" work.
-            shouldRun: () => 4 in dictSourceFiles && (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4])) // Higher SF4 levels result in lower RAM requirements
+            name: "work-for-factions.js", args: ['--fast-crimes-only', '--no-coding-contracts'],
+            shouldRun: () => 4 in dictSourceFiles && (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4]))
         },
-        { name: "bladeburner.js", tail: openTailWindows, shouldRun: () => 7 in dictSourceFiles && playerStats.bitNodeN != 8 }, // Script to create manage bladeburner for us
-        { name: "darknet.js", tail: openTailWindows, shouldRun: () => addedServerNames.includes("darkweb") }, // Script to explore and exploit the darknet
+        { name: "bladeburner.js", tail: true, shouldRun: () => 7 in dictSourceFiles && playerStats.bitNodeN != 8 },
+        { name: "darknet.js", tail: true, shouldRun: () => addedServerNames.includes("darkweb") },
     ];
     asynchronousHelpers.forEach(helper => helper.name = getFilePath(helper.name));
     asynchronousHelpers.forEach(helper => helper.isLaunched = false);
