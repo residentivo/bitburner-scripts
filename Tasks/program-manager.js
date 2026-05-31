@@ -27,7 +27,6 @@ export async function main(ns) {
         // Buy darknet program if not already owned
         if (!ns.fileExists(darknetProgram, "home")) {
             // DarkscapeNavigator.exe is bought via terminal "buy" command
-            // Try to purchase it using ns.singularity (may work in some v3 versions)
             try {
                 const bought = ns.singularity.purchaseProgram(darknetProgram);
                 if (bought && ns.fileExists(darknetProgram, "home")) {
@@ -35,6 +34,9 @@ export async function main(ns) {
                     try { ns.rm(darknetDisabledFlag); } catch (_) {}
                 }
             } catch (_) {}
+        } else {
+            // Program exists — make sure disabled flag is cleared
+            try { ns.rm(darknetDisabledFlag); } catch (_) {}
         }
 
         if (keepRunning && foundMissingProgram)

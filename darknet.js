@@ -1,18 +1,10 @@
 /**
- * darknet.js - Darknet exploration and exploitation script
+ * darknet-explorer.js — Darknet discovery and expansion
  *
- * Explores the darknet by:
- *  1. Purchasing DarkscapeNavigator.exe (done via terminal: buy DarkscapeNavigator.exe)
- *  2. Probing nearby darknet servers with ns.dnet.probe()
- *  3. Authenticating to servers by cracking passwords
- *  4. Spreading itself to authenticated servers to expand reach
- *  5. Looting .cache files and running phishing attacks for money/exp
- *  6. Freeing blocked RAM with ns.dnet.memoryReallocation()
+ * Probes nearby darknet servers, authenticates by cracking passwords,
+ * and spreads to newly discovered servers to expand reach.
  *
- * Password persistence: discovered passwords are saved to /Temp/darknet-passwords.txt
- * so they survive script restarts and can be shared across instances.
- *
- * Based on the Bitburner v3 Darkweb Network documentation.
+ * Runs on each darknet server to continuously discover new servers.
  */
 
 // --- Inline helpers (self-contained, no import needed) ---
@@ -30,61 +22,39 @@ function disableLogs(ns, listOfLogs) {
     ['disableLog'].concat(...listOfLogs).forEach(log => checkNsInstance(ns, 'disableLogs').disableLog(log))
 }
 
-function getFilePath(file) {
-    return pathJoin('', file)
-}
-
 // --- Configuration ---
 const passwordsFile = '/Temp/darknet-passwords.txt'
-const probeInterval = 5000          // How often to probe for new servers (ms)
-const memoryReallocTicks = 5        // Number of memoryReallocation calls per server
+const probeInterval = 5000
 
 // --- Globals ---
 let _ns = null
 let _pid = 0
-let passwords = {} // { hostname: password }
+let passwords = {}
 
 const argsSchema = [
-    ['verbose', false],     // Enable verbose logging (tprint)
-    ['tail', false],        // Open a tail window
+    ['verbose', false],
+    ['tail', false],
 ]
 let options
 
-// Check if this script instance is still alive (not killed by another process)
 function isAlive() {
     if (!_ns) return false
-    try {
-        // ns.self() returns null if script is dead/killed
-        return _ns.self() !== null
-    } catch (_) {
-        return false
-    }
+    try { return _ns.self() !== null } catch (_) { return false }
 }
 
-// Local log helper: write to log file (safe, no concurrency issues), optionally tprint for important
-const logFile = '/Temp/darknet-log.txt'
+const logFile = '/Temp/darknet-explorer-log.txt'
 function log(msg, important, toastStyle) {
     if (_ns) {
         try { _ns.write(logFile, _ns.getHostname() + ' [' + new Date().toISOString().substring(11, 19) + '] ' + msg + '\n', 'a') } catch (_) {}
-        if (important || (options && options.verbose)) {
-            try { _ns.tprint(msg) } catch (_) {}
-        }
-        if (toastStyle) {
-            try { _ns.toast(msg, toastStyle) } catch (_) {}
-        }
+        if (important || (options && options.verbose)) { try { _ns.tprint(msg) } catch (_) {} }
+        if (toastStyle) { try { _ns.toast(msg, toastStyle) } catch (_) {} }
     }
 }
-
-// --- Helpers ---
 
 function loadPasswords(ns) {
     const data = ns.read(passwordsFile)
     if (data && data.length > 0) {
-        try {
-            passwords = JSON.parse(data)
-        } catch {
-            passwords = {}
-        }
+        try { passwords = JSON.parse(data) } catch { passwords = {} }
     }
 }
 
@@ -92,13 +62,8 @@ function savePasswords(ns) {
     ns.write(passwordsFile, JSON.stringify(passwords), 'w')
 }
 
-// Map modelId to known default passwords or empty string.
-// Extend this map as you discover new server types.
 const knownPasswordStrategies = {
     'ZeroLogon': () => '',
-    // Add more strategies as discovered, e.g.:
-    // 'Specter': () => 'password123',
-    // 'Ethereal': () => tryCommonPasswords(hostname),
 }
 
 function getPasswordHint(ns, details) {
@@ -106,60 +71,32 @@ function getPasswordHint(ns, details) {
     return details.passwordHint
 }
 
-// Try to guess password for a server based on hints and known strategies.
-// Returns { password, whether it was already known } or null if no guess.
 function tryDeterminePassword(ns, hostname, details, safeLog) {
-    if (passwords[hostname]) {
-        return { password: passwords[hostname], known: true }
-    }
+    if (passwords[hostname]) return { password: passwords[hostname], known: true }
     if (details.modelId && knownPasswordStrategies[details.modelId]) {
         const pw = knownPasswordStrategies[details.modelId](ns, hostname, details)
         return { password: pw, known: false }
     }
     const hint = getPasswordHint(ns, details)
-    if (hint && safeLog) {
-        safeLog('Password hint for ' + hostname + ': "' + hint + '"', true)
-    }
+    if (hint && safeLog) safeLog('Password hint for ' + hostname + ': "' + hint + '"', true)
     return null
 }
 
-// Extract more clues from server logs via heartbleed
 async function getServerLogs(ns, hostname, safeLog) {
-    let result = null
-    let errorStr = null
-    try {
-        result = await ns.dnet.heartbleed(hostname, { peek: true })
-    } catch (e) {
-        errorStr = String(e)
-    }
-    // Do all NS calls AFTER all awaits are resolved
-    if (errorStr) {
-        if (safeLog) { safeLog('heartbleed failed for ' + hostname + ': ' + errorStr) }
-        return null
-    }
-    if (result && result.logs) {
-        return result.logs
-    }
+    let result = null, errorStr = null
+    try { result = await ns.dnet.heartbleed(hostname, { peek: true }) } catch (e) { errorStr = String(e) }
+    if (errorStr) { if (safeLog) safeLog('heartbleed failed for ' + hostname + ': ' + errorStr); return null }
+    if (result && result.logs) return result.logs
     return null
 }
 
-// --- Core Logic ---
-
-/**
- * Attempt to authenticate with a darknet server.
- * Returns true if authentication was successful.
- */
 async function tryAuthenticate(ns, hostname) {
-    // Buffer all log messages and flush AFTER all awaits to avoid concurrency errors
     const buf = []
     function q(msg, imp) { buf.push({ msg, imp }) }
     function flush() { for (const e of buf) log(e.msg, e.imp) }
 
-    // Check if we already have a session
     let details
-    try {
-        details = ns.dnet.getServerDetails(hostname)
-    } catch {
+    try { details = ns.dnet.getServerDetails(hostname) } catch {
         q('Cannot get details for ' + hostname + ' (not connected or offline)')
         flush(); return false
     }
@@ -168,23 +105,18 @@ async function tryAuthenticate(ns, hostname) {
     if (!details.isConnectedToCurrentServer) { q(hostname + ' is not connected to current server, skipping'); flush(); return false }
     if (details.hasSession) { q('Already authenticated to ' + hostname); flush(); return true }
 
-    // Try to determine the password
     const pwGuess = tryDeterminePassword(ns, hostname, details, q)
     if (!pwGuess) {
         q('No password strategy for ' + hostname + ' (model: ' + details.modelId + ')')
         const srvLogs = await getServerLogs(ns, hostname, q)
-        if (srvLogs) { q('Server logs for ' + hostname + ': ' + JSON.stringify(srvLogs).substring(0, 200)) }
+        if (srvLogs) q('Server logs for ' + hostname + ': ' + JSON.stringify(srvLogs).substring(0, 200))
         flush(); return false
     }
 
-    // Attempt authentication — await first, then log
     let authRes = null, authErr = null
     try { authRes = await ns.dnet.authenticate(hostname, pwGuess.password) } catch (e) { authErr = String(e) }
 
-    if (authErr) {
-        q('Error authenticating to ' + hostname + ': ' + authErr)
-        flush(); return false
-    }
+    if (authErr) { q('Error authenticating to ' + hostname + ': ' + authErr); flush(); return false }
     if (authRes && authRes.success) {
         q('SUCCESS: Authenticated to ' + hostname + (pwGuess.known ? ' (known password)' : ' (new password)'), true)
         passwords[hostname] = pwGuess.password
@@ -198,50 +130,41 @@ async function tryAuthenticate(ns, hostname) {
 }
 
 /**
- * Spread this script to a target server.
+ * Spread a script to a target server.
+ * @param {string} scriptName - Script to spread
  */
-async function spreadToServer(ns, hostname) {
-    const scriptName = ns.getScriptName()
+async function spreadScriptToServer(ns, scriptName, hostname) {
     try {
-        // Copy script to target if not already there
         const exists = ns.fileExists(scriptName, hostname)
         if (!exists) {
             const copied = await ns.scp(scriptName, hostname)
-            if (!copied) {
-                log('Failed to scp ' + scriptName + ' to ' + hostname, true, 'error')
-                return false
-            }
+            if (!copied) { log('Failed to scp ' + scriptName + ' to ' + hostname, true, 'error'); return false }
             log('Copied ' + scriptName + ' to ' + hostname)
         }
 
-        // Kill all processes on target to free RAM before spawning
-        try { ns.killall(hostname) } catch (_) {}
+        // Kill existing instances of the same script on target
+        try {
+            const procs = ns.ps(hostname)
+            for (const p of procs) {
+                if (p.filename === scriptName) ns.kill(p.pid, hostname)
+            }
+        } catch (_) {}
         await ns.sleep(100)
 
-        // Get free RAM on target
-        const maxRam = ns.getServerMaxRam(hostname)
-        const usedRam = ns.getServerUsedRam(hostname)
-        const freeRam = maxRam - usedRam
-        const scriptRamOnTarget = ns.getScriptRam(scriptName, hostname)
+        const freeRam = ns.getServerMaxRam(hostname) - ns.getServerUsedRam(hostname)
+        const scriptRam = ns.getScriptRam(scriptName, hostname)
 
-        log(hostname + ' RAM: ' + freeRam.toFixed(1) + 'GB free / ' + maxRam.toFixed(1) + 'GB total, script needs ' + scriptRamOnTarget.toFixed(1) + 'GB')
-
-        if (freeRam < scriptRamOnTarget) {
-            log('Not enough RAM on ' + hostname + ' to run ' + scriptName + ' after killall')
+        if (freeRam < scriptRam) {
+            log('Not enough RAM on ' + hostname + ' for ' + scriptName + ' (need ' + scriptRam.toFixed(1) + 'GB, have ' + freeRam.toFixed(1) + 'GB)')
             return false
         }
 
-        // Spawn with 1 thread
-        const pid = ns.exec(scriptName, hostname, 1, ...ns.args)
-        if (pid === 0) {
-            log('Failed to exec ' + scriptName + ' on ' + hostname + ' (ns.exec returned 0)', true, 'error')
-            return false
-        }
-
+        const pid = ns.exec(scriptName, hostname, 1)
+        if (pid === 0) { log('Failed to exec ' + scriptName + ' on ' + hostname, true, 'error'); return false }
         log('Spreading ' + scriptName + ' to ' + hostname + ' (pid ' + pid + ')', true)
         return true
     } catch (e) {
-        log('Error spreading to ' + hostname + ': ' + String(e))
+        log('Error spreading ' + scriptName + ' to ' + hostname + ': ' + String(e))
         return false
     }
 }
@@ -254,32 +177,33 @@ async function exploreFromServer(ns) {
     const buf = []
     function q(msg) { buf.push(msg) }
 
-    // Probe for nearby darknet servers
     let nearby
-    try {
-        nearby = ns.dnet.probe()
-    } catch (e) {
+    try { nearby = ns.dnet.probe() } catch (e) {
         q('probe() failed on ' + currentServer + ': ' + String(e))
-        for (const m of buf) try { ns.write(logFile, ns.getHostname() + ' ' + m + '\n', 'a') } catch (_) {}
+        for (const m of buf) try { ns.write(logFile, currentServer + ' ' + m + '\n', 'a') } catch (_) {}
         return
     }
 
     if (!nearby || nearby.length === 0) {
         q('No darknet servers connected to ' + currentServer)
-        for (const m of buf) try { ns.write(logFile, ns.getHostname() + ' ' + m + '\n', 'a') } catch (_) {}
+        for (const m of buf) try { ns.write(logFile, currentServer + ' ' + m + '\n', 'a') } catch (_) {}
         return
     }
 
     q(currentServer + ': Found ' + nearby.length + ' nearby darknet server(s): ' + nearby.join(', '))
 
+    const myName = ns.getScriptName()
+
     for (const hostname of nearby) {
         const authed = await tryAuthenticate(ns, hostname)
         if (!authed) continue
-        await spreadToServer(ns, hostname)
+
+        // Spread both explorer and extractor to newly discovered server
+        await spreadScriptToServer(ns, myName, hostname)
+        await spreadScriptToServer(ns, '/darknet-extractor.js', hostname)
     }
 
-    // Flush all logs after all awaits complete
-    for (const m of buf) try { ns.write(logFile, ns.getHostname() + ' ' + m + '\n', 'a') } catch (_) {}
+    for (const m of buf) try { ns.write(logFile, currentServer + ' ' + m + '\n', 'a') } catch (_) {}
 }
 
 // --- Entry Point ---
@@ -295,53 +219,40 @@ export async function main(ns) {
     _pid = ns.pid || 0
     options = ns.flags(argsSchema)
 
-    // Kill any other instances of this script on the same server
-    const scriptName = ns.getHostname() + ':' + ns.getScriptName()
+    // Kill other instances of this script on same server
     try {
         const processes = ns.ps(ns.getHostname())
         for (const p of processes) {
-            if (p.filename === ns.getScriptName() && p.pid !== _pid) {
-                ns.kill(p.pid)
-            }
+            if (p.filename === ns.getScriptName() && p.pid !== _pid) ns.kill(p.pid)
         }
     } catch (_) {}
 
     ns.tprint('*** DARKNET EXPLORER started on ' + ns.getHostname() + ' (pid ' + _pid + ') ***')
-
     if (options.tail) ns.tail()
-
     disableLogs(ns, ['getServerMaxRam', 'getServerUsedRam', 'scan', 'asleep', 'exec', 'scp'])
 
-    try { ns.write(logFile, ns.getHostname() + ' DARKNET started pid=' + _pid + '\n', 'w') } catch (_) {}
-
     // Check darknet API access
-    const disabledFlag = '/Temp/darknet-disabled.txt';
+    const disabledFlag = '/Temp/darknet-disabled.txt'
     try {
-        ns.dnet.probe();
+        ns.dnet.probe()
     } catch {
-        // ns.dnet not available - need to connect to darkweb first
-        ns.tprint('INFO: ns.dnet API not available. Trying to connect to darkweb...');
+        ns.tprint('INFO: ns.dnet API not available. Trying to connect to darkweb...')
         try {
-            ns.singularity.connect("darkweb");
-            await ns.sleep(500);
-            ns.dnet.probe(); // Re-check
-            ns.tprint('SUCCESS: Connected to darkweb!');
+            ns.singularity.connect('darkweb')
+            await ns.sleep(500)
+            ns.dnet.probe()
+            ns.tprint('SUCCESS: Connected to darkweb!')
         } catch (connectErr) {
-            ns.tprint('ERROR: Cannot access darknet. Need to: 1) buy DarkscapeNavigator.exe, 2) connect darkweb');
-            ns.tprint('Detail: ' + String(connectErr));
-            // Write disabled flag so keepalive doesn't keep restarting us
-            try { ns.write(disabledFlag, 'no darknet access', 'w'); } catch (_) {}
-            return;
+            ns.tprint('ERROR: Cannot access darknet. Need to: 1) buy DarkscapeNavigator.exe, 2) connect darkweb')
+            try { ns.write(disabledFlag, 'no darknet access', 'w') } catch (_) {}
+            return
         }
     }
-    // Remove disabled flag if we successfully connected
-    try { ns.rm(disabledFlag); } catch (_) {}
+    try { ns.rm(disabledFlag) } catch (_) {}
 
     loadPasswords(ns)
 
-    await prepareServer(ns)
-
-    // Main loop - exit cleanly if killed
+    // Main loop
     let loopCount = 0
     while (isAlive()) {
         try {
@@ -356,51 +267,5 @@ export async function main(ns) {
         await ns.sleep(probeInterval)
     }
 
-    try { ns.write(logFile, ns.getHostname() + ' DARKNET exiting pid=' + _pid + '\n', 'a') } catch (_) {}
-}
-
-/**
- * On-server preparation: free RAM, loot cache, run phishing.
- * Called once when script starts on a new darknet server.
- */
-async function prepareServer(ns) {
-    const hostname = ns.getHostname()
-    const buf = []
-    function q(msg) { buf.push(msg) }
-    function flush() { for (const m of buf) try { ns.write(logFile, hostname + ' ' + m + '\n', 'a') } catch (_) {} }
-
-    // Prepare any darknet-related server (darkweb or darknet-*)
-    const isDarknetServer = hostname === 'darkweb' || hostname.startsWith('darknet-')
-    if (!isDarknetServer) {
-        q('Skipping darknet preparation on ' + hostname + ' (not a darknet server)')
-        flush(); return
-    }
-
-    q('Preparing darknet server ' + hostname + '...')
-
-    // Free blocked RAM
-    for (let i = 0; i < memoryReallocTicks; i++) {
-        let err = null
-        try { ns.dnet.memoryReallocation() } catch (e) { err = String(e) }
-        if (err) { q('memoryReallocation tick ' + i + ' failed: ' + err); break }
-        await ns.sleep(100)
-    }
-
-    // Loot .cache files
-    let files = []
-    try { files = ns.ls(hostname, '.cache') } catch (_) {}
-    for (const file of files) {
-        let result = null, err = null
-        try { result = ns.dnet.openCache(file) } catch (e) { err = String(e) }
-        if (err) { q('Failed to open ' + file + ': ' + err) }
-        else if (result) { q('Opened ' + file + ' on ' + hostname + ': ' + JSON.stringify(result)) }
-    }
-
-    // Run phishing
-    let phishResult = null, phishErr = null
-    try { phishResult = await ns.dnet.phishingAttack() } catch (e) { phishErr = String(e) }
-    if (phishErr) { q('Phishing failed: ' + phishErr) }
-    else if (phishResult) { q('Phishing on ' + hostname + ': ' + JSON.stringify(phishResult)) }
-
-    flush()
+    try { ns.write(logFile, ns.getHostname() + ' DARKNET EXPLORER exiting pid=' + _pid + '\n', 'a') } catch (_) {}
 }
