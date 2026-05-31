@@ -306,7 +306,7 @@ async function mainLoop(ns) {
 
     // Detect our current action (API returns an object like { "type":"Operation", "name":"Investigation" })
     const currentAction = await getBBInfo(ns, `getCurrentAction()`);
-    if (!currentAction) {
+    if (!currentAction || !currentAction.name) {
         log(ns, 'WARN: getCurrentAction() returned null - no current bladeburner action');
         return;
     }

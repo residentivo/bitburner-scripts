@@ -233,7 +233,7 @@ export async function main(ns) {
     homeReservedRam = options['reserved-ram']
 
     // These scripts are started once and expected to run forever (or terminate themselves when no longer needed)
-    const openTailWindows = !options['no-tail-windows'];
+    const openTailWindows = false; // Don't open tail windows automatically on startup
     asynchronousHelpers = [
         { name: "stats.js", shouldRun: () => ns.getServerMaxRam("home") >= 64 /* Don't waste precious RAM */ }, // Adds stats not usually in the HUD
         { name: "stockmaster.js", args: openTailWindows ? ["--show-market-summary"] : [], tail: openTailWindows, shouldRun: () => playerStats.hasTixApiAccess }, // Start our stockmaster if we have the required stockmarket access

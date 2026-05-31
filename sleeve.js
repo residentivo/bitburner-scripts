@@ -152,7 +152,7 @@ export async function main(ns) {
 // Calculate the chance a sleeve has of committing homicide successfully
 async function calculateCrimeChance(ns, sleeveStats, crimeName) {
     const crimeStats = cachedCrimeStats[crimeName] ?? // If not in the cache, retrieve this crime's stats
-        (cachedCrimeStats[crimeName] = await getNsDataThroughFile(ns, `ns.getCrimeStats("${crimeName}")`, '/Temp/get-crime-stats.txt'));
+        (cachedCrimeStats[crimeName] = await getNsDataThroughFile(ns, `ns.singularity.getCrimeStats("${crimeName}")`, '/Temp/get-crime-stats.txt'));
     let chance =
         crimeStats.hacking_success_weight * sleeveStats['hacking'] +
         crimeStats.strength_success_weight * sleeveStats.strength +
