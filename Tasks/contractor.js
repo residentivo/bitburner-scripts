@@ -366,6 +366,17 @@ function solveProblem(type, input) {
     return path.join('');
   }
 
+  // === Total Ways to Sum ===
+  if (type === "Total Ways to Sum") {
+    let d = input;
+    let w = new Array(d + 1).fill(0);
+    w[0] = 1;
+    for (let i = 1; i < d; i++)
+      for (let j = i; j <= d; j++)
+        w[j] += w[j - i];
+    return w[d];
+  }
+
   // === Total Ways to Sum II ===
   if (type === "Total Ways to Sum II") {
     let n = Number(input[0]), a = input[1];
@@ -381,6 +392,183 @@ function solveProblem(type, input) {
       for (let j = a[i]; j <= n; j++)
         w[j] += w[j - a[i]];
     return w[n];
+  }
+
+  // === Algorithmic Stock Trader I ===
+  if (type === "Algorithmic Stock Trader I") {
+    let p = input.map(Number);
+    let mc = 0, ms = 0;
+    for (let i = 1; i < p.length; i++) {
+      mc = Math.max(0, mc += p[i] - p[i - 1]);
+      ms = Math.max(mc, ms);
+    }
+    return ms.toString();
+  }
+
+  // === Algorithmic Stock Trader III ===
+  if (type === "Algorithmic Stock Trader III") {
+    let h1 = -Infinity, h2 = -Infinity, r1 = 0, r2 = 0;
+    for (let i = 0; i < input.length; i++) {
+      let price = input[i];
+      r2 = Math.max(r2, h2 + price);
+      h2 = Math.max(h2, r1 - price);
+      r1 = Math.max(r1, h1 + price);
+      h1 = Math.max(h1, -price);
+    }
+    return r2.toString();
+  }
+
+  // === Algorithmic Stock Trader IV ===
+  if (type === "Algorithmic Stock Trader IV") {
+    let k = Number(input[0]), pr = input[1], len = pr.length;
+    if (len < 2) return 0;
+    if (k > len / 2) {
+      let res = 0;
+      for (let i = 1; i < len; i++) res += Math.max(pr[i] - pr[i - 1], 0);
+      return res;
+    }
+    let hold = new Array(k + 1).fill(-Infinity);
+    let rele = new Array(k + 1).fill(0);
+    for (let i = 0; i < len; i++) {
+      let cur = pr[i];
+      for (let j = k; j > 0; j--) {
+        rele[j] = Math.max(rele[j], hold[j] + cur);
+        hold[j] = Math.max(hold[j], rele[j - 1] - cur);
+      }
+    }
+    return rele[k].toString();
+  }
+
+  // === Encryption I: Caesar Cipher ===
+  if (type === "Encryption I: Caesar Cipher") {
+    let pt = input[0], sh = input[1], r = '';
+    for (let i = 0; i < pt.length; i++) {
+      let a = pt.charCodeAt(i);
+      if (a === 32) r += ' ';
+      else r += String.fromCharCode(((a - 65 - sh + 26) % 26) + 65);
+    }
+    return r;
+  }
+
+  // === Minimum Path Sum in a Triangle ===
+  if (type === "Minimum Path Sum in a Triangle") {
+    let n = input.length;
+    let dp = input[n - 1].slice();
+    for (let i = n - 2; i > -1; i--)
+      for (let j = 0; j < input[i].length; j++)
+        dp[j] = Math.min(dp[j], dp[j + 1]) + input[i][j];
+    return dp[0];
+  }
+
+  // === Compression II: LZ Decompression ===
+  if (type === "Compression II: LZ Decompression") {
+    let p = '', i = 0;
+    while (i < input.length) {
+      let ll = input.charCodeAt(i) - 0x30;
+      if (ll < 0 || ll > 9 || i + 1 + ll > input.length) return null;
+      p += input.substring(i + 1, i + 1 + ll);
+      i += 1 + ll;
+      if (i >= input.length) break;
+      let bl = input.charCodeAt(i) - 0x30;
+      if (bl < 0 || bl > 9) return null;
+      if (bl === 0) { i++; continue; }
+      if (i + 1 >= input.length) return null;
+      let bo = input.charCodeAt(i + 1) - 0x30;
+      if (bo < 1 || bo > 9) return null;
+      if (bo > p.length) return null;
+      for (let j = 0; j < bl; j++) p += p[p.length - bo];
+      i += 2;
+    }
+    return p;
+  }
+
+  // === Find All Valid Math Expressions ===
+  if (type === "Find All Valid Math Expressions") {
+    let num = input[0], target = input[1];
+    let result = [];
+    function helper(res, path, s, tar, pos, eva, mult) {
+      if (pos === s.length) {
+        if (tar === eva) res.push(path);
+        return;
+      }
+      for (let i = pos; i < s.length; i++) {
+        if (i !== pos && s[pos] === '0') break;
+        let cur = parseInt(s.substring(pos, i + 1));
+        if (pos === 0) helper(res, path + cur, s, tar, i + 1, cur, cur);
+        else {
+          helper(res, path + '+' + cur, s, tar, i + 1, eva + cur, cur);
+          helper(res, path + '-' + cur, s, tar, i + 1, eva - cur, -cur);
+          helper(res, path + '*' + cur, s, tar, i + 1, eva - mult + mult * cur, mult * cur);
+        }
+      }
+    }
+    helper(result, '', num, target, 0, 0, 0);
+    return result;
+  }
+
+  // === Merge Overlapping Intervals ===
+  if (type === "Merge Overlapping Intervals") {
+    let iv = input.slice();
+    iv.sort((a, b) => a[0] - b[0]);
+    let res = [];
+    let s2 = iv[0][0], e = iv[0][1];
+    for (let i = 0; i < iv.length; i++) {
+      if (iv[i][0] <= e) e = Math.max(e, iv[i][1]);
+      else { res.push([s2, e]); s2 = iv[i][0]; e = iv[i][1]; }
+    }
+    res.push([s2, e]);
+    return res;
+  }
+
+  // === Proper 2-Coloring of a Graph ===
+  if (type === "Proper 2-Coloring of a Graph") {
+    let nv, edges;
+    if (Array.isArray(input[0]) && typeof input[0][0] === 'number' && !Array.isArray(input[0][0])) {
+      nv = input[0]; edges = input[1];
+    } else if (typeof input[0] === 'number' && Array.isArray(input[1])) {
+      nv = input[0]; edges = input[1];
+    } else {
+      edges = input; nv = 0;
+      for (let i = 0; i < edges.length; i++) nv = Math.max(nv, edges[i][0], edges[i][1]);
+      nv++;
+    }
+    let adj = [];
+    for (let i = 0; i < nv; i++) adj[i] = [];
+    for (let i = 0; i < edges.length; i++) {
+      adj[edges[i][0]].push(edges[i][1]);
+      adj[edges[i][1]].push(edges[i][0]);
+    }
+    let color = new Array(nv).fill(-1);
+    for (let s = 0; s < nv; s++) {
+      if (color[s] !== -1) continue;
+      color[s] = 0;
+      let q = [s], h = 0;
+      while (h < q.length) {
+        let u = q[h++];
+        for (let j = 0; j < adj[u].length; j++) {
+          let v = adj[u][j];
+          if (color[v] === -1) { color[v] = 1 - color[u]; q.push(v); }
+          else if (color[v] === color[u]) return [];
+        }
+      }
+    }
+    return color.slice(0, nv);
+  }
+
+  // === Find Largest Prime Factor ===
+  if (type === "Find Largest Prime Factor") {
+    let n = input;
+    if (typeof n === 'bigint') {
+      let f = 2n;
+      while (n > (f - 1n) * (f - 1n)) { while (n % f === 0n) n = n / f; ++f; }
+      return (n === 1n ? f - 1n : n).toString();
+    }
+    let f = 2;
+    while (n > (f - 1) * (f - 1)) {
+      while (n % f === 0) n = Math.round(n / f);
+      ++f;
+    }
+    return (n === 1 ? f - 1 : n).toString();
   }
 
   return null;
