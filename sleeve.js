@@ -99,10 +99,10 @@ export async function main(ns) {
                     designatedTask = `work for company '${playerInfo.companyName}'`;
                     command = `ns.sleeve.setToCompanyWork(${i}, '${playerInfo.companyName}')`;
                 }  // Do crime for Karma. Homicide has the rate gain, if we can manage a decent success rate.
-                else { // TODO: This is less useful after gangs are unlocked, can we think of better things to do?
+                else {
                     var crime = options.crime || (await calculateCrimeChance(ns, sleeveStats, "homicide")) >= options['homicide-chance-threshold'] ? 'homicide' : 'mug';
                     designatedTask = `commit ${crime}`;
-                    command = `ns.sleeve.setToCommitCrime(${i}, '${crime}')`;
+                    command = `ns.sleeve.setToCommitCrime(${i}, ns.enums.CrimeType.${crime})`;
                 }
 
                 // Start the clock, this sleeve should stick to this task for minTaskWorkTime
