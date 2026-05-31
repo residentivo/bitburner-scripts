@@ -193,14 +193,26 @@ async function exploreFromServer(ns) {
     q(currentServer + ': Found ' + nearby.length + ' nearby darknet server(s): ' + nearby.join(', '))
 
     const myName = ns.getScriptName()
+    log('DEBUG: myName=' + myName + ' hostname=' + ns.getHostname())
 
     for (const hostname of nearby) {
         const authed = await tryAuthenticate(ns, hostname)
         if (!authed) continue
 
-        // Spread both explorer and extractor to newly discovered server
-        await spreadScriptToServer(ns, myName, hostname)
-        await spreadScriptToServer(ns, '/darknet-extractor.js', hostname)
+        log('DEBUG: authenticated to ' + hostname + ', spreading...')
+
+        // Spread explorer
+        const spread1 = await spreadScriptToServer(ns, myName, hostname)
+        log('DEBUG: spread explorer to ' + hostname + ' = ' + spread1)
+
+        // Spread extractor — use full path
+        const extractorPath = '/darknet-extractor.js'
+        // First copy extractor to home if not there
+        if (!ns.fileExists(extractorPath, 'home')) {
+            try { await ns.scp(extractorPath, 'home') } catch (_) {}
+        }
+        const spread2 = await spreadScriptToServer(ns, extractorPath, hostname)
+        log('DEBUG: spread extractor to ' + hostname + ' = ' + spread2)
     }
 
     for (const m of buf) try { ns.write(logFile, currentServer + ' ' + m + '\n', 'a') } catch (_) {}
@@ -260,8 +272,11 @@ export async function main(ns) {
             if (loopCount % 12 === 0) {
                 try { ns.write(logFile, ns.getHostname() + ' Loop #' + loopCount + '\n', 'a') } catch (_) {}
             }
+            // DEBUG: log every loop
+            log('DEBUG LOOP #' + loopCount + ' on ' + ns.getHostname())
             await exploreFromServer(ns)
         } catch (e) {
+            log('ERROR in loop: ' + String(e))
             try { ns.write(logFile, ns.getHostname() + ' ERROR: ' + String(e) + '\n', 'a') } catch (_) {}
         }
         await ns.sleep(probeInterval)
