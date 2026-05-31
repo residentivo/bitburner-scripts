@@ -102,29 +102,56 @@ function solveProblem(type, input) {
 
   // === Largest Rectangle in a Matrix ===
   if (type === "Largest Rectangle in a Matrix") {
+    // input can be:
+    //   - 2D array of numbers (binary or any values) → find largest rectangle of ANY identical value
+    //   - [rows, cols, ...flatData]
     let grid = input;
-    if (!grid || grid.length === 0 || grid[0].length === 0) return "0";
-    let rows = grid.length;
-    let cols = grid[0].length;
-    let heights = new Array(cols).fill(0);
-    let best = 0;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        heights[c] = grid[r][c] === 1 ? heights[c] + 1 : 0;
+    let rows, cols;
+    if (grid.length > 0 && Array.isArray(grid[0])) {
+      rows = grid.length;
+      cols = grid[0].length;
+    } else if (grid.length >= 2 && typeof grid[0] === "number" && typeof grid[1] === "number") {
+      rows = grid[0];
+      cols = grid[1];
+      let flat = grid.slice(2);
+      grid = [];
+      for (let r = 0; r < rows; r++) {
+        grid.push(flat.slice(r * cols, (r + 1) * cols));
       }
-      let stack = [];
-      for (let h = 0; h <= cols; h++) {
-        let ch = h < cols ? heights[h] : 0;
-        while (stack.length > 0 && heights[stack[stack.length - 1]] > ch) {
-          let top = stack.pop();
-          let height = heights[top];
-          let width = stack.length === 0 ? h : h - stack[stack.length - 1] - 1;
-          best = Math.max(best, height * width);
+    } else {
+      return 0;
+    }
+    if (rows === 0 || cols === 0) return 0;
+
+    // For each unique value, run histogram-based largest rectangle
+    // Collect all unique values in the grid
+    const allVals = new Set();
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++)
+        allVals.add(grid[r][c]);
+
+    let best = 0;
+    for (let val of allVals) {
+      let heights = new Array(cols).fill(0);
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          heights[c] = grid[r][c] === val ? heights[c] + 1 : 0;
         }
-        stack.push(h);
+        let stack = [];
+        for (let h = 0; h <= cols; h++) {
+          let ch = h < cols ? heights[h] : 0;
+          while (stack.length > 0 && heights[stack[stack.length - 1]] > ch) {
+            let top = stack.pop();
+            let height = heights[top];
+            let width = stack.length === 0 ? h : h - stack[stack.length - 1] - 1;
+            best = Math.max(best, height * width);
+          }
+          stack.push(h);
+        }
       }
     }
-    return String(best);
+    // v3: return bare number, not string (string conversion broken in v3)
+    return best;
   }
 
   // === HammingCodes: Encoded Binary to Integer ===
