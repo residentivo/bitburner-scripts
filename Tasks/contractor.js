@@ -22,46 +22,46 @@ function solveProblem(type, input) {
 
   // === Compression III: LZ Compression ===
   if (type === "Compression III: LZ Compression") {
-    let n = input.length;
-    let encoded = "";
-    let litBuf = [];
-    let pos = 0;
-
-    function flushLit() {
-      let f = 0;
-      while (f < litBuf.length) {
-        let chunk = Math.min(litBuf.length - f, 9);
-        encoded += chunk + litBuf.slice(f, f + chunk).join("");
-        f += chunk;
-      }
-      litBuf = [];
-    }
-
-    while (pos < n) {
-      let bestOff = 0;
-      let bestLen = 0;
-      for (let sp = 0; sp < pos; sp++) {
-        let ml = 0;
-        while (pos + ml < n && input[pos + ml] === input[sp + ml] && ml < 9) {
-          ml++;
+    if (!input || input.length === 0) return "";
+    let compressed = "", decoded = "", pos = 0;
+    while (pos < input.length) {
+      let litChars = "", backLenFound = 0, backOffFound = 0;
+      while (pos + litChars.length < input.length) {
+        let testDec = decoded + litChars, bestBL = 0, bestBO = 0;
+        let matchStart = pos + litChars.length;
+        if (litChars.length > 0) {
+          for (let off = 1; off <= Math.min(9, testDec.length); off++) {
+            let fl = 0;
+            while (fl < 9 && matchStart + fl < input.length) {
+              let si = testDec.length - off + (fl % off);
+              if (si < 0 || si >= testDec.length) break;
+              if (input[matchStart + fl] === testDec[si]) fl++;
+              else break;
+            }
+            if (fl > bestBL) { bestBL = fl; bestBO = off; }
+          }
         }
-        if (ml > bestLen) {
-          bestLen = ml;
-          bestOff = pos - sp;
-        }
+        if (bestBL >= 3) { backLenFound = bestBL; backOffFound = bestBO; break; }
+        if (litChars.length >= 9) break;
+        litChars += input[pos + litChars.length];
       }
-      if (bestLen >= 4) {
-        flushLit();
-        encoded += bestOff + "0" + bestLen;
-        pos += bestLen;
+      if (litChars.length === 0) litChars = input[pos];
+      pos += litChars.length;
+      decoded += litChars;
+      compressed += String(litChars.length) + litChars;
+      if (pos >= input.length) break;
+      if (backLenFound >= 3) {
+        let backref = "";
+        for (let j = 0; j < backLenFound; j++)
+          backref += decoded[decoded.length - backOffFound + (j % backOffFound)];
+        compressed += String(backLenFound) + String(backOffFound);
+        decoded += backref;
+        pos += backLenFound;
       } else {
-        litBuf.push(input[pos]);
-        if (litBuf.length >= 9) flushLit();
-        pos++;
+        compressed += "0";
       }
     }
-    flushLit();
-    return encoded;
+    return compressed;
   }
 
   // === Array Jumping Game II ===
@@ -179,31 +179,22 @@ function solveProblem(type, input) {
 
   // === HammingCodes: Encoded Binary to Integer ===
   if (type === "HammingCodes: Encoded Binary to Integer") {
-    let bits = input.split("").map(Number);
-    let len = bits.length;
-    // Extended Hamming code: positions 1-indexed
-    // Parity positions are powers of 2; data positions are everything else
-    // Compute syndrome to find single-bit error
-    let numParity = Math.round(Math.log2(len));
-    let syndrome = 0;
-    for (let pi = 0; pi < numParity; pi++) {
-      let pbit = 1 << pi;
-      let par = 0;
-      for (let j = 1; j <= len; j++) {
-        if ((j & pbit) !== 0) par ^= bits[j - 1];
-      }
-      syndrome |= (par << pi);
+    let enc = input.split("").map(v => parseInt(v));
+    let m = 0, n2 = enc.length;
+    while (Math.pow(2, m) < m + n2 + 1) m++;
+    let pn = 0;
+    for (let i = 0; i < n2; i++) {
+      let expected = 0;
+      for (let j = 0; j < m; j++)
+        if (i & (1 << j)) expected ^= enc[Math.pow(2, j)];
+      if (enc[i] !== expected) pn ^= i;
     }
-    // Correct error at syndrome position
-    if (syndrome > 0 && syndrome <= len) bits[syndrome - 1] ^= 1;
-    // Extract data bits (non-power-of-2 positions)
-    let result = 0;
-    for (let pos = 1; pos <= len; pos++) {
-      if ((pos & (pos - 1)) !== 0) {
-        result = (result << 1) | bits[pos - 1];
-      }
-    }
-    return result;
+    if (pn !== 0 && pn < n2) enc[pn] = 1 - enc[pn];
+    let dataBits = [];
+    for (let i = 1; i < n2; i++)
+      if ((i & (i - 1)) !== 0) dataBits.push(enc[i]);
+    dataBits.reverse();
+    return parseInt(dataBits.join(""), 2);
   }
 
   return null;
