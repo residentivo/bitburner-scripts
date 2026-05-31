@@ -315,6 +315,7 @@ export async function main(ns) {
     try { ns.write(logFile, ns.getHostname() + ' DARKNET started pid=' + _pid + '\n', 'w') } catch (_) {}
 
     // Check darknet API access
+    const disabledFlag = '/Temp/darknet-disabled.txt';
     try {
         ns.dnet.probe();
     } catch {
@@ -328,9 +329,13 @@ export async function main(ns) {
         } catch (connectErr) {
             ns.tprint('ERROR: Cannot access darknet. Need to: 1) buy DarkscapeNavigator.exe, 2) connect darkweb');
             ns.tprint('Detail: ' + String(connectErr));
+            // Write disabled flag so keepalive doesn't keep restarting us
+            try { ns.write(disabledFlag, 'no darknet access', 'w'); } catch (_) {}
             return;
         }
     }
+    // Remove disabled flag if we successfully connected
+    try { ns.rm(disabledFlag); } catch (_) {}
 
     loadPasswords(ns)
 

@@ -246,7 +246,7 @@ export async function main(ns) {
             shouldRun: () => 4 in dictSourceFiles && (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4]))
         },
         { name: "bladeburner.js", tail: true, shouldRun: () => 7 in dictSourceFiles && playerStats.bitNodeN != 8 },
-        { name: "darknet.js", tail: true, shouldRun: () => doesFileExist("darknet.js") },
+        { name: "darknet.js", tail: true, shouldRun: () => doesFileExist("darknet.js") && !_ns.fileExists("/Temp/darknet-disabled.txt") },
     ];
     asynchronousHelpers.forEach(helper => helper.name = getFilePath(helper.name));
     asynchronousHelpers.forEach(helper => helper.isLaunched = false);

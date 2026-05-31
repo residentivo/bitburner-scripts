@@ -10,6 +10,12 @@
 
 export async function main(ns) {
     const darknetScript = "/darknet.js";
+    const disabledFlag = "/Temp/darknet-disabled.txt";
+
+    // If darknet is disabled (no access), don't try to restart
+    if (ns.fileExists(disabledFlag)) {
+        return;
+    }
 
     // Check if darknet.js is already running (on home or any server)
     const isRunning = ns.isRunning(darknetScript, "home") ||
