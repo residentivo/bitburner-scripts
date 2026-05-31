@@ -246,7 +246,7 @@ export async function main(ns) {
             shouldRun: () => 4 in dictSourceFiles && (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4]))
         },
         { name: "bladeburner.js", tail: true, shouldRun: () => 7 in dictSourceFiles && playerStats.bitNodeN != 8 },
-        { name: "darknet.js", tail: true, shouldRun: () => ns.fileExists("DarkscapeNavigator.exe", "home") || addedServerNames.includes("darkweb") },
+        { name: "darknet.js", tail: true, shouldRun: () => doesFileExist("darknet.js") },
     ];
     asynchronousHelpers.forEach(helper => helper.name = getFilePath(helper.name));
     asynchronousHelpers.forEach(helper => helper.isLaunched = false);
@@ -288,7 +288,7 @@ export async function main(ns) {
         // Check if any new servers can be backdoored. If there are many, this can eat up a lot of RAM, so make this this the last script scheduled at startup.
         { interval: 33000, name: "/Tasks/backdoor-all-servers.js", requiredServer: "home", shouldRun: () => 4 in dictSourceFiles },
         // Periodically ensure darknet.js is running (probes, maps, and exploits the darknet)
-        { interval: 30000, name: "/Tasks/darknet-keepalive.js", requiredServer: "home", shouldRun: () => ns.fileExists("DarkscapeNavigator.exe", "home") || addedServerNames.includes("darkweb") },
+        { interval: 30000, name: "/Tasks/darknet-keepalive.js", requiredServer: "home", shouldRun: () => doesFileExist("/darknet.js") },
     ];
     periodicScripts.forEach(tool => tool.name = getFilePath(tool.name));
     hackTools = [
