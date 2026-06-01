@@ -51,8 +51,8 @@ async function tryPasswordFromHint(ns, hostname, hint, modelId) {
     if (!hint) return null
     const hintLower = hint.toLowerCase()
 
-    // "The key is X" / "The secret is X" / "password is X" hint — extract directly
-    const keyMatch = hint.match(/(?:key|secret|password) is\s+(\w+)/i)
+    // "The key is X" / "The secret is X" / "password is X" / "It's set to X" — extract directly
+    const keyMatch = hint.match(/(?:key|secret|password|it'?s set to)\s+(\w+)/i)
     if (keyMatch) {
         const pw = keyMatch[1]
         try {
@@ -61,8 +61,8 @@ async function tryPasswordFromHint(ns, hostname, hint, modelId) {
         } catch { }
     }
 
-    // "default" hint — try common passwords
-    if (hintLower.includes('default')) {
+    // "default" / "factory settings" hint — try common passwords
+    if (hintLower.includes('default') || hintLower.includes('factory')) {
         for (const pw of commonPasswords) {
             try {
                 const result = await ns.dnet.authenticate(hostname, pw)
