@@ -103,6 +103,8 @@ async function authenticateServer(ns, hostname) {
     const hintData = details.data
     const solved = solvePassword(hint, hintData)
 
+    ns.tprint(`[DNET] ${hostname}: hint="${hint}" data="${hintData}" solved="${solved}"`)
+
     if (solved) {
         // For "default" hint, we only got the first candidate — try all
         const candidates = (hint && hint.toLowerCase().includes('default')) ? commonPasswords : [solved]
@@ -155,7 +157,11 @@ export async function main(ns) {
     // 4. For each neighbor: authenticate, copy scripts, spawn
     for (const neighbor of nearby) {
         const authed = await authenticateServer(ns, neighbor)
-        if (!authed) continue
+        if (!authed) {
+            ns.tprint(`[DNET] FAIL auth: ${neighbor}`)
+            continue
+        }
+        ns.tprint(`[DNET] OK auth: ${neighbor} — spawning darknet.js + extractor`)
 
         // Copy and spawn darknet.js
         try {
