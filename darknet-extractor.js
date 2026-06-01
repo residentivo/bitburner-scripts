@@ -6,7 +6,7 @@
  *  2. Loot .cache files with ns.dnet.openCache()
  *  3. Run phishing attacks with ns.dnet.phishingAttack()
  *
- * No loops, no sleeps — runs once and exits. Relaunched by darknet.js.
+ * Loops forever with no sleep — runs as fast as possible.
  */
 
 function disableLogs(ns, listOfLogs) {
@@ -22,20 +22,22 @@ export async function main(ns) {
     // Check dnet API
     try { ns.dnet.probe() } catch { return }
 
-    // 1. Free blocked RAM
-    for (let i = 0; i < 5; i++) {
-        try { ns.dnet.memoryReallocation() } catch { break }
-    }
-
-    // 2. Loot .cache files
-    try {
-        for (const file of ns.ls(host, '.cache')) {
-            try { ns.dnet.openCache(file) } catch { }
+    while (true) {
+        // 1. Free blocked RAM
+        for (let i = 0; i < 5; i++) {
+            try { ns.dnet.memoryReallocation() } catch { break }
         }
-    } catch { }
 
-    // 3. Phishing
-    try { await ns.dnet.phishingAttack() } catch { }
+        // 2. Loot .cache files
+        try {
+            for (const file of ns.ls(host, '.cache')) {
+                try { ns.dnet.openCache(file) } catch { }
+            }
+        } catch { }
+
+        // 3. Phishing
+        try { await ns.dnet.phishingAttack() } catch { }
+    }
 }
 
 export function autocomplete(data) {
