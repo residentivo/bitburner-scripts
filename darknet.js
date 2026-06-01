@@ -51,8 +51,8 @@ async function tryPasswordFromHint(ns, hostname, hint, modelId) {
     if (!hint) return null
     const hintLower = hint.toLowerCase()
 
-    // "The key is X" / "password is X" hint — extract the key directly
-    const keyMatch = hint.match(/key is\s+(\w+)/i)
+    // "The key is X" / "The secret is X" / "password is X" hint — extract directly
+    const keyMatch = hint.match(/(?:key|secret|password) is\s+(\w+)/i)
     if (keyMatch) {
         const pw = keyMatch[1]
         try {
