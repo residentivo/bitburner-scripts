@@ -12,9 +12,8 @@
 
 const SCRIPT_NAME = 'darknet.js'
 const EXTRACTOR_NAME = 'darknet-extractor.js'
-const PASSWORDS_FILE = '/Temp/darknet-passwords.txt'
 
-// --- Password hint solver (stateless, no disk I/O per attempt) ---
+// --- Password hint solver ---
 
 const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
 
@@ -26,8 +25,6 @@ const commonByLength = {
     7: ['letmein', 'abcdefg', '1234567', 'testing', 'changeme'],
     8: ['password', 'trustno1', 'sunshine', 'iloveyou', '12345678'],
 }
-
-const knownCaptchas = {}
 
 function solvePassword(hint, hintData) {
     if (!hint) return null
@@ -53,7 +50,7 @@ function solvePassword(hint, hintData) {
 
     // "default" / "factory settings"
     if (h.includes('default') || h.includes('factory')) {
-        return commonPasswords[0] // try first one; auth loop will iterate if needed
+        return commonPasswords[0]
     }
 
     // "Warning: password buffer is N bytes"
@@ -70,7 +67,7 @@ function solvePassword(hint, hintData) {
             const extracted = hintData.replace(/[^0-9]/g, '')
             if (extracted && extracted.length >= 3) return extracted
         }
-        return '123456' // fallback
+        return '123456'
     }
 
     return null
@@ -84,41 +81,27 @@ async function tryAuth(ns, hostname, password) {
 }
 
 async function authenticateServer(ns, hostname) {
+    // Connect to the server first
+    try { ns.singularity.connect(hostname) } catch { return false }
+
     let details
     try { details = ns.dnet.getServerDetails(hostname) } catch { return false }
     if (!details.isConnectedToCurrentServer || !details.isOnline) return false
     if (details.hasSession) return true
 
-    // Try cached password first
-    const cached = ns.read(PASSWORDS_FILE)
-    if (cached) {
-        try {
-            const pw = JSON.parse(cached)[hostname]
-            if (pw && await tryAuth(ns, hostname, pw)) return true
-        } catch { }
-    }
-
-    // Solve from hint
     const hint = details.passwordHint
     const hintData = details.data
     const solved = solvePassword(hint, hintData)
 
-    ns.tprint(`[DNET] ${hostname}: hint="${hint}" data="${hintData}" solved="${solved}"`)
-
     if (solved) {
-        // For "default" hint, we only got the first candidate — try all
         const candidates = (hint && hint.toLowerCase().includes('default')) ? commonPasswords : [solved]
         for (const pw of candidates) {
-            if (await tryAuth(ns, hostname, pw)) {
-                // Save to cache
-                let cache = {}
-                try { cache = JSON.parse(ns.read(PASSWORDS_FILE)) } catch { }
-                cache[hostname] = pw
-                try { ns.write(PASSWORDS_FILE, JSON.stringify(cache), 'w') } catch { }
-                return true
-            }
+            if (await tryAuth(ns, hostname, pw)) return true
         }
     }
+
+    // Go back to home after each attempt
+    try { ns.singularity.connect('home') } catch { }
 
     return false
 }
@@ -126,7 +109,6 @@ async function authenticateServer(ns, hostname) {
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('getServerUsedRam')
-    ns.disableLog('asleep')
     ns.disableLog('exec')
     ns.disableLog('scp')
     ns.disableLog('ls')
@@ -156,25 +138,31 @@ export async function main(ns) {
 
     // 4. For each neighbor: authenticate, copy scripts, spawn
     for (const neighbor of nearby) {
+        const startServer = ns.getHostname()
         const authed = await authenticateServer(ns, neighbor)
         if (!authed) {
-            ns.tprint(`[DNET] FAIL auth: ${neighbor}`)
+            try { ns.singularity.connect(startServer) } catch { }
             continue
         }
-        ns.tprint(`[DNET] OK auth: ${neighbor} — spawning darknet.js + extractor`)
 
-        // Copy and spawn darknet.js
+        // Go back to the neighbor to copy+spawn
+        try { ns.singularity.connect(neighbor) } catch { }
+
+        // Copy and spawn ourself on the neighbor
         try {
             if (!ns.fileExists(SCRIPT_NAME, neighbor)) await ns.scp(SCRIPT_NAME, neighbor)
             ns.exec(SCRIPT_NAME, neighbor, 1)
         } catch { }
 
-        // Copy and spawn extractor
+        // Copy and spawn extractor on the neighbor
         try {
             if (!ns.fileExists(EXTRACTOR_NAME, neighbor)) await ns.scp(EXTRACTOR_NAME, neighbor)
             const running = ns.ps(neighbor).some(p => p.filename === EXTRACTOR_NAME)
             if (!running) ns.exec(EXTRACTOR_NAME, neighbor, 1)
         } catch { }
+
+        // Return to original server
+        try { ns.singularity.connect(startServer) } catch { }
     }
 }
 
