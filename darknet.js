@@ -47,7 +47,7 @@ const commonByLength = {
 // Known CAPTCHA answers by hostname (populated manually or via heartbleed logs)
 const knownCaptchas = {}
 
-async function tryPasswordFromHint(ns, hostname, hint, modelId) {
+async function tryPasswordFromHint(ns, hostname, hint, modelId, hintData) {
     if (!hint) return null
     const hintLower = hint.toLowerCase()
 
@@ -109,35 +109,27 @@ async function tryPasswordFromHint(ns, hostname, hint, modelId) {
             return knownCaptchas[hostname]
         }
 
-        // Try to read captcha answer from server logs via heartbleed
-        try {
-            const logs = await ns.dnet.heartbleed(hostname, { peek: true })
-            if (logs && logs.logs) {
-                // Look for numeric patterns in logs (captcha answer is usually a number)
-                for (const entry of logs.logs) {
-                    const msg = typeof entry === 'string' ? entry : JSON.stringify(entry)
-                    const numbers = msg.match(/\b\d{4,}\b/g)
-                    if (numbers) {
-                        for (const num of numbers) {
-                            try {
-                                const result = await ns.dnet.authenticate(hostname, num)
-                                if (result.success()) {
-                                    knownCaptchas[hostname] = num
-                                    return num
-                                }
-                            } catch { }
-                        }
+        // The passwordHintData contains the real password with filler chars
+        // inserted between digits. Extract only the digits to recover the password.
+        // Example: filledPassword = "5x8k3b9c1" → password = "58391"
+        if (hintData) {
+            const extracted = hintData.replace(/[^0-9]/g, '')
+            if (extracted && extracted.length >= 3) {
+                try {
+                    const result = await ns.dnet.authenticate(hostname, extracted)
+                    if (result.success) {
+                        knownCaptchas[hostname] = extracted
+                        return extracted
                     }
-                }
+                } catch { }
             }
-        } catch { }
+        }
 
-        // ReCAPTCHA model — password is typically a 5-6 digit number
-        // Try common patterns: sequential numbers, repeated digits, etc.
+        // Fallback: try common CAPTCHA patterns
         const commonCaptchas = [
             '123456', '12345678', '111111', '000000', '654321',
             '123123', '112233', '121212', '123321', '999999',
-            '100000', '500000', '999999', '111222', '333333',
+            '100000', '500000', '111222', '333333',
             '444444', '555555', '666666', '777777', '888888',
         ]
         for (const pw of commonCaptchas) {
@@ -173,7 +165,7 @@ async function serverSolver(ns, hostname) {
     }
     // 3. Try password hint
     else if (details.passwordHint) {
-        password = await tryPasswordFromHint(ns, hostname, details.passwordHint, details.modelId)
+        password = await tryPasswordFromHint(ns, hostname, details.passwordHint, details.modelId, details.data)
     }
 
     if (password === null) return false
