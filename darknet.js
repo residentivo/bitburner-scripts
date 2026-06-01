@@ -61,6 +61,24 @@ async function tryPasswordFromHint(ns, hostname, hint, modelId) {
         } catch { }
     }
 
+    // "The password is the value of the number 'ROMAN'" — Roman numeral conversion
+    const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
+    if (romanMatch) {
+        const roman = romanMatch[1].toUpperCase()
+        const romanValues = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 }
+        let num = 0
+        for (let i = 0; i < roman.length; i++) {
+            const val = romanValues[roman[i]] || 0
+            const next = (i + 1 < roman.length) ? romanValues[roman[i + 1]] || 0 : 0
+            num += (val < next) ? -val : val
+        }
+        const pw = String(num)
+        try {
+            const result = await ns.dnet.authenticate(hostname, pw)
+            if (result.success) return pw
+        } catch { }
+    }
+
     // "default" / "factory settings" hint — try common passwords
     if (hintLower.includes('default') || hintLower.includes('factory')) {
         for (const pw of commonPasswords) {
