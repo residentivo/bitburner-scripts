@@ -160,10 +160,6 @@ export async function main(ns) {
         // Copy and spawn darknet.js
         try {
             if (!ns.fileExists(SCRIPT_NAME, neighbor)) await ns.scp(SCRIPT_NAME, neighbor)
-            // Kill old instance
-            for (const p of ns.ps(neighbor)) {
-                if (p.filename === SCRIPT_NAME) ns.kill(p.pid, neighbor)
-            }
             ns.exec(SCRIPT_NAME, neighbor, 1)
         } catch { }
 
