@@ -181,13 +181,13 @@ async function exploreFromServer(ns) {
     try { nearby = ns.dnet.probe() } catch (e) {
         q('probe() failed on ' + currentServer + ': ' + String(e))
         for (const m of buf) try { ns.write(logFile, currentServer + ' ' + m + '\n', 'a') } catch (_) {}
-        return
+        return false
     }
 
     if (!nearby || nearby.length === 0) {
         q('No darknet servers connected to ' + currentServer)
         for (const m of buf) try { ns.write(logFile, currentServer + ' ' + m + '\n', 'a') } catch (_) {}
-        return
+        return false
     }
 
     q(currentServer + ': Found ' + nearby.length + ' nearby darknet server(s): ' + nearby.join(', '))
@@ -195,6 +195,7 @@ async function exploreFromServer(ns) {
     const myName = ns.getScriptName()
     log('DEBUG: myName=' + myName + ' hostname=' + ns.getHostname())
 
+    let didSomething = false;
     for (const hostname of nearby) {
         const authed = await tryAuthenticate(ns, hostname)
         if (!authed) continue
@@ -213,9 +214,12 @@ async function exploreFromServer(ns) {
         }
         const spread2 = await spreadScriptToServer(ns, extractorPath, hostname)
         log('DEBUG: spread extractor to ' + hostname + ' = ' + spread2)
+
+        if (spread1 || spread2) didSomething = true;
     }
 
     for (const m of buf) try { ns.write(logFile, currentServer + ' ' + m + '\n', 'a') } catch (_) {}
+    return didSomething
 }
 
 // --- Entry Point ---
@@ -277,25 +281,27 @@ export async function main(ns) {
     loadPasswords(ns)
 
     // Main loop - keep running even if dnet is not available on this server
-    // (we may be on home, but we can still spread to darknet servers)
     let loopCount = 0;
     while (true) {
         try {
             loopCount++;
+            let didSomething = false;
             if (dnetAvailable) {
-                await exploreFromServer(ns);
+                didSomething = await exploreFromServer(ns);
             } else {
-                // If dnet is not available, we can't do anything useful on this server
                 if (loopCount <= 3) {
                     ns.tprint('WARN: dnet not available on ' + ns.getHostname() + ', skipping exploration');
                 }
+            }
+            if (!didSomething) {
+                // Nothing happened — wait longer before next loop to save RAM/CPU
+                await ns.sleep(probeInterval);
             }
         } catch (e) {
             if (loopCount <= 3 || loopCount % 10 === 0) {
                 log('ERROR in loop #' + loopCount + ': ' + String(e));
             }
         }
-        await ns.sleep(probeInterval);
     }
 
     try { ns.write(logFile, ns.getHostname() + ' DARKNET EXPLORER exiting pid=' + _pid + '\n', 'a') } catch (_) {}
