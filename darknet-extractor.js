@@ -14,9 +14,6 @@ function disableLogs(ns, listOfLogs) {
 }
 
 async function extractFromServer(ns) {
-    const hostname = ns.getHostname()
-    if (hostname !== 'darkweb' && !hostname.startsWith('darknet-')) return
-
     // 1. Free blocked RAM
     for (let i = 0; i < 5; i++) {
         try { ns.dnet.memoryReallocation() } catch { break }
