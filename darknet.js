@@ -89,25 +89,37 @@ async function authenticateServer(ns, hostname) {
     if (!details.isConnectedToCurrentServer || !details.isOnline) return false
     if (details.hasSession) return true
 
+    const hint = details.passwordHint
+    const hintData = details.data
+
+    ns.print(`[AUTH] ${hostname}: hint="${hint}" data="${hintData}" modelId="${details.modelId}"`)
+
     // Try cached password first
     const cached = ns.read(PASSWORDS_FILE)
     if (cached) {
         try {
             const pw = JSON.parse(cached)[hostname]
-            if (pw && await tryAuth(ns, hostname, pw)) return true
+            if (pw) {
+                ns.print(`[AUTH] ${hostname}: trying cached pw="${pw}"`)
+                if (await tryAuth(ns, hostname, pw)) {
+                    ns.print(`[AUTH] ${hostname}: cached pw SUCCESS`)
+                    return true
+                }
+            }
         } catch { }
     }
 
     // Solve from hint
-    const hint = details.passwordHint
-    const hintData = details.data
     const solved = solvePassword(hint, hintData)
+    ns.print(`[AUTH] ${hostname}: solved="${solved}"`)
 
     if (solved) {
         // For "default" hint, we only got the first candidate — try all
         const candidates = (hint && hint.toLowerCase().includes('default')) ? commonPasswords : [solved]
         for (const pw of candidates) {
+            ns.print(`[AUTH] ${hostname}: trying pw="${pw}"`)
             if (await tryAuth(ns, hostname, pw)) {
+                ns.print(`[AUTH] ${hostname}: pw="${pw}" SUCCESS`)
                 // Save to cache
                 let cache = {}
                 try { cache = JSON.parse(ns.read(PASSWORDS_FILE)) } catch { }
@@ -116,6 +128,9 @@ async function authenticateServer(ns, hostname) {
                 return true
             }
         }
+        ns.print(`[AUTH] ${hostname}: ALL FAILED`)
+    } else {
+        ns.print(`[AUTH] ${hostname}: NO PASSWORD SOLVED from hint`)
     }
 
     return false
