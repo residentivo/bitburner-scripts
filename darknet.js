@@ -30,6 +30,22 @@ const knownPasswordStrategies = {
     'ZeroLogon': () => '',
 }
 
+// Common passwords to try when hint suggests "default" or when modelId is unknown
+const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
+
+async function tryPasswordFromHint(ns, hostname, hint) {
+    if (!hint) return null
+    if (hint.toLowerCase().includes('default')) {
+        for (const pw of commonPasswords) {
+            try {
+                const result = await ns.dnet.authenticate(hostname, pw)
+                if (result.success) return pw
+            } catch { }
+        }
+    }
+    return null
+}
+
 async function serverSolver(ns, hostname) {
     let details
     try { details = ns.dnet.getServerDetails(hostname) } catch { return false }
@@ -38,10 +54,18 @@ async function serverSolver(ns, hostname) {
     if (details.hasSession) return true
 
     let password = null
+
+    // 1. Try known password from cache
     if (passwords[hostname]) {
         password = passwords[hostname]
-    } else if (details.modelId && knownPasswordStrategies[details.modelId]) {
+    }
+    // 2. Try model-specific strategy
+    else if (details.modelId && knownPasswordStrategies[details.modelId]) {
         password = knownPasswordStrategies[details.modelId]()
+    }
+    // 3. Try password hint
+    else if (details.passwordHint) {
+        password = await tryPasswordFromHint(ns, hostname, details.passwordHint)
     }
 
     if (password === null) return false
@@ -52,10 +76,6 @@ async function serverSolver(ns, hostname) {
             passwords[hostname] = password
             try { savePasswords(ns) } catch (_) {}
             return true
-        }
-        if (passwords[hostname] === password) {
-            delete passwords[hostname]
-            try { savePasswords(ns) } catch (_) {}
         }
         return false
     } catch { return false }
