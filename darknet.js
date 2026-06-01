@@ -136,7 +136,6 @@ export async function main(ns) {
     // 1. Free RAM on this server
     for (let i = 0; i < 5; i++) {
         try { ns.dnet.memoryReallocation() } catch { break }
-        await ns.sleep(50)
     }
 
     // 2. Kill other instances of this script on this server
