@@ -726,6 +726,7 @@ async function doTargetingLoop(ns) {
             if (err?.env?.stopFlag) return;
             // Note netscript errors are raised as a simple string (no message property)
             var errorMessage = typeof err === 'string' ? err : err.message || JSON.stringify(err);
+            if (errorMessage.length > 200) errorMessage = errorMessage.substring(0, 200) + '...[truncated]';
             log(`WARNING: Caught an error in the targeting loop: ${errorMessage}`, true, 'warning');
             // Catch errors that appear to be caused by deleted servers, and remove the server from our lists.
             const expectedDeletedHostPhrase = "Invalid hostname: ";

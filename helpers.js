@@ -202,7 +202,7 @@ export async function runCommand_Custom(ns, fnRun, command, fileName, args = [],
     checkNsInstance(ns, '"runCommand_Custom"');
     if (!verbose) disableLogs(ns, ['asleep']);
     let script = `export async function main(ns) { try { ` +
-        (verbose ? `let output = ${command}; let s = typeof output === 'string' ? output : JSON.stringify(output); ns.tprint(s.length > 500 ? s.substring(0, 500) + '...[truncated]' : s)` : command) +
+        (verbose ? `let output = ${command}; let s = typeof output === 'string' ? output : JSON.stringify(output); if (s.length > 300) { ns.print('[output too large, ' + s.length + ' chars - suppressed]'); } else { ns.tprint(s); }` : command) +
         `; } catch(err) { ns.tprint(String(err)); throw(err); } }`;
     fileName = fileName || `/Temp/${hashCode(command)}-command.js`;
     // To improve performance and save on garbage collection, we can skip writing this exact same script was previously written (common for repeatedly-queried data)
