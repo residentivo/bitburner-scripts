@@ -24,9 +24,11 @@ export async function main(ns) {
         if (running) return // Already running, nothing to do
     } catch { return }
 
-    // Not running — copy script and start it
+    // Not running — copy scripts and start
     try {
         if (!ns.fileExists(script, target)) await ns.scp(script, target)
+        const ext = 'darknet-extractor.js'
+        if (!ns.fileExists(ext, target)) await ns.scp(ext, target)
         ns.exec(script, target, 1)
     } catch { }
 }
