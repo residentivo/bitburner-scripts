@@ -28,14 +28,21 @@ function savePasswords(ns) {
 
 const knownPasswordStrategies = {
     'ZeroLogon': () => '',
+    'ReCAPTCHA': null, // handled specially — requires reading numbers from UI or hint
 }
 
-// Common passwords to try when hint suggests "default" or when modelId is unknown
+// Common passwords for "default" hint
 const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
 
-async function tryPasswordFromHint(ns, hostname, hint) {
+// Known CAPTCHA answers by hostname (populated manually or via heartbleed logs)
+const knownCaptchas = {}
+
+async function tryPasswordFromHint(ns, hostname, hint, modelId) {
     if (!hint) return null
-    if (hint.toLowerCase().includes('default')) {
+    const hintLower = hint.toLowerCase()
+
+    // "default" hint — try common passwords
+    if (hintLower.includes('default')) {
         for (const pw of commonPasswords) {
             try {
                 const result = await ns.dnet.authenticate(hostname, pw)
@@ -43,6 +50,56 @@ async function tryPasswordFromHint(ns, hostname, hint) {
             } catch { }
         }
     }
+
+    // "numbers to prove you are human" / CAPTCHA hint
+    if (hintLower.includes('numbers') || hintLower.includes('prove you are human') || hintLower.includes('captcha')) {
+        // Try cached answer first
+        if (knownCaptchas[hostname]) {
+            return knownCaptchas[hostname]
+        }
+
+        // Try to read captcha answer from server logs via heartbleed
+        try {
+            const logs = await ns.dnet.heartbleed(hostname, { peek: true })
+            if (logs && logs.logs) {
+                // Look for numeric patterns in logs (captcha answer is usually a number)
+                for (const entry of logs.logs) {
+                    const msg = typeof entry === 'string' ? entry : JSON.stringify(entry)
+                    const numbers = msg.match(/\b\d{4,}\b/g)
+                    if (numbers) {
+                        for (const num of numbers) {
+                            try {
+                                const result = await ns.dnet.authenticate(hostname, num)
+                                if (result.success()) {
+                                    knownCaptchas[hostname] = num
+                                    return num
+                                }
+                            } catch { }
+                        }
+                    }
+                }
+            }
+        } catch { }
+
+        // ReCAPTCHA model — password is typically a 5-6 digit number
+        // Try common patterns: sequential numbers, repeated digits, etc.
+        const commonCaptchas = [
+            '123456', '12345678', '111111', '000000', '654321',
+            '123123', '112233', '121212', '123321', '999999',
+            '100000', '500000', '999999', '111222', '333333',
+            '444444', '555555', '666666', '777777', '888888',
+        ]
+        for (const pw of commonCaptchas) {
+            try {
+                const result = await ns.dnet.authenticate(hostname, pw)
+                if (result.success) {
+                    knownCaptchas[hostname] = pw
+                    return pw
+                }
+            } catch { }
+        }
+    }
+
     return null
 }
 
@@ -65,7 +122,7 @@ async function serverSolver(ns, hostname) {
     }
     // 3. Try password hint
     else if (details.passwordHint) {
-        password = await tryPasswordFromHint(ns, hostname, details.passwordHint)
+        password = await tryPasswordFromHint(ns, hostname, details.passwordHint, details.modelId)
     }
 
     if (password === null) return false
