@@ -1,40 +1,23 @@
 /**
- * darknet.js — Darknet explorer and spreader
+ * darknet.js — Lightweight darknet spreader
  *
- * Spreads itself to all reachable darknet servers, authenticates,
- * and deploys the extractor on each. Runs continuously on every
- * darknet server it reaches.
+ * Runs on every darknet server. Each instance:
+ *  1. Frees RAM on the current server
+ *  2. Connects to all reachable darknet neighbors
+ *  3. Copies itself to each neighbor and spawns there
+ *  4. Copies darknet-extractor.js and spawns it
  *
- * Launched by darknet-launcher.js which connects to darkweb and
- * starts this script directly on darknet servers.
+ * Launched by darknet-launcher.js on darkweb, then self-propagates.
  */
 
-function disableLogs(ns, listOfLogs) {
-    listOfLogs.forEach(log => ns.disableLog(log))
-}
+const SCRIPT_NAME = 'darknet.js'
+const EXTRACTOR_NAME = 'darknet-extractor.js'
+const PASSWORDS_FILE = '/Temp/darknet-passwords.txt'
 
-const probeInterval = 5000
-const passwordsFile = '/Temp/darknet-passwords.txt'
-let passwords = {}
+// --- Password hint solver (stateless, no disk I/O per attempt) ---
 
-function loadPasswords(ns) {
-    const data = ns.read(passwordsFile)
-    if (data) try { passwords = JSON.parse(data) } catch { passwords = {} }
-}
-
-function savePasswords(ns) {
-    ns.write(passwordsFile, JSON.stringify(passwords), 'w')
-}
-
-const knownPasswordStrategies = {
-    'ZeroLogon': () => '',
-    'ReCAPTCHA': null, // handled specially — requires reading numbers from UI or hint
-}
-
-// Common passwords for "default" hint
 const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
 
-// Common passwords by length (for "password buffer is N bytes" hint)
 const commonByLength = {
     3: ['cat', 'dog', 'foo', 'bar', '123', 'pwd'],
     4: ['pass', 'test', 'root', 'user', 'abcd', '1234', 'hack', 'open'],
@@ -44,214 +27,153 @@ const commonByLength = {
     8: ['password', 'trustno1', 'sunshine', 'iloveyou', '12345678'],
 }
 
-// Known CAPTCHA answers by hostname (populated manually or via heartbleed logs)
 const knownCaptchas = {}
 
-async function tryPasswordFromHint(ns, hostname, hint, modelId, hintData) {
+function solvePassword(hint, hintData) {
     if (!hint) return null
-    const hintLower = hint.toLowerCase()
+    const h = hint.toLowerCase()
 
-    ns.print(`[DEBUG] ${hostname}: hint="${hint}" hintData="${hintData}" modelId="${modelId}"`)
-
-    // "The key is X" / "The secret is X" / "password is X" / "It's set to X" / "The PIN is X" — extract directly
+    // "The key/secret/password/PIN is X" / "It's set to X"
     const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(\w+)/i)
-    if (keyMatch) {
-        const pw = keyMatch[1]
-        ns.print(`[DEBUG] ${hostname}: keyMatch extracted="${pw}"`)
-        try {
-            const result = await ns.dnet.authenticate(hostname, pw)
-            ns.print(`[DEBUG] ${hostname}: auth("${pw}") => success=${result.success}`)
-            if (result.success) return pw
-        } catch { }
-    }
+    if (keyMatch) return keyMatch[1]
 
-    // "The password is the value of the number 'ROMAN'" — Roman numeral conversion
+    // "The password is the value of the number 'ROMAN'"
     const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
     if (romanMatch) {
         const roman = romanMatch[1].toUpperCase()
-        const romanValues = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 }
+        const rv = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 }
         let num = 0
         for (let i = 0; i < roman.length; i++) {
-            const val = romanValues[roman[i]] || 0
-            const next = (i + 1 < roman.length) ? romanValues[roman[i + 1]] || 0 : 0
+            const val = rv[roman[i]] || 0
+            const next = (i + 1 < roman.length) ? (rv[roman[i + 1]] || 0) : 0
             num += (val < next) ? -val : val
         }
-        const pw = String(num)
-        try {
-            const result = await ns.dnet.authenticate(hostname, pw)
-            if (result.success) return pw
-        } catch { }
+        return String(num)
     }
 
-    // "default" / "factory settings" hint — try common passwords
-    if (hintLower.includes('default') || hintLower.includes('factory')) {
-        for (const pw of commonPasswords) {
-            try {
-                const result = await ns.dnet.authenticate(hostname, pw)
-                if (result.success) return pw
-            } catch { }
-        }
+    // "default" / "factory settings"
+    if (h.includes('default') || h.includes('factory')) {
+        return commonPasswords[0] // try first one; auth loop will iterate if needed
     }
 
-    // "Warning: password buffer is N bytes" — try common passwords of that length
+    // "Warning: password buffer is N bytes"
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
-        const candidates = commonByLength[len] || []
-        for (const pw of candidates) {
-            try {
-                const result = await ns.dnet.authenticate(hostname, pw)
-                if (result.success) return pw
-            } catch { }
-        }
+        const candidates = commonByLength[len]
+        return candidates ? candidates[0] : null
     }
 
-    // "numbers to prove you are human" / CAPTCHA hint
-    if (hintLower.includes('numbers') || hintLower.includes('prove you are human') || hintLower.includes('captcha')) {
-        // Try cached answer first
-        if (knownCaptchas[hostname]) {
-            return knownCaptchas[hostname]
-        }
-
-        // The passwordHintData contains the real password with filler chars
-        // inserted between digits. Extract only the digits to recover the password.
-        // Example: filledPassword = "5x8k3b9c1" → password = "58391"
+    // CAPTCHA — extract digits from hintData
+    if (h.includes('numbers') || h.includes('prove you are human') || h.includes('captcha')) {
         if (hintData) {
             const extracted = hintData.replace(/[^0-9]/g, '')
-            if (extracted && extracted.length >= 3) {
-                try {
-                    const result = await ns.dnet.authenticate(hostname, extracted)
-                    if (result.success) {
-                        knownCaptchas[hostname] = extracted
-                        return extracted
-                    }
-                } catch { }
-            }
+            if (extracted && extracted.length >= 3) return extracted
         }
-
-        // Fallback: try common CAPTCHA patterns
-        const commonCaptchas = [
-            '123456', '12345678', '111111', '000000', '654321',
-            '123123', '112233', '121212', '123321', '999999',
-            '100000', '500000', '111222', '333333',
-            '444444', '555555', '666666', '777777', '888888',
-        ]
-        for (const pw of commonCaptchas) {
-            try {
-                const result = await ns.dnet.authenticate(hostname, pw)
-                if (result.success) {
-                    knownCaptchas[hostname] = pw
-                    return pw
-                }
-            } catch { }
-        }
+        return '123456' // fallback
     }
 
     return null
 }
 
-async function serverSolver(ns, hostname) {
+async function tryAuth(ns, hostname, password) {
+    try {
+        const result = await ns.dnet.authenticate(hostname, password)
+        return result.success
+    } catch { return false }
+}
+
+async function authenticateServer(ns, hostname) {
     let details
     try { details = ns.dnet.getServerDetails(hostname) } catch { return false }
-
     if (!details.isConnectedToCurrentServer || !details.isOnline) return false
     if (details.hasSession) return true
 
-    ns.print(`[DEBUG] ${hostname}: modelId="${details.modelId}" passwordHint="${details.passwordHint}" data="${details.data}"`)
-
-    let password = null
-
-    // 1. Try known password from cache
-    if (passwords[hostname]) {
-        password = passwords[hostname]
-    }
-    // 2. Try model-specific strategy
-    else if (details.modelId && knownPasswordStrategies[details.modelId]) {
-        password = knownPasswordStrategies[details.modelId]()
-    }
-    // 3. Try password hint
-    else if (details.passwordHint) {
-        password = await tryPasswordFromHint(ns, hostname, details.passwordHint, details.modelId, details.data)
+    // Try cached password first
+    const cached = ns.read(PASSWORDS_FILE)
+    if (cached) {
+        try {
+            const pw = JSON.parse(cached)[hostname]
+            if (pw && await tryAuth(ns, hostname, pw)) return true
+        } catch { }
     }
 
-    if (password === null) {
-        ns.print(`[DEBUG] ${hostname}: NO PASSWORD FOUND`)
-        return false
-    }
+    // Solve from hint
+    const hint = details.passwordHint
+    const hintData = details.data
+    const solved = solvePassword(hint, hintData)
 
-    ns.print(`[DEBUG] ${hostname}: trying password="${password}"`)
-
-    try {
-        const result = await ns.dnet.authenticate(hostname, password)
-        if (result.success) {
-            passwords[hostname] = password
-            try { savePasswords(ns) } catch (_) {}
-            return true
+    if (solved) {
+        // For "default" hint, we only got the first candidate — try all
+        const candidates = (hint && hint.toLowerCase().includes('default')) ? commonPasswords : [solved]
+        for (const pw of candidates) {
+            if (await tryAuth(ns, hostname, pw)) {
+                // Save to cache
+                let cache = {}
+                try { cache = JSON.parse(ns.read(PASSWORDS_FILE)) } catch { }
+                cache[hostname] = pw
+                try { ns.write(PASSWORDS_FILE, JSON.stringify(cache), 'w') } catch { }
+                return true
+            }
         }
-        return false
-    } catch { return false }
+    }
+
+    return false
 }
 
 /** @param {NS} ns */
 export async function main(ns) {
-    disableLogs(ns, ['getServerUsedRam', 'asleep', 'exec', 'scp', 'ls', 'probe', 'getServerDetails'])
+    ns.disableLog('getServerUsedRam')
+    ns.disableLog('asleep')
+    ns.disableLog('exec')
+    ns.disableLog('scp')
+    ns.disableLog('ls')
+    ns.disableLog('probe')
+    ns.disableLog('getServerDetails')
 
-    try { ns.dnet.probe() } catch (e) {
-        ns.tprint('ERROR: ns.dnet API not available on ' + ns.getHostname())
-        return
+    const host = ns.getHostname()
+
+    // 1. Free RAM on this server
+    for (let i = 0; i < 5; i++) {
+        try { ns.dnet.memoryReallocation() } catch { break }
+        await ns.sleep(50)
     }
 
-    loadPasswords(ns)
-
-    // Kill other instances
-    const myName = ns.getScriptName()
-    const myHost = ns.getHostname()
-    for (const p of ns.ps(myHost)) {
-        if (p.filename === myName && p.pid !== ns.pid) ns.kill(p.pid)
+    // 2. Kill other instances of this script on this server
+    for (const p of ns.ps(host)) {
+        if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) ns.kill(p.pid)
     }
 
-    while (true) {
-        let nearby
-        try { nearby = ns.dnet.probe() } catch {
-            await ns.sleep(probeInterval)
-            continue
-        }
+    // 3. Probe for neighbors
+    let nearby
+    try {
+        ns.dnet.probe()
+        nearby = ns.dnet.probe()
+    } catch { return }
 
-        if (!nearby || nearby.length === 0) {
-            await ns.sleep(probeInterval)
-            continue
-        }
+    if (!nearby || nearby.length === 0) return
 
-        let didSomething = false
+    // 4. For each neighbor: authenticate, copy scripts, spawn
+    for (const neighbor of nearby) {
+        const authed = await authenticateServer(ns, neighbor)
+        if (!authed) continue
 
-        for (const hostname of nearby) {
-            const authed = await serverSolver(ns, hostname)
-            if (!authed) continue
+        // Copy and spawn darknet.js
+        try {
+            if (!ns.fileExists(SCRIPT_NAME, neighbor)) await ns.scp(SCRIPT_NAME, neighbor)
+            // Kill old instance
+            for (const p of ns.ps(neighbor)) {
+                if (p.filename === SCRIPT_NAME) ns.kill(p.pid, neighbor)
+            }
+            ns.exec(SCRIPT_NAME, neighbor, 1)
+        } catch { }
 
-            // Spread explorer
-            try {
-                const exists = ns.fileExists(myName, hostname)
-                if (!exists) await ns.scp(myName, hostname)
-                for (const p of ns.ps(hostname)) {
-                    if (p.filename === myName) ns.kill(p.pid, hostname)
-                }
-                const pid = ns.exec(myName, hostname, 1)
-                if (pid) didSomething = true
-            } catch { }
-
-            // Spread extractor
-            try {
-                const ext = 'darknet-extractor.js'
-                if (!ns.fileExists(ext, hostname)) await ns.scp(ext, hostname)
-                const running = ns.ps(hostname).some(p => p.filename === ext)
-                if (!running) {
-                    const pid = ns.exec(ext, hostname, 1)
-                    if (pid) didSomething = true
-                }
-            } catch { }
-        }
-
-        if (!didSomething) await ns.sleep(probeInterval)
+        // Copy and spawn extractor
+        try {
+            if (!ns.fileExists(EXTRACTOR_NAME, neighbor)) await ns.scp(EXTRACTOR_NAME, neighbor)
+            const running = ns.ps(neighbor).some(p => p.filename === EXTRACTOR_NAME)
+            if (!running) ns.exec(EXTRACTOR_NAME, neighbor, 1)
+        } catch { }
     }
 }
 

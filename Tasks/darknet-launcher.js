@@ -1,12 +1,13 @@
 /**
- * darknet-launcher.js — Starts darknet.js on darkweb.
- * Run periodically from daemon.js. Only starts if not already running.
+ * darknet-launcher.js — Starts darknet.js on darkweb and its neighbors.
+ * Run periodically from daemon.js. Spawns on any nearby that isn't already running.
  */
 
 export async function main(ns) {
     const disabledFlag = '/Temp/dnet-disabled.txt'
     const script = 'darknet.js'
-    const target = 'darkweb'
+    const ext = 'darknet-extractor.js'
+    const targets = ['darkweb', ...ns.dnet.probe()]
 
     // Check dnet API access
     try { ns.dnet.probe() } catch {
@@ -18,17 +19,16 @@ export async function main(ns) {
     }
     try { ns.rm(disabledFlag) } catch (_) {}
 
-    // Check if darknet.js is already running on darkweb
-    try {
-        const running = ns.ps(target).some(p => p.filename === script)
-        if (running) return // Already running, nothing to do
-    } catch { return }
+    for (const target of targets) {
+        try {
+            // Skip if already running
+            if (ns.ps(target).some(p => p.filename === script)) continue
+        } catch { continue }
 
-    // Not running — copy scripts and start
-    try {
-        if (!ns.fileExists(script, target)) await ns.scp(script, target)
-        const ext = 'darknet-extractor.js'
-        if (!ns.fileExists(ext, target)) await ns.scp(ext, target)
-        ns.exec(script, target, 1)
-    } catch { }
+        try {
+            if (!ns.fileExists(script, target)) await ns.scp(script, target)
+            if (!ns.fileExists(ext, target)) await ns.scp(ext, target)
+            ns.exec(script, target, 1)
+        } catch { }
+    }
 }
