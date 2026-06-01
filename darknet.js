@@ -34,6 +34,16 @@ const knownPasswordStrategies = {
 // Common passwords for "default" hint
 const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
 
+// Common passwords by length (for "password buffer is N bytes" hint)
+const commonByLength = {
+    3: ['cat', 'dog', 'foo', 'bar', '123', 'pwd'],
+    4: ['pass', 'test', 'root', 'user', 'abcd', '1234', 'hack', 'open'],
+    5: ['admin', 'qwert', 'abcde', '12345', 'hello', 'world', 'sword', 'blade'],
+    6: ['123456', 'qwerty', 'secret', 'abcdef', 'letme1', 'access', 'oracle'],
+    7: ['letmein', 'abcdefg', '1234567', 'testing', 'changeme'],
+    8: ['password', 'trustno1', 'sunshine', 'iloveyou', '12345678'],
+}
+
 // Known CAPTCHA answers by hostname (populated manually or via heartbleed logs)
 const knownCaptchas = {}
 
@@ -54,6 +64,19 @@ async function tryPasswordFromHint(ns, hostname, hint, modelId) {
     // "default" hint — try common passwords
     if (hintLower.includes('default')) {
         for (const pw of commonPasswords) {
+            try {
+                const result = await ns.dnet.authenticate(hostname, pw)
+                if (result.success) return pw
+            } catch { }
+        }
+    }
+
+    // "Warning: password buffer is N bytes" — try common passwords of that length
+    const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
+    if (bufMatch) {
+        const len = parseInt(bufMatch[1])
+        const candidates = commonByLength[len] || []
+        for (const pw of candidates) {
             try {
                 const result = await ns.dnet.authenticate(hostname, pw)
                 if (result.success) return pw
