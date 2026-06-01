@@ -51,12 +51,16 @@ async function tryPasswordFromHint(ns, hostname, hint, modelId, hintData) {
     if (!hint) return null
     const hintLower = hint.toLowerCase()
 
-    // "The key is X" / "The secret is X" / "password is X" / "It's set to X" — extract directly
-    const keyMatch = hint.match(/(?:key|secret|password|it'?s set to)\s+(\w+)/i)
+    ns.print(`[DEBUG] ${hostname}: hint="${hint}" hintData="${hintData}" modelId="${modelId}"`)
+
+    // "The key is X" / "The secret is X" / "password is X" / "It's set to X" / "The PIN is X" — extract directly
+    const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(\w+)/i)
     if (keyMatch) {
         const pw = keyMatch[1]
+        ns.print(`[DEBUG] ${hostname}: keyMatch extracted="${pw}"`)
         try {
             const result = await ns.dnet.authenticate(hostname, pw)
+            ns.print(`[DEBUG] ${hostname}: auth("${pw}") => success=${result.success}`)
             if (result.success) return pw
         } catch { }
     }
@@ -153,6 +157,8 @@ async function serverSolver(ns, hostname) {
     if (!details.isConnectedToCurrentServer || !details.isOnline) return false
     if (details.hasSession) return true
 
+    ns.print(`[DEBUG] ${hostname}: modelId="${details.modelId}" passwordHint="${details.passwordHint}" data="${details.data}"`)
+
     let password = null
 
     // 1. Try known password from cache
@@ -168,7 +174,12 @@ async function serverSolver(ns, hostname) {
         password = await tryPasswordFromHint(ns, hostname, details.passwordHint, details.modelId, details.data)
     }
 
-    if (password === null) return false
+    if (password === null) {
+        ns.print(`[DEBUG] ${hostname}: NO PASSWORD FOUND`)
+        return false
+    }
+
+    ns.print(`[DEBUG] ${hostname}: trying password="${password}"`)
 
     try {
         const result = await ns.dnet.authenticate(hostname, password)
