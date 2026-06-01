@@ -210,7 +210,7 @@ export async function runCommand_Custom(ns, fnRun, command, fileName, args = [],
     // Wait for the script to appear (game can be finicky on actually completing the write)
     await autoRetry(ns, () => ns.read(fileName), contents => contents == script,
         () => `Temporary script ${fileName} is not available, despite having written it. (Did a competing process delete or overwrite it?)`,
-        maxRetries, retryDelayMs, undefined, verbose);
+        maxRetries, retryDelayMs, undefined, false);
     // Run the script, now that we're sure it is in place
     return await autoRetry(ns, () => fnRun(fileName, 1 /* Always 1 thread */, ...args), temp_pid => temp_pid !== 0,
         () => `Run command returned no pid (command likely failed to run).` +
