@@ -232,63 +232,26 @@ export async function main(ns) {
     maxBatches = options['max-batches'];
     homeReservedRam = options['reserved-ram']
 
-    // These scripts are started once and expected to run forever (or terminate themselves when no longer needed)
-    const openTailWindows = !options['no-tail-windows'];
-    asynchronousHelpers = [
-        { name: "stats.js", shouldRun: () => ns.getServerMaxRam("home") >= 64 /* Don't waste precious RAM */ },
-        { name: "stockmaster.js", args: openTailWindows ? ["--show-market-summary"] : [], tail: openTailWindows, shouldRun: () => playerStats.hasTixApiAccess },
-        { name: "hacknet-upgrade-manager.js", args: ["-c", "--max-payoff-time", "1h"] },
-        { name: "spend-hacknet-hashes.js", args: [], shouldRun: () => 9 in dictSourceFiles },
-        { name: "sleeve.js", tail: true, shouldRun: () => 10 in dictSourceFiles },
-        { name: "gangs.js", tail: true, shouldRun: () => 2 in dictSourceFiles },
-        {
-            name: "work-for-factions.js", args: ['--fast-crimes-only', '--no-coding-contracts'],
-            shouldRun: () => 4 in dictSourceFiles && (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4]))
-        },
-        { name: "bladeburner.js", tail: true, shouldRun: () => 7 in dictSourceFiles && playerStats.bitNodeN != 8 },
-        // Darknet is launched via darknet-launcher.js (periodic), not as async helper
-    ];
-    asynchronousHelpers.forEach(helper => helper.name = getFilePath(helper.name));
-    asynchronousHelpers.forEach(helper => helper.isLaunched = false);
-    asynchronousHelpers.forEach(helper => helper.requiredServer = "home"); // All helpers should be launched at home since they use tempory scripts, and we only reserve ram on home
+    // Debug: disable all async helpers
+    asynchronousHelpers = [];
     // These scripts are spawned periodically (at some interval) to do their checks, with an optional condition that limits when they should be spawned
     let shouldUpgradeHacknet = () => !shouldReserveMoney() && (whichServerIsRunning(ns, "hacknet-upgrade-manager.js", false) === null);
     // In BN8 (stocks-only bn) and others with hack income disabled, don't waste money on improving hacking infrastructure unless we have plenty of money to spare
     let shouldImproveHacking = () => bitnodeMults.ScriptHackMoneyGain != 0 && playerStats.bitNodeN != 8 || ns.getServerMoneyAvailable("home") > 1e12;
     // Note: Periodic script are generally run every 30 seconds, but intervals are spaced out to ensure they aren't all bursting into temporary RAM at the same time.
     periodicScripts = [
-        // Buy tor as soon as we can if we haven't already, and all the port crackers
-        { interval: 25000, name: "/Tasks/tor-manager.js", shouldRun: () => !addedServerNames.includes("darkweb") && _ns.getServerMoneyAvailable("home") >= 200000 },
-        { interval: 26000, name: "/Tasks/program-manager.js", shouldRun: () => 4 in dictSourceFiles && getNumPortCrackers() != 5 && (getNumPortCrackers() < 3 || shouldImproveHacking()) },
-        { interval: 27000, name: "/Tasks/contractor.js", requiredServer: "home" }, // Periodically look for coding contracts that need solving
-        // Buy every hacknet upgrade with up to 4h payoff if it is less than 10% of our current money or 8h if it is less than 1% of our current money
-        { interval: 28000, name: "hacknet-upgrade-manager.js", shouldRun: shouldUpgradeHacknet, args: () => ["-c", "--max-payoff-time", "4h", "--max-spend", ns.getServerMoneyAvailable("home") * 0.1] },
-        { interval: 29000, name: "hacknet-upgrade-manager.js", shouldRun: shouldUpgradeHacknet, args: () => ["-c", "--max-payoff-time", "8h", "--max-spend", ns.getServerMoneyAvailable("home") * 0.01] },
-        {
-            interval: 30000, name: "/Tasks/ram-manager.js", args: ['--budget', '0.25',], // Spend about 25% of un-reserved cash on home RAM upgrades (permanent) when they become available
-            shouldRun: () => 4 in dictSourceFiles && dictSourceFiles[4] >= 2 && !shouldReserveMoney() && shouldImproveHacking() // Only trigger if we have SF4, not saving for anything, and hack income is important
-        },
-        {   // Periodically check for new faction invites and join if deemed useful to be in that faction
-            interval: 31000, name: "faction-manager.js", requiredServer: "home", args: ['--join-only'],
-            // Don't start auto-joining factions until we're holding 1 billion (so coding contracts returning money is probably less critical) or we've joined one already
-            shouldRun: () => 4 in dictSourceFiles && (playerStats.factions.length > 0 || ns.getServerMoneyAvailable("home") > 1e9) &&
-                (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4])) // Uses singularity functions, and higher SF4 levels result in lower RAM requirements
-        },
-        {   // Periodically look to purchase new servers, but note that these are often not a great use of our money (hack income isn't everything) so we may hold-back.
-            interval: 32000, name: "host-manager.js", requiredServer: "home",
-            // Funky heuristic warning: I find that new players with fewer SF levels under their belt are obsessed with hack income from servers,
-            // but established players end up finding auto-purchased hosts annoying - so now the % of money we spend shrinks as SF levels grow.
-            args: () => ['--reserve-percent', Math.min(0.9, 0.1 * Object.values(dictSourceFiles).reduce((t, v) => t + v, 0)), '--utilization-trigger', '0'],
-            shouldRun: () => {
-                if (shouldReserveMoney() || !shouldImproveHacking()) return false; // Skip if we're saving up, or if hack income is not important in this BN or at this time               
-                let utilization = getTotalNetworkUtilization(); // Utilization-based heuristics for when we likely could use more RAM for hacking
-                return utilization >= maxUtilization || utilization > 0.80 && maxTargets < 20 || utilization > 0.50 && maxTargets < 5;
-            }
-        },
-        // Check if any new servers can be backdoored. If there are many, this can eat up a lot of RAM, so make this this the last script scheduled at startup.
-        { interval: 33000, name: "/Tasks/backdoor-all-servers.js", requiredServer: "home", shouldRun: () => 4 in dictSourceFiles },
-        // Periodically launch darknet explorer+extractor on darknet servers (managed by launcher, not keepalive)
+        // Periodically launch darknet on darkweb
         { interval: 60000, name: "/Tasks/darknet-launcher.js", requiredServer: "home", shouldRun: () => doesFileExist("/darknet.js") },
+        // All other periodic scripts disabled for debugging
+        // { interval: 25000, name: "/Tasks/tor-manager.js", shouldRun: () => !addedServerNames.includes("darkweb") && _ns.getServerMoneyAvailable("home") >= 200000 },
+        // { interval: 26000, name: "/Tasks/program-manager.js", shouldRun: () => 4 in dictSourceFiles && getNumPortCrackers() != 5 && (getNumPortCrackers() < 3 || shouldImproveHacking()) },
+        // { interval: 27000, name: "/Tasks/contractor.js", requiredServer: "home" },
+        // { interval: 28000, name: "hacknet-upgrade-manager.js", shouldRun: shouldUpgradeHacknet, args: () => ["-c", "--max-payoff-time", "4h", "--max-spend", ns.getServerMoneyAvailable("home") * 0.1] },
+        // { interval: 29000, name: "hacknet-upgrade-manager.js", shouldRun: shouldUpgradeHacknet, args: () => ["-c", "--max-payoff-time", "8h", "--max-spend", ns.getServerMoneyAvailable("home") * 0.01] },
+        // { interval: 30000, name: "/Tasks/ram-manager.js", args: ['--budget', '0.25'], shouldRun: () => 4 in dictSourceFiles && dictSourceFiles[4] >= 2 && !shouldReserveMoney() && shouldImproveHacking() },
+        // { interval: 31000, name: "faction-manager.js", requiredServer: "home", args: ['--join-only'], shouldRun: () => 4 in dictSourceFiles && (playerStats.factions.length > 0 || ns.getServerMoneyAvailable("home") > 1e9) && (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4])) },
+        // { interval: 32000, name: "host-manager.js", requiredServer: "home", args: () => ['--reserve-percent', Math.min(0.9, 0.1 * Object.values(dictSourceFiles).reduce((t, v) => t + v, 0)), '--utilization-trigger', '0'], shouldRun: () => { if (shouldReserveMoney() || !shouldImproveHacking()) return false; let utilization = getTotalNetworkUtilization(); return utilization >= maxUtilization || utilization > 0.80 && maxTargets < 20 || utilization > 0.50 && maxTargets < 5; } },
+        // { interval: 33000, name: "/Tasks/backdoor-all-servers.js", requiredServer: "home", shouldRun: () => 4 in dictSourceFiles },
     ];
     periodicScripts.forEach(tool => tool.name = getFilePath(tool.name));
     hackTools = [
