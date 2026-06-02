@@ -1,6 +1,6 @@
 /**
  * darknet-launcher.js — Ensures darknet.js runs on darkweb.
- * Run periodically from daemon.js.
+ * Only spawns if not already running.
  */
 
 export async function main(ns) {
@@ -9,6 +9,12 @@ export async function main(ns) {
     const target = 'darkweb'
 
     try {
+        // Check if already running
+        if (ns.ps(target).some(p => p.filename === script)) {
+            ns.print(`launcher: ${script} already running on ${target}`)
+            return
+        }
+
         await ns.scp(script, target)
         await ns.scp(ext, target)
         const pid = ns.exec(script, target, 1)

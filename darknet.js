@@ -1,6 +1,7 @@
 /**
  * darknet.js — Minimal darknet helper
- * Frees RAM and runs extractor. No spawning on other servers.
+ * Loop: ensures extractor runs + frees RAM periodically.
+ * No sleep to avoid Bitburner remote server issues.
  */
 
 const EXTRACTOR_NAME = 'darknet-extractor.js'
@@ -19,27 +20,27 @@ export async function main(ns) {
         }
     } catch { }
 
-    // Free RAM
-    try {
-        for (let i = 0; i < 5; i++) {
-            try { ns.dnet.memoryReallocation() } catch { break }
-        }
-        ns.print(`[darknet] memoryReallocation done`)
-    } catch { }
+    let cycles = 0
+    while (true) {
+        cycles++
 
-    // Ensure extractor is running
-    try {
+        // Ensure extractor is running
         if (!ns.ps(host).some(p => p.filename === EXTRACTOR_NAME)) {
-            const ePid = ns.exec(EXTRACTOR_NAME, host, 1)
-            ns.print(`[darknet] Spawned extractor pid=${ePid}`)
-        } else {
-            ns.print(`[darknet] Extractor already running`)
+            try {
+                ns.exec(EXTRACTOR_NAME, host, 1)
+                ns.print(`[darknet] spawned extractor`)
+            } catch { }
         }
-    } catch (e) {
-        ns.print(`[darknet] Extractor error: ${e}`)
-    }
 
-    ns.print(`[darknet] DONE`)
+        // Free RAM
+        if (cycles % 5 === 0) {
+            try {
+                for (let i = 0; i < 5; i++) {
+                    try { ns.dnet.memoryReallocation() } catch { break }
+                }
+            } catch { }
+        }
+    }
 }
 
 export function autocomplete(data) {
