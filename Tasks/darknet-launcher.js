@@ -1,6 +1,6 @@
 /**
  * darknet-launcher.js — Starts darknet.js on darkweb and its neighbors.
- * Run periodically from daemon.js. Spawns on any nearby that isn't already running.
+ * Run periodically from daemon.js.
  */
 
 export async function main(ns) {
@@ -27,8 +27,10 @@ export async function main(ns) {
 
     for (const target of targets) {
         try {
-            // Skip if already running — assume it's the latest version
-            if (ns.ps(target).some(p => p.filename === script)) continue
+            // Kill any running instance to force fresh version
+            for (const p of ns.ps(target)) {
+                if (p.filename === script) ns.kill(p.pid, target)
+            }
         } catch { continue }
 
         try {
