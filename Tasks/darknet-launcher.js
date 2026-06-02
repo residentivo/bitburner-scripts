@@ -7,6 +7,8 @@ export async function main(ns) {
     const disabledFlag = '/Temp/dnet-disabled.txt'
     const script = 'darknet.js'
     const ext = 'darknet-extractor.js'
+    const lockFile = '/Temp/dnet-running.txt'
+    const LOCK_TIMEOUT = 120000 // 2 minutes
 
     // Check dnet API access
     try { ns.dnet.probe() } catch {
@@ -27,11 +29,17 @@ export async function main(ns) {
 
     for (const target of targets) {
         try {
-            // Check if already running on target
-            const running = ns.ps(target).some(p => p.filename === script)
-            if (running) {
-                ns.tprint(`darknet-launcher: ${script} already running on ${target}, skipping`)
-                continue
+            // Check lock file with timestamp
+            if (ns.fileExists(lockFile, target)) {
+                try {
+                    const content = ns.read(lockFile, target)
+                    const lockTime = parseInt(content) || 0
+                    if (Date.now() - lockTime < LOCK_TIMEOUT) {
+                        // Lock is still valid, skip
+                        continue
+                    }
+                    // Lock expired, will respawn
+                } catch { }
             }
         } catch { continue }
 
@@ -43,6 +51,9 @@ export async function main(ns) {
             // Delete extractor too
             try { ns.rm(ext, target) } catch (_) {}
             await ns.scp(ext, target)
+
+            // Write lock with current timestamp BEFORE spawning
+            try { ns.write(lockFile, String(Date.now()), target) } catch { }
 
             const pid = ns.exec(script, target, 1)
             if (pid) {
