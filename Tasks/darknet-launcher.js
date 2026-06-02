@@ -27,21 +27,15 @@ export async function main(ns) {
 
     for (const target of targets) {
         try {
-            // Kill any running instance to force fresh version
-            for (const p of ns.ps(target)) {
-                if (p.filename === script) ns.kill(p.pid, target)
-            }
-        } catch { continue }
-
-        try {
-            // Delete old script version and copy fresh one
+            // Delete old script file on target before copying fresh version
             try { ns.rm(script, target) } catch (_) {}
             await ns.scp(script, target)
 
-            // Also copy extractor
+            // Delete extractor too
             try { ns.rm(ext, target) } catch (_) {}
             await ns.scp(ext, target)
 
+            // Spawn only once
             const pid = ns.exec(script, target, 1)
             if (pid) {
                 ns.tprint(`darknet-launcher: spawned ${script} on ${target} (pid=${pid})`)
