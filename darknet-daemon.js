@@ -1,7 +1,6 @@
 /**
- * darknet-daemon.js — Minimal daemon for darknet operations.
- * Handles: tor purchase, darknet.js + extractor launch, spread to neighbors.
- * Lightweight version without hacking batch system.
+ * darknet-daemon.js — Lightweight daemon for darknet operations.
+ * Ensures darknet.js is running on all accessible darknet servers.
  */
 
 export async function main(ns) {
@@ -15,73 +14,50 @@ export async function main(ns) {
     const darknetScript = 'darknet.js'
     const extractorScript = 'darknet-extractor.js'
     const torManager = '/Tasks/tor-manager.js'
+    const lockFile = '/Temp/darknet-daemon.lock.txt'
 
     // Main loop
-    let cycles = 0
     while (true) {
-        cycles++
-        ns.print(`[dnet-daemon] cycle ${cycles}`)
-
-        // Step 1: Ensure darkweb exists (buy TOR if needed)
-        try {
-            const darkwebReady = ns.scan(host).includes('darkweb')
-            if (!darkwebReady && ns.getServerMoneyAvailable(host) >= 200000) {
-                const torPid = ns.exec(torManager, host, 1)
-                ns.print(`[dnet-daemon] started tor-manager pid=${torPid}`)
-                await ns.asleep(2000)
-            }
-        } catch (e) {
-            ns.print(`[dnet-daemon] tor error: ${e}`)
+        // Prevent overlapping runs
+        if (ns.fileExists(lockFile)) {
+            await ns.asleep(5000)
+            continue
         }
+        try { ns.write(lockFile, String(Date.now()), 'w') } catch { }
 
-        // Step 2: Ensure darknet.js runs on darkweb
         try {
+            // Step 1: Ensure darkweb exists (buy TOR if needed)
+            if (!ns.scan(host).includes('darkweb') && ns.getServerMoneyAvailable(host) >= 200000) {
+                ns.exec(torManager, host, 1)
+                await ns.asleep(3000)
+            }
+
+            // Step 2: Ensure darknet.js + extractor run on darkweb
             if (ns.scan(host).includes('darkweb')) {
+                // Copy scripts
                 await ns.scp(darknetScript, 'darkweb')
                 await ns.scp(extractorScript, 'darkweb')
 
-                const alreadyRunning = ns.ps('darkweb').some(p => p.filename === darknetScript)
-                if (!alreadyRunning) {
+                // Spawn darknet.js if not already running
+                if (!ns.ps('darkweb').some(p => p.filename === darknetScript)) {
                     const pid = ns.exec(darknetScript, 'darkweb', 1)
-                    ns.print(`[dnet-daemon] spawned ${darknetScript} on darkweb pid=${pid}`)
+                    ns.print(`[dnet-daemon] spawned darknet.js pid=${pid}`)
+                }
+
+                // Spawn extractor if not already running
+                if (!ns.ps('darkweb').some(p => p.filename === extractorScript)) {
+                    const ePid = ns.exec(extractorScript, 'darkweb', 1)
+                    ns.print(`[dnet-daemon] spawned extractor pid=${ePid}`)
                 }
             }
         } catch (e) {
-            ns.print(`[dnet-daemon] darknet spawn error: ${e}`)
+            ns.print(`[dnet-daemon] error: ${e}`)
         }
 
-        // Step 3: Probe darknet neighbors
-        try {
-            ns.singularity.connect('darkweb')
-            const neighbors = ns.dnet.probe()
-            ns.print(`[dnet-daemon] darkweb neighbors: ${JSON.stringify(neighbors)}`)
+        // Release lock
+        try { ns.rm(lockFile) } catch { }
 
-            // For each neighbor without session, try to auth and spawn
-            for (const neighbor of (neighbors || [])) {
-                if (neighbor === 'home' || neighbor === 'darkweb') continue
-
-                try {
-                    const details = ns.dnet.getServerDetails(neighbor)
-                    if (details.hasSession) {
-                        // Already authed, just ensure scripts are running
-                        await ns.scp(darknetScript, neighbor)
-                        await ns.scp(extractorScript, neighbor)
-                        if (!ns.ps(neighbor).some(p => p.filename === darknetScript)) {
-                            ns.exec(darknetScript, neighbor, 1)
-                        }
-                        if (!ns.ps(neighbor).some(p => p.filename === extractorScript)) {
-                            ns.exec(extractorScript, neighbor, 1)
-                        }
-                    }
-                } catch (e) {
-                    ns.print(`[dnet-daemon] neighbor ${neighbor} error: ${e}`)
-                }
-            }
-        } catch (e) {
-            ns.print(`[dnet-daemon] probe error: ${e}`)
-        }
-
-        // Wait before next cycle
+        // Wait 30 seconds
         await ns.asleep(30000)
     }
 }

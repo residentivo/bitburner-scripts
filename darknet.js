@@ -1,19 +1,110 @@
 /**
- * darknet.js — Minimal darknet helper (single-run)
- * Frees RAM and runs extractor. Returns immediately.
- * The launcher re-runs this periodically via the daemon.
+ * darknet.js — Darknet spreader (single-run)
+ * Runs on a darknet server. Probes neighbors, auths, spawns on each.
+ * Returns after one cycle. The daemon re-runs this periodically.
  */
 
+const SCRIPT_NAME = 'darknet.js'
 const EXTRACTOR_NAME = 'darknet-extractor.js'
+
+const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
+
+const commonByLength = {
+    3: ['cat', 'dog', 'foo', 'bar', '123', 'pwd'],
+    4: ['pass', 'test', 'root', 'user', 'abcd', '1234', 'hack', 'open'],
+    5: ['admin', 'qwert', 'abcde', '12345', 'hello', 'world', 'sword', 'blade'],
+    6: ['123456', 'qwerty', 'secret', 'abcdef', 'letme1', 'access', 'oracle'],
+    7: ['letmein', 'abcdefg', '1234567', 'testing', 'changeme'],
+    8: ['password', 'trustno1', 'sunshine', 'iloveyou', '12345678'],
+}
+
+function log(ns, msg) {
+    ns.print(`[darknet] ${msg}`)
+}
+
+function solvePassword(hint, hintData) {
+    if (!hint) return null
+    const h = hint.toLowerCase()
+
+    const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(\w+)/i)
+    if (keyMatch) return keyMatch[1]
+
+    const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
+    if (romanMatch) {
+        const roman = romanMatch[1].toUpperCase()
+        const rv = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 }
+        let num = 0
+        for (let i = 0; i < roman.length; i++) {
+            const val = rv[roman[i]] || 0
+            const next = (i + 1 < roman.length) ? (rv[roman[i + 1]] || 0) : 0
+            num += (val < next) ? -val : val
+        }
+        return String(num)
+    }
+
+    if (h.includes('default') || h.includes('factory')) return '__MULTI__'
+
+    const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
+    if (bufMatch) {
+        const len = parseInt(bufMatch[1])
+        if (commonByLength[len]) return '__BUFFER__' + len
+    }
+
+    if (h.includes('numbers') || h.includes('prove you are human') || h.includes('captcha')) {
+        if (hintData) {
+            const extracted = hintData.replace(/[^0-9]/g, '')
+            if (extracted && extracted.length >= 3) return extracted
+        }
+        return '123456'
+    }
+
+    return null
+}
+
+async function tryAuth(ns, hostname, password) {
+    try {
+        const result = await ns.dnet.authenticate(hostname, password)
+        return result.success
+    } catch { return false }
+}
+
+async function authenticateServer(ns, hostname) {
+    let details
+    try {
+        details = ns.dnet.getServerDetails(hostname)
+    } catch { return false }
+
+    if (!details.isOnline) return false
+    if (!details.isConnectedToCurrentServer) return false
+    if (details.hasSession) return true
+
+    const hint = details.passwordHint || ''
+    const hintData = details.data || ''
+
+    const solved = solvePassword(hint, hintData)
+    if (!solved) return false
+
+    let candidates
+    if (solved.startsWith('__MULTI__')) candidates = commonPasswords
+    else if (solved.startsWith('__BUFFER__')) candidates = commonByLength[parseInt(solved.replace('__BUFFER__', ''))] || []
+    else candidates = [solved]
+
+    for (const pw of candidates) {
+        if (await tryAuth(ns, hostname, pw)) return true
+    }
+
+    return false
+}
 
 /** @param {NS} ns */
 export async function main(ns) {
     const host = ns.getHostname()
+    log(ns, `START pid=${ns.pid}`)
 
     // Kill duplicates
     try {
         for (const p of ns.ps(host)) {
-            if (p.filename === ns.getScriptName() && p.pid !== ns.pid) {
+            if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) {
                 ns.kill(p.pid)
             }
         }
@@ -32,6 +123,62 @@ export async function main(ns) {
             try { ns.dnet.memoryReallocation() } catch { break }
         }
     } catch { }
+
+    // Probe neighbors
+    let nearby
+    try {
+        nearby = ns.dnet.probe()
+        log(ns, `probe: ${JSON.stringify(nearby)}`)
+    } catch (e) {
+        log(ns, `probe error: ${e}`)
+        return
+    }
+
+    if (!nearby || nearby.length === 0) {
+        log(ns, 'no neighbors')
+        return
+    }
+
+    // Auth + spawn on each neighbor
+    let spawned = 0
+    for (const neighbor of nearby) {
+        if (neighbor === 'home' || neighbor === host) continue
+
+        // Skip if already running
+        try {
+            if (ns.ps(neighbor).some(p => p.filename === SCRIPT_NAME)) continue
+        } catch { }
+
+        log(ns, `auth ${neighbor}...`)
+        const authed = await authenticateServer(ns, neighbor)
+        if (!authed) {
+            log(ns, `auth FAIL ${neighbor}`)
+            continue
+        }
+        log(ns, `auth OK ${neighbor}`)
+
+        try {
+            await ns.scp(SCRIPT_NAME, neighbor)
+            const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
+            if (pid) {
+                spawned++
+                log(ns, `spawned ${neighbor} pid=${pid}`)
+            }
+        } catch (e) {
+            log(ns, `spawn error ${neighbor}: ${e}`)
+        }
+
+        try {
+            await ns.scp(EXTRACTOR_NAME, neighbor)
+            if (!ns.ps(neighbor).some(p => p.filename === EXTRACTOR_NAME)) {
+                ns.exec(EXTRACTOR_NAME, neighbor, 1)
+            }
+        } catch { }
+
+        await ns.asleep(500)
+    }
+
+    log(ns, `DONE: ${spawned}/${nearby.length} spawned`)
 }
 
 export function autocomplete(data) {
