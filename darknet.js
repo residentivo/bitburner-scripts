@@ -102,7 +102,6 @@ export async function main(ns) {
     ns.disableLog('exec')
     ns.disableLog('scp')
     ns.disableLog('ls')
-    ns.disableLog('getServerDetails')
 
     const host = ns.getHostname()
 
