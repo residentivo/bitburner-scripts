@@ -27,6 +27,15 @@ export async function main(ns) {
 
     for (const target of targets) {
         try {
+            // Check if already running on target
+            const running = ns.ps(target).some(p => p.filename === script)
+            if (running) {
+                ns.tprint(`darknet-launcher: ${script} already running on ${target}, skipping`)
+                continue
+            }
+        } catch { continue }
+
+        try {
             // Delete old script file on target before copying fresh version
             try { ns.rm(script, target) } catch (_) {}
             await ns.scp(script, target)
@@ -35,7 +44,6 @@ export async function main(ns) {
             try { ns.rm(ext, target) } catch (_) {}
             await ns.scp(ext, target)
 
-            // Spawn only once
             const pid = ns.exec(script, target, 1)
             if (pid) {
                 ns.tprint(`darknet-launcher: spawned ${script} on ${target} (pid=${pid})`)
