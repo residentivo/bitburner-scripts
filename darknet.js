@@ -11,6 +11,7 @@
 
 const SCRIPT_NAME = 'darknet.js'
 const EXTRACTOR_NAME = 'darknet-extractor.js'
+const LOG_PORT = 10
 
 // --- Password hint solver ---
 
@@ -25,15 +26,19 @@ const commonByLength = {
     8: ['password', 'trustno1', 'sunshine', 'iloveyou', '12345678'],
 }
 
+function log(ns, msg) {
+    // Write to port for external reading
+    const port = ns.getPortHandle(LOG_PORT)
+    port.write(`[${ns.getHostname()}] ${msg}`)
+}
+
 function solvePassword(hint, hintData) {
     if (!hint) return null
     const h = hint.toLowerCase()
 
-    // "The key/secret/password/PIN is X" / "It's set to X"
     const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(\w+)/i)
     if (keyMatch) return keyMatch[1]
 
-    // "The password is the value of the number 'ROMAN'"
     const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
     if (romanMatch) {
         const roman = romanMatch[1].toUpperCase()
@@ -47,20 +52,14 @@ function solvePassword(hint, hintData) {
         return String(num)
     }
 
-    // "default" / "factory settings"
-    if (h.includes('default') || h.includes('factory')) {
-        return '__MULTI__' // signal to try all common passwords
-    }
+    if (h.includes('default') || h.includes('factory')) return '__MULTI__'
 
-    // "Warning: password buffer is N bytes"
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
-        const candidates = commonByLength[len]
-        if (candidates) return '__BUFFER__' + len // signal to try all candidates
+        if (commonByLength[len]) return '__BUFFER__' + len
     }
 
-    // CAPTCHA — extract digits from hintData
     if (h.includes('numbers') || h.includes('prove you are human') || h.includes('captcha')) {
         if (hintData) {
             const extracted = hintData.replace(/[^0-9]/g, '')
@@ -81,58 +80,40 @@ async function tryAuth(ns, hostname, password) {
 
 async function authenticateServer(ns, hostname) {
     let details
-    try { details = ns.dnet.getServerDetails(hostname) } catch {
-        ns.tprint(`[DNET] ${hostname}: getServerDetails FAILED`)
+    try {
+        details = ns.dnet.getServerDetails(hostname)
+    } catch (e) {
+        log(ns, `getServerDetails FAILED: ${e}`)
         return false
     }
 
-    if (!details.isOnline) {
-        ns.tprint(`[DNET] ${hostname}: OFFLINE`)
-        return false
-    }
-
-    if (!details.isConnectedToCurrentServer) {
-        ns.tprint(`[DNET] ${hostname}: NOT CONNECTED`)
-        return false
-    }
-
-    if (details.hasSession) {
-        ns.tprint(`[DNET] ${hostname}: already has session`)
-        return true
-    }
+    if (!details.isOnline) { log(ns, `${hostname}: OFFLINE`); return false }
+    if (!details.isConnectedToCurrentServer) { log(ns, `${hostname}: NOT CONNECTED`); return false }
+    if (details.hasSession) { log(ns, `${hostname}: already has session`); return true }
 
     const hint = details.passwordHint || ''
     const hintData = details.data || ''
-
-    ns.tprint(`[DNET] ${hostname}: hint="${hint}" hintData="${hintData}" modelId="${details.modelId}"`)
+    log(ns, `${hostname}: hint="${hint}" hintData="${hintData}" model="${details.modelId}"`)
 
     const solved = solvePassword(hint, hintData)
+    log(ns, `${hostname}: solved="${solved}"`)
 
-    if (!solved) {
-        ns.tprint(`[DNET] ${hostname}: NO PASSWORD SOLVED from hint`)
-        return false
-    }
+    if (!solved) { log(ns, `${hostname}: NO PASSWORD SOLVED`); return false }
 
-    // Determine candidate list
     let candidates
-    if (solved.startsWith('__MULTI__')) {
-        candidates = commonPasswords
-    } else if (solved.startsWith('__BUFFER__')) {
-        const len = parseInt(solved.replace('__BUFFER__', ''))
-        candidates = commonByLength[len] || []
-    } else {
-        candidates = [solved]
-    }
+    if (solved.startsWith('__MULTI__')) candidates = commonPasswords
+    else if (solved.startsWith('__BUFFER__')) candidates = commonByLength[parseInt(solved.replace('__BUFFER__', ''))] || []
+    else candidates = [solved]
 
     for (const pw of candidates) {
-        ns.tprint(`[DNET] ${hostname}: trying "${pw}"...`)
+        log(ns, `${hostname}: trying "${pw}"`)
         if (await tryAuth(ns, hostname, pw)) {
-            ns.tprint(`[DNET] ${hostname}: SUCCESS with "${pw}"`)
+            log(ns, `${hostname}: SUCCESS with "${pw}"`)
             return true
         }
     }
 
-    ns.tprint(`[DNET] ${hostname}: ALL ${candidates.length} passwords FAILED`)
+    log(ns, `${hostname}: ALL ${candidates.length} FAILED`)
     return false
 }
 
@@ -146,77 +127,53 @@ export async function main(ns) {
     ns.disableLog('getServerDetails')
 
     const host = ns.getHostname()
-    ns.tprint(`[DNET] START on ${host}`)
+    log(ns, `START`)
 
-    // 1. Free RAM on this server
     for (let i = 0; i < 5; i++) {
         try { ns.dnet.memoryReallocation() } catch { break }
     }
 
-    // 2. Kill other instances of this script on this server
     for (const p of ns.ps(host)) {
         if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) ns.kill(p.pid)
     }
 
-    // 3. Probe for neighbors
     let nearby
     try {
         ns.dnet.probe()
         nearby = ns.dnet.probe()
     } catch (e) {
-        ns.tprint(`[DNET] ${host}: probe FAILED: ${e}`)
+        log(ns, `probe FAILED: ${e}`)
         return
     }
 
-    if (!nearby || nearby.length === 0) {
-        ns.tprint(`[DNET] ${host}: NO NEIGHBORS`)
-        return
-    }
+    if (!nearby || nearby.length === 0) { log(ns, `NO NEIGHBORS`); return }
 
-    ns.tprint(`[DNET] ${host}: ${nearby.length} neighbors: ${nearby.join(', ')}`)
+    log(ns, `${nearby.length} neighbors: ${nearby.join(', ')}`)
 
-    // 4. For each neighbor: authenticate, copy scripts, spawn
     for (const neighbor of nearby) {
         const authed = await authenticateServer(ns, neighbor)
         if (!authed) continue
 
-        // Copy and spawn darknet.js on neighbor
         try {
-            if (!ns.fileExists(SCRIPT_NAME, neighbor)) {
-                ns.tprint(`[DNET] copying ${SCRIPT_NAME} to ${neighbor}`)
-                await ns.scp(SCRIPT_NAME, neighbor)
-            }
+            if (!ns.fileExists(SCRIPT_NAME, neighbor)) await ns.scp(SCRIPT_NAME, neighbor)
             const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
-            if (pid) {
-                ns.tprint(`[DNET] spawned ${SCRIPT_NAME} on ${neighbor} (pid=${pid})`)
-            } else {
-                ns.tprint(`[DNET] FAILED to spawn ${SCRIPT_NAME} on ${neighbor}`)
-            }
+            log(ns, `spawned darknet.js on ${neighbor} pid=${pid}`)
         } catch (e) {
-            ns.tprint(`[DNET] ERROR spawning darknet.js on ${neighbor}: ${e}`)
+            log(ns, `ERROR darknet.js on ${neighbor}: ${e}`)
         }
 
-        // Copy and spawn extractor on neighbor
         try {
-            if (!ns.fileExists(EXTRACTOR_NAME, neighbor)) {
-                ns.tprint(`[DNET] copying ${EXTRACTOR_NAME} to ${neighbor}`)
-                await ns.scp(EXTRACTOR_NAME, neighbor)
-            }
-            const running = ns.ps(neighbor).some(p => p.filename === EXTRACTOR_NAME)
-            if (!running) {
+            if (!ns.fileExists(EXTRACTOR_NAME, neighbor)) await ns.scp(EXTRACTOR_NAME, neighbor)
+            if (!ns.ps(neighbor).some(p => p.filename === EXTRACTOR_NAME)) {
                 const pid = ns.exec(EXTRACTOR_NAME, neighbor, 1)
-                if (pid) {
-                    ns.tprint(`[DNET] spawned ${EXTRACTOR_NAME} on ${neighbor} (pid=${pid})`)
-                } else {
-                    ns.tprint(`[DNET] FAILED to spawn ${EXTRACTOR_NAME} on ${neighbor}`)
-                }
+                log(ns, `spawned extractor on ${neighbor} pid=${pid}`)
             }
         } catch (e) {
-            ns.tprint(`[DNET] ERROR spawning extractor on ${neighbor}: ${e}`)
+            log(ns, `ERROR extractor on ${neighbor}: ${e}`)
         }
     }
 
-    ns.tprint(`[DNET] DONE on ${host}`)
+    log(ns, `DONE`)
 }
 
 export function autocomplete(data) {
