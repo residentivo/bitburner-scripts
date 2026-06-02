@@ -1,6 +1,7 @@
 /**
  * darknet.js — Darknet helper
- * Frees RAM (await each call), runs extractor, probes neighbors, auths and spawns.
+ * Frees RAM, runs extractor, probes neighbors, auths and spawns.
+ * All dnet API calls are awaited to prevent concurrency errors.
  */
 
 const SCRIPT_NAME = 'darknet.js'
@@ -105,19 +106,28 @@ export async function main(ns) {
         }
     }
 
-    // Free RAM — await each call to avoid concurrency
-    for (let i = 0; i < 5; i++) {
-        try {
-            await ns.dnet.memoryReallocation()
-        } catch { break }
+    // Free RAM — single call with long delay after
+    try {
+        await ns.dnet.memoryReallocation()
+        log(ns, 'memoryReallocation 1/1 done')
+    } catch (e) {
+        log(ns, `memoryReallocation error: ${e}`)
     }
-    log(ns, 'memoryReallocation done')
+
+    // Small delay before next dnet call
+    await ns.asleep(100)
 
     // Ensure extractor is running
-    if (!ns.ps(host).some(p => p.filename === EXTRACTOR_NAME)) {
-        const ePid = ns.exec(EXTRACTOR_NAME, host, 1)
-        log(ns, `spawned extractor pid=${ePid}`)
+    try {
+        if (!ns.ps(host).some(p => p.filename === EXTRACTOR_NAME)) {
+            const ePid = ns.exec(EXTRACTOR_NAME, host, 1)
+            log(ns, `spawned extractor pid=${ePid}`)
+        }
+    } catch (e) {
+        log(ns, `extractor error: ${e}`)
     }
+
+    await ns.asleep(100)
 
     // Probe neighbors
     let nearby
@@ -169,6 +179,9 @@ export async function main(ns) {
                 ns.exec(EXTRACTOR_NAME, neighbor, 1)
             }
         } catch { }
+
+        // Delay between operations on different servers
+        await ns.asleep(500)
     }
 
     log(ns, `DONE: ${spawned}/${nearby.length} spawned`)
