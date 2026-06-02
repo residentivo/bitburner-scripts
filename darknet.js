@@ -1,12 +1,10 @@
 /**
- * darknet.js — Lightweight darknet spreader
+ * darknet.js — Lightweight darknet spreader (single-run)
  *
- * Runs on darknet servers. Each instance:
- *  1. Frees RAM on the current server, runs extractor
- *  2. Probes neighbors, authenticates one at a time
- *  3. Spawns darknet.js + extractor on authenticated neighbors
- * 
- * Loop with pause between iterations to avoid CPU overload.
+ * Runs once on a darknet server:
+ *  1. Frees RAM, runs extractor
+ *  2. Probes neighbors, authenticates and spawns on each
+ *  3. Terminates (launcher handles re-runs)
  */
 
 const SCRIPT_NAME = 'darknet.js'
@@ -114,7 +112,6 @@ export async function main(ns) {
         for (const p of ns.ps(host)) {
             if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) {
                 ns.kill(p.pid)
-                log(ns, `Killed duplicate pid=${p.pid}`)
             }
         }
     } catch { }
@@ -136,78 +133,67 @@ export async function main(ns) {
         }
     } catch { }
 
-    // Main loop - process neighbors one at a time with delay
-    const MAX_CYCLES = 10
-    let cycles = 0
-    while (cycles < MAX_CYCLES) {
-        cycles++
-
-        // Probe neighbors
-        let nearby
-        try {
-            nearby = ns.dnet.probe()
-            log(ns, `Cycle ${cycles}: probe=${JSON.stringify(nearby)}`)
-        } catch (e) {
-            log(ns, `Cycle ${cycles}: probe error: ${e}`)
-            break
-        }
-
-        if (!nearby || nearby.length === 0) {
-            log(ns, `Cycle ${cycles}: no neighbors`)
-            break
-        }
-
-        // Try to auth + spawn on each neighbor
-        let spawned = 0
-        for (const neighbor of nearby) {
-            if (neighbor === 'home' || neighbor === host) continue
-
-            try {
-                if (ns.ps(neighbor).some(p => p.filename === SCRIPT_NAME)) {
-                    continue
-                }
-            } catch { }
-
-            // Check if already has an active session
-            try {
-                const d = ns.dnet.getServerDetails(neighbor)
-                if (d.hasSession && ns.ps(neighbor).some(p => p.filename === SCRIPT_NAME)) {
-                    continue
-                }
-            } catch { }
-
-            log(ns, `Cycle ${cycles}: auth ${neighbor}...`)
-            const authed = await authenticateServer(ns, neighbor)
-            if (!authed) {
-                log(ns, `Cycle ${cycles}: auth FAILED ${neighbor}`)
-                continue
-            }
-
-            try {
-                await ns.scp(SCRIPT_NAME, neighbor)
-                const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
-                if (pid) {
-                    spawned++
-                    log(ns, `Cycle ${cycles}: spawned ${neighbor} pid=${pid}`)
-                }
-            } catch (e) {
-                log(ns, `Cycle ${cycles}: spawn error ${neighbor}: ${e}`)
-            }
-
-            // Wait a bit between spawns
-            await ns.asleep(200)
-        }
-
-        if (spawned === 0) {
-            log(ns, `Cycle ${cycles}: nothing spawned, stopping`)
-            break
-        }
-
-        // Wait before next cycle
-        await ns.asleep(1000)
+    // Probe neighbors
+    let nearby
+    try {
+        nearby = ns.dnet.probe()
+        log(ns, `probe: ${JSON.stringify(nearby)}`)
+    } catch (e) {
+        log(ns, `probe error: ${e}`)
+        return
     }
 
-    log(ns, `DONE after ${cycles} cycles`)
+    if (!nearby || nearby.length === 0) {
+        log(ns, 'No neighbors')
+        return
+    }
+
+    // Auth + spawn on each neighbor (one at a time, no loop)
+    let spawned = 0
+    for (const neighbor of nearby) {
+        if (neighbor === 'home' || neighbor === host) continue
+
+        // Skip if already has darknet.js running
+        try {
+            if (ns.ps(neighbor).some(p => p.filename === SCRIPT_NAME)) {
+                continue
+            }
+        } catch { }
+
+        log(ns, `auth ${neighbor}...`)
+        const authed = await authenticateServer(ns, neighbor)
+        if (!authed) {
+            log(ns, `auth FAILED ${neighbor}`)
+            continue
+        }
+        log(ns, `auth OK ${neighbor}`)
+
+        try {
+            await ns.scp(SCRIPT_NAME, neighbor)
+            const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
+            if (pid) {
+                spawned++
+                log(ns, `spawned ${neighbor} pid=${pid}`)
+            } else {
+                log(ns, `exec 0 on ${neighbor}`)
+            }
+        } catch (e) {
+            log(ns, `spawn error ${neighbor}: ${e}`)
+        }
+
+        // Small delay between spawns
+        await ns.asleep(200)
+
+        // Spawn extractor too
+        try {
+            await ns.scp(EXTRACTOR_NAME, neighbor)
+            if (!ns.ps(neighbor).some(p => p.filename === EXTRACTOR_NAME)) {
+                ns.exec(EXTRACTOR_NAME, neighbor, 1)
+            }
+        } catch { }
+    }
+
+    log(ns, `DONE: ${spawned}/${nearby.length} spawned`)
 }
 
 export function autocomplete(data) {
