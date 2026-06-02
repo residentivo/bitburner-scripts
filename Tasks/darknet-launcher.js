@@ -5,7 +5,7 @@
  * Simple: just ensure darknet.js + extractor are running on darkweb.
  */
 
-const LOCK_FILE = '/Temp/darknet-launcher.lock'
+const LOCK_FILE = '/Temp/darknet-launcher.lock.txt'
 const LOCK_TTL = 60000 // 1 minute
 
 export async function main(ns) {
