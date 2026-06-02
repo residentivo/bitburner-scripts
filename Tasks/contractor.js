@@ -22,43 +22,71 @@ function solveProblem(type, input) {
 
   // === Compression III: LZ Compression ===
   if (type === "Compression III: LZ Compression") {
+    // Based on memory: backref threshold >= 4 (not >= 3)
     if (!input || input.length === 0) return "";
-    let compressed = "", decoded = "", pos = 0;
+    let compressed = "";
+    let pos = 0;
     while (pos < input.length) {
-      let litChars = "", backLenFound = 0, backOffFound = 0;
-      while (pos + litChars.length < input.length) {
-        let testDec = decoded + litChars, bestBL = 0, bestBO = 0;
-        let matchStart = pos + litChars.length;
-        if (litChars.length > 0) {
+      // Find the best (longest) backreference at current position
+      let bestOff = 0, bestLen = 0;
+      // Search all possible offsets 1-9 in decoded output
+      let decoded = ""; // we rebuild decoded from compressed for matching
+      // Re-decode what we have so far to get the sliding window
+      let window = "";
+      let ti = 0, ci = 0;
+      while (ci < compressed.length) {
+        let lc = compressed.charCodeAt(ci) - 0x30;
+        if (lc <= 0 || lc > 9) break;
+        window += compressed.substring(ci + 1, ci + 1 + lc);
+        ci += 1 + lc;
+        if (ci >= compressed.length) break;
+        let bl = compressed.charCodeAt(ci) - 0x30;
+        if (bl < 0 || bl > 9) break;
+        if (bl === 0) { ci++; continue; }
+        if (ci + 1 >= compressed.length) break;
+        let bo = compressed.charCodeAt(ci + 1) - 0x30;
+        for (let j = 0; j < bl; j++) window += window[window.length - bo];
+        ci += 2;
+      }
+
+      // Now find best match of input[pos:] in window
+      for (let off = 1; off <= Math.min(9, window.length); off++) {
+        let fl = 0;
+        while (fl < 9 && pos + fl < input.length) {
+          let si = window.length - off + (fl % off);
+          if (si < 0 || si >= window.length) break;
+          if (input[pos + fl] === window[si]) fl++;
+          else break;
+        }
+        if (fl > bestLen) { bestLen = fl; bestOff = off; }
+      }
+
+      if (bestLen >= 4) {
+        // Use backreference
+        compressed += "0" + String(bestLen) + String(bestOff);
+        pos += bestLen;
+      } else {
+        // Literal: find how many chars before next backreference
+        let litLen = 1;
+        while (pos + litLen < input.length && litLen < 9) {
+          // Check if starting from pos+litLen we get a good backref
+          let testDec = window + input.substring(pos, pos + litLen);
+          let foundBL = 0;
           for (let off = 1; off <= Math.min(9, testDec.length); off++) {
             let fl = 0;
-            while (fl < 9 && matchStart + fl < input.length) {
+            while (fl < 9 && pos + litLen + fl < input.length) {
               let si = testDec.length - off + (fl % off);
               if (si < 0 || si >= testDec.length) break;
-              if (input[matchStart + fl] === testDec[si]) fl++;
+              if (input[pos + litLen + fl] === testDec[si]) fl++;
               else break;
             }
-            if (fl > bestBL) { bestBL = fl; bestBO = off; }
+            if (fl > foundBL) foundBL = fl;
           }
+          if (foundBL >= 4) break;
+          litLen++;
         }
-        if (bestBL >= 4) { backLenFound = bestBL; backOffFound = bestBO; break; }
-        if (litChars.length >= 9) break;
-        litChars += input[pos + litChars.length];
-      }
-      if (litChars.length === 0) litChars = input[pos];
-      pos += litChars.length;
-      decoded += litChars;
-      compressed += String(litChars.length) + litChars;
-      if (pos >= input.length) break;
-      if (backLenFound >= 4) {
-        let backref = "";
-        for (let j = 0; j < backLenFound; j++)
-          backref += decoded[decoded.length - backOffFound + (j % backOffFound)];
-        compressed += String(backLenFound) + String(backOffFound);
-        decoded += backref;
-        pos += backLenFound;
-      } else {
-        compressed += "0";
+        compressed += String(litLen) + input.substring(pos, pos + litLen);
+        pos += litLen;
       }
     }
     return compressed;
