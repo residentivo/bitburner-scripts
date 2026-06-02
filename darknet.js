@@ -6,12 +6,11 @@
  *  2. Ensures extractor is running locally
  *  3. Probes neighbors, authenticates via hint solver
  *  4. Copies itself + extractor to authenticated neighbors, spawns both
- *  5. Loops forever, re-probing periodically
+ *  5. Terminates after one spread cycle (relies on launcher for re-runs if needed)
  */
 
 const SCRIPT_NAME = 'darknet.js'
 const EXTRACTOR_NAME = 'darknet-extractor.js'
-const LOG_FILE = '/Temp/darknet-log.txt'
 
 const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
 
@@ -25,8 +24,7 @@ const commonByLength = {
 }
 
 function log(ns, msg) {
-    const line = `[${ns.getHostname()}] ${msg}`
-    ns.print(line)
+    ns.print(`[darknet] ${msg}`)
 }
 
 function solvePassword(hint, hintData) {
@@ -90,7 +88,7 @@ async function authenticateServer(ns, hostname) {
 
     const solved = solvePassword(hint, hintData)
     if (!solved) {
-        log(ns, `No password hint solution for ${hostname}, hint="${hint}"`)
+        log(ns, `No password solution for ${hostname}, hint="${hint}"`)
         return false
     }
 
@@ -109,25 +107,26 @@ async function authenticateServer(ns, hostname) {
 /** @param {NS} ns */
 export async function main(ns) {
     const host = ns.getHostname()
-    log(ns, `=== START pid=${ns.pid} ===`)
+    log(ns, `START pid=${ns.pid}`)
 
     // Kill duplicates
-    for (const p of ns.ps(host)) {
-        if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) {
-            ns.kill(p.pid)
-            log(ns, `Killed duplicate pid=${p.pid}`)
+    try {
+        for (const p of ns.ps(host)) {
+            if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) {
+                ns.kill(p.pid)
+                log(ns, `Killed duplicate pid=${p.pid}`)
+            }
         }
-    }
+    } catch { }
 
     // Ensure extractor is running locally
-    const hasExtractor = ns.ps(host).some(p => p.filename === EXTRACTOR_NAME)
-    if (!hasExtractor) {
-        try {
+    try {
+        if (!ns.ps(host).some(p => p.filename === EXTRACTOR_NAME)) {
             const ePid = ns.exec(EXTRACTOR_NAME, host, 1)
             log(ns, `Spawned extractor pid=${ePid}`)
-        } catch (e) {
-            log(ns, `Extractor spawn error: ${e}`)
         }
+    } catch (e) {
+        log(ns, `Extractor error: ${e}`)
     }
 
     // Free RAM
@@ -157,15 +156,15 @@ export async function main(ns) {
     for (const neighbor of nearby) {
         if (neighbor === 'home' || neighbor === host) continue
 
-        // Check if we already have an active session there
+        // Skip if already has darknet.js running
         try {
-            const d = ns.dnet.getServerDetails(neighbor)
-            if (d.hasSession && ns.ps(neighbor).some(p => p.filename === SCRIPT_NAME)) {
-                log(ns, `${neighbor}: already spawned`)
+            if (ns.ps(neighbor).some(p => p.filename === SCRIPT_NAME)) {
+                log(ns, `${neighbor}: already has darknet.js`)
                 continue
             }
         } catch { }
 
+        // Authenticate
         log(ns, `auth ${neighbor}...`)
         const authed = await authenticateServer(ns, neighbor)
         if (!authed) {
@@ -174,6 +173,7 @@ export async function main(ns) {
         }
         log(ns, `auth OK ${neighbor}`)
 
+        // Spawn darknet.js + extractor
         try {
             await ns.scp(SCRIPT_NAME, neighbor)
             const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
