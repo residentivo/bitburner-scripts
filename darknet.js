@@ -3,9 +3,8 @@
  *
  * Runs on every darknet server. Each instance:
  *  1. Frees RAM on the current server
- *  2. Connects to all reachable darknet neighbors
- *  3. Copies itself to each neighbor and spawns there
- *  4. Copies darknet-extractor.js and spawns it
+ *  2. Probes neighbors, authenticates via hint solver
+ *  3. Copies itself + extractor to authenticated neighbors, spawns both
  *
  * Launched by darknet-launcher.js on darkweb, then self-propagates.
  */
@@ -50,7 +49,7 @@ function solvePassword(hint, hintData) {
 
     // "default" / "factory settings"
     if (h.includes('default') || h.includes('factory')) {
-        return commonPasswords[0]
+        return '__MULTI__' // signal to try all common passwords
     }
 
     // "Warning: password buffer is N bytes"
@@ -58,7 +57,7 @@ function solvePassword(hint, hintData) {
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
         const candidates = commonByLength[len]
-        return candidates ? candidates[0] : null
+        if (candidates) return '__BUFFER__' + len // signal to try all candidates
     }
 
     // CAPTCHA — extract digits from hintData
@@ -81,28 +80,59 @@ async function tryAuth(ns, hostname, password) {
 }
 
 async function authenticateServer(ns, hostname) {
-    // Connect to the server first
-    try { ns.singularity.connect(hostname) } catch { return false }
-
     let details
-    try { details = ns.dnet.getServerDetails(hostname) } catch { return false }
-    if (!details.isConnectedToCurrentServer || !details.isOnline) return false
-    if (details.hasSession) return true
+    try { details = ns.dnet.getServerDetails(hostname) } catch {
+        ns.tprint(`[DNET] ${hostname}: getServerDetails FAILED`)
+        return false
+    }
 
-    const hint = details.passwordHint
-    const hintData = details.data
+    if (!details.isOnline) {
+        ns.tprint(`[DNET] ${hostname}: OFFLINE`)
+        return false
+    }
+
+    if (!details.isConnectedToCurrentServer) {
+        ns.tprint(`[DNET] ${hostname}: NOT CONNECTED`)
+        return false
+    }
+
+    if (details.hasSession) {
+        ns.tprint(`[DNET] ${hostname}: already has session`)
+        return true
+    }
+
+    const hint = details.passwordHint || ''
+    const hintData = details.data || ''
+
+    ns.tprint(`[DNET] ${hostname}: hint="${hint}" hintData="${hintData}" modelId="${details.modelId}"`)
+
     const solved = solvePassword(hint, hintData)
 
-    if (solved) {
-        const candidates = (hint && hint.toLowerCase().includes('default')) ? commonPasswords : [solved]
-        for (const pw of candidates) {
-            if (await tryAuth(ns, hostname, pw)) return true
+    if (!solved) {
+        ns.tprint(`[DNET] ${hostname}: NO PASSWORD SOLVED from hint`)
+        return false
+    }
+
+    // Determine candidate list
+    let candidates
+    if (solved.startsWith('__MULTI__')) {
+        candidates = commonPasswords
+    } else if (solved.startsWith('__BUFFER__')) {
+        const len = parseInt(solved.replace('__BUFFER__', ''))
+        candidates = commonByLength[len] || []
+    } else {
+        candidates = [solved]
+    }
+
+    for (const pw of candidates) {
+        ns.tprint(`[DNET] ${hostname}: trying "${pw}"...`)
+        if (await tryAuth(ns, hostname, pw)) {
+            ns.tprint(`[DNET] ${hostname}: SUCCESS with "${pw}"`)
+            return true
         }
     }
 
-    // Go back to home after each attempt
-    try { ns.singularity.connect('home') } catch { }
-
+    ns.tprint(`[DNET] ${hostname}: ALL ${candidates.length} passwords FAILED`)
     return false
 }
 
@@ -116,6 +146,7 @@ export async function main(ns) {
     ns.disableLog('getServerDetails')
 
     const host = ns.getHostname()
+    ns.tprint(`[DNET] START on ${host}`)
 
     // 1. Free RAM on this server
     for (let i = 0; i < 5; i++) {
@@ -132,38 +163,60 @@ export async function main(ns) {
     try {
         ns.dnet.probe()
         nearby = ns.dnet.probe()
-    } catch { return }
+    } catch (e) {
+        ns.tprint(`[DNET] ${host}: probe FAILED: ${e}`)
+        return
+    }
 
-    if (!nearby || nearby.length === 0) return
+    if (!nearby || nearby.length === 0) {
+        ns.tprint(`[DNET] ${host}: NO NEIGHBORS`)
+        return
+    }
+
+    ns.tprint(`[DNET] ${host}: ${nearby.length} neighbors: ${nearby.join(', ')}`)
 
     // 4. For each neighbor: authenticate, copy scripts, spawn
     for (const neighbor of nearby) {
-        const startServer = ns.getHostname()
         const authed = await authenticateServer(ns, neighbor)
-        if (!authed) {
-            try { ns.singularity.connect(startServer) } catch { }
-            continue
+        if (!authed) continue
+
+        // Copy and spawn darknet.js on neighbor
+        try {
+            if (!ns.fileExists(SCRIPT_NAME, neighbor)) {
+                ns.tprint(`[DNET] copying ${SCRIPT_NAME} to ${neighbor}`)
+                await ns.scp(SCRIPT_NAME, neighbor)
+            }
+            const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
+            if (pid) {
+                ns.tprint(`[DNET] spawned ${SCRIPT_NAME} on ${neighbor} (pid=${pid})`)
+            } else {
+                ns.tprint(`[DNET] FAILED to spawn ${SCRIPT_NAME} on ${neighbor}`)
+            }
+        } catch (e) {
+            ns.tprint(`[DNET] ERROR spawning darknet.js on ${neighbor}: ${e}`)
         }
 
-        // Go back to the neighbor to copy+spawn
-        try { ns.singularity.connect(neighbor) } catch { }
-
-        // Copy and spawn ourself on the neighbor
+        // Copy and spawn extractor on neighbor
         try {
-            if (!ns.fileExists(SCRIPT_NAME, neighbor)) await ns.scp(SCRIPT_NAME, neighbor)
-            ns.exec(SCRIPT_NAME, neighbor, 1)
-        } catch { }
-
-        // Copy and spawn extractor on the neighbor
-        try {
-            if (!ns.fileExists(EXTRACTOR_NAME, neighbor)) await ns.scp(EXTRACTOR_NAME, neighbor)
+            if (!ns.fileExists(EXTRACTOR_NAME, neighbor)) {
+                ns.tprint(`[DNET] copying ${EXTRACTOR_NAME} to ${neighbor}`)
+                await ns.scp(EXTRACTOR_NAME, neighbor)
+            }
             const running = ns.ps(neighbor).some(p => p.filename === EXTRACTOR_NAME)
-            if (!running) ns.exec(EXTRACTOR_NAME, neighbor, 1)
-        } catch { }
-
-        // Return to original server
-        try { ns.singularity.connect(startServer) } catch { }
+            if (!running) {
+                const pid = ns.exec(EXTRACTOR_NAME, neighbor, 1)
+                if (pid) {
+                    ns.tprint(`[DNET] spawned ${EXTRACTOR_NAME} on ${neighbor} (pid=${pid})`)
+                } else {
+                    ns.tprint(`[DNET] FAILED to spawn ${EXTRACTOR_NAME} on ${neighbor}`)
+                }
+            }
+        } catch (e) {
+            ns.tprint(`[DNET] ERROR spawning extractor on ${neighbor}: ${e}`)
+        }
     }
+
+    ns.tprint(`[DNET] DONE on ${host}`)
 }
 
 export function autocomplete(data) {
