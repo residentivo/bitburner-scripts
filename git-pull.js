@@ -55,16 +55,7 @@ export async function main(ns) {
     }
     ns.tprint(`INFO: Pull complete. If you have any questions or issues, head over to the Bitburner #alains-scripts Discord channel: ` +
         `https://discord.com/channels/415207508303544321/935667531111342200`);
-    // Start the daemon after pull
-    const daemonPath = pathJoin(options.subfolder, 'daemon.js');
-    ns.tprint("INFO: Spawning daemon.js from: " + daemonPath);
-    const pid = ns.exec(daemonPath, 'home', 1);
-    if (pid) {
-        ns.tprint("SUCCESS: daemon.js started (pid=" + pid + ")");
-        ns.ui.openTail(daemonPath);
-    } else {
-        ns.tprint("WARNING: Failed to start daemon.js");
-    }
+    ns.tprint("INFO: Pull complete. Run 'daemon.js' to start the daemon.");
 }
 
 /** Joins all arguments as components in a path, e.g. pathJoin("foo", "bar", "/baz") = "foo/bar/baz" **/
