@@ -112,7 +112,6 @@ export async function main(ns) {
     ns.disableLog('ls')
     ns.disableLog('read')
     ns.disableLog('write')
-    ns.disableLog('append')
 
     const host = ns.getHostname()
     log(ns, `=== START pid=${ns.pid} ===`)
