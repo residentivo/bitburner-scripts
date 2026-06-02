@@ -104,7 +104,6 @@ async function authenticateServer(ns, hostname) {
     return false
 }
 
-/** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('getServerUsedRam')
     ns.disableLog('exec')
@@ -114,42 +113,74 @@ export async function main(ns) {
     ns.disableLog('write')
 
     const host = ns.getHostname()
-    log(ns, `=== START pid=${ns.pid} ===`)
+
+    // Use tprint for critical errors (always visible in tail)
+    function safeLog(msg) {
+        try { ns.print(msg) } catch { }
+        try {
+            let existing = ''
+            try { existing = ns.read(LOG_FILE) || '' } catch { }
+            ns.write(LOG_FILE, existing + `[${host}] ${msg}\n`)
+        } catch { }
+    }
+
+    safeLog(`=== START pid=${ns.pid} on ${host} ===`)
+
+    // Check if dnet API is available
+    try {
+        ns.dnet.probe()
+        safeLog('dnet.probe() works')
+    } catch (e) {
+        safeLog(`FATAL: dnet API not available: ${e}`)
+        return
+    }
 
     // 1. Free RAM
-    for (let i = 0; i < 5; i++) {
-        try { ns.dnet.memoryReallocation() } catch { break }
+    try {
+        for (let i = 0; i < 5; i++) {
+            try { ns.dnet.memoryReallocation() } catch { break }
+        }
+        safeLog('memoryReallocation done')
+    } catch (e) {
+        safeLog(`memoryReallocation error: ${e}`)
     }
 
-    // 2. Kill duplicates of ourselves
-    for (const p of ns.ps(host)) {
-        if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) ns.kill(p.pid)
+    // 2. Kill duplicates
+    try {
+        for (const p of ns.ps(host)) {
+            if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) ns.kill(p.pid)
+        }
+        safeLog('duplicates killed')
+    } catch (e) {
+        safeLog(`kill duplicates error: ${e}`)
     }
 
-    // 3. Ensure extractor is running on this server
-    const hasExtractor = ns.ps(host).some(p => p.filename === EXTRACTOR_NAME)
-    if (!hasExtractor) {
-        try {
+    // 3. Ensure extractor is running
+    try {
+        const hasExtractor = ns.ps(host).some(p => p.filename === EXTRACTOR_NAME)
+        if (!hasExtractor) {
             await ns.scp(EXTRACTOR_NAME, host)
             const ePid = ns.exec(EXTRACTOR_NAME, host, 1)
-            log(ns, `Spawned extractor pid=${ePid}`)
-        } catch (e) {
-            log(ns, `ERROR spawning extractor: ${e}`)
+            safeLog(`Spawned extractor pid=${ePid}`)
+        } else {
+            safeLog('Extractor already running')
         }
+    } catch (e) {
+        safeLog(`extractor error: ${e}`)
     }
 
     // 4. Probe neighbors
     let nearby
     try {
         nearby = ns.dnet.probe()
-        log(ns, `probe() returned: ${JSON.stringify(nearby)}`)
+        safeLog(`probe() returned: ${JSON.stringify(nearby)}`)
     } catch (e) {
-        log(ns, `ERROR probe() failed: ${e}`)
+        safeLog(`probe() failed: ${e}`)
         return
     }
 
     if (!nearby || nearby.length === 0) {
-        log(ns, `No neighbors found, nothing to spread to`)
+        safeLog('No neighbors found')
         return
     }
 
@@ -157,40 +188,39 @@ export async function main(ns) {
     let spawned = 0
     for (const neighbor of nearby) {
         if (neighbor === 'home' || neighbor === host) {
-            log(ns, `Skipping ${neighbor} (self/home)`)
+            safeLog(`Skipping ${neighbor}`)
             continue
         }
 
-        // Skip if already running darknet.js there
         try {
             const d = ns.dnet.getServerDetails(neighbor)
             if (d.hasSession && ns.ps(neighbor).some(p => p.filename === SCRIPT_NAME)) {
-                log(ns, `${neighbor} already has ${SCRIPT_NAME}, skipping`)
+                safeLog(`${neighbor} already has darknet.js`)
                 continue
             }
         } catch (e) {
-            log(ns, `ERROR checking ${neighbor}: ${e}`)
+            safeLog(`getServerDetails(${neighbor}) error: ${e}`)
         }
 
-        log(ns, `Trying auth on ${neighbor}...`)
+        safeLog(`Trying auth on ${neighbor}...`)
         const authed = await authenticateServer(ns, neighbor)
         if (!authed) {
-            log(ns, `Auth FAILED on ${neighbor}`)
+            safeLog(`Auth FAILED on ${neighbor}`)
             continue
         }
-        log(ns, `Auth SUCCESS on ${neighbor}!`)
+        safeLog(`Auth SUCCESS on ${neighbor}!`)
 
         try {
             await ns.scp(SCRIPT_NAME, neighbor)
             const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
             if (pid) {
                 spawned++
-                log(ns, `Spawned ${SCRIPT_NAME} on ${neighbor} pid=${pid}`)
+                safeLog(`Spawned on ${neighbor} pid=${pid}`)
             } else {
-                log(ns, `exec returned 0 on ${neighbor}`)
+                safeLog(`exec returned 0 on ${neighbor}`)
             }
         } catch (e) {
-            log(ns, `ERROR spawning on ${neighbor}: ${e}`)
+            safeLog(`spawn error on ${neighbor}: ${e}`)
         }
 
         try {
@@ -199,11 +229,11 @@ export async function main(ns) {
                 ns.exec(EXTRACTOR_NAME, neighbor, 1)
             }
         } catch (e) {
-            log(ns, `ERROR spawning extractor on ${neighbor}: ${e}`)
+            safeLog(`extractor spawn error on ${neighbor}: ${e}`)
         }
     }
 
-    log(ns, `=== DONE. Spawned on ${spawned}/${nearby.length} neighbors ===`)
+    safeLog(`=== DONE. Spawned ${spawned}/${nearby.length} ===`)
 }
 
 export function autocomplete(data) {
