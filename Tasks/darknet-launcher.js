@@ -27,13 +27,8 @@ export async function main(ns) {
 
     for (const target of targets) {
         try {
-            // Skip if already running
-            if (ns.ps(target).some(p => p.filename === script)) {
-                // Kill old instance to force fresh run with latest script
-                for (const p of ns.ps(target)) {
-                    if (p.filename === script) ns.kill(p.pid, target)
-                }
-            }
+            // Skip if already running — assume it's the latest version
+            if (ns.ps(target).some(p => p.filename === script)) continue
         } catch { continue }
 
         try {
