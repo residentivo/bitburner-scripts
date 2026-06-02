@@ -5,15 +5,10 @@
  *  1. Frees RAM on the current server
  *  2. Probes neighbors, authenticates via hint solver
  *  3. Copies itself + extractor to authenticated neighbors, spawns both
- *
- * Launched by darknet-launcher.js on darkweb, then self-propagates.
  */
 
 const SCRIPT_NAME = 'darknet.js'
 const EXTRACTOR_NAME = 'darknet-extractor.js'
-const LOG_PORT = 10
-
-// --- Password hint solver ---
 
 const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
 
@@ -24,12 +19,6 @@ const commonByLength = {
     6: ['123456', 'qwerty', 'secret', 'abcdef', 'letme1', 'access', 'oracle'],
     7: ['letmein', 'abcdefg', '1234567', 'testing', 'changeme'],
     8: ['password', 'trustno1', 'sunshine', 'iloveyou', '12345678'],
-}
-
-function log(ns, msg) {
-    // Write to port for external reading
-    const port = ns.getPortHandle(LOG_PORT)
-    port.write(`[${ns.getHostname()}] ${msg}`)
 }
 
 function solvePassword(hint, hintData) {
@@ -82,23 +71,18 @@ async function authenticateServer(ns, hostname) {
     let details
     try {
         details = ns.dnet.getServerDetails(hostname)
-    } catch (e) {
-        log(ns, `getServerDetails FAILED: ${e}`)
-        return false
-    }
+    } catch { return false }
 
-    if (!details.isOnline) { log(ns, `${hostname}: OFFLINE`); return false }
-    if (!details.isConnectedToCurrentServer) { log(ns, `${hostname}: NOT CONNECTED`); return false }
-    if (details.hasSession) { log(ns, `${hostname}: already has session`); return true }
+    if (!details.isOnline) return false
+    if (!details.isConnectedToCurrentServer) return false
+    if (details.hasSession) return true
 
     const hint = details.passwordHint || ''
     const hintData = details.data || ''
-    log(ns, `${hostname}: hint="${hint}" hintData="${hintData}" model="${details.modelId}"`)
 
     const solved = solvePassword(hint, hintData)
-    log(ns, `${hostname}: solved="${solved}"`)
 
-    if (!solved) { log(ns, `${hostname}: NO PASSWORD SOLVED`); return false }
+    if (!solved) return false
 
     let candidates
     if (solved.startsWith('__MULTI__')) candidates = commonPasswords
@@ -106,14 +90,9 @@ async function authenticateServer(ns, hostname) {
     else candidates = [solved]
 
     for (const pw of candidates) {
-        log(ns, `${hostname}: trying "${pw}"`)
-        if (await tryAuth(ns, hostname, pw)) {
-            log(ns, `${hostname}: SUCCESS with "${pw}"`)
-            return true
-        }
+        if (await tryAuth(ns, hostname, pw)) return true
     }
 
-    log(ns, `${hostname}: ALL ${candidates.length} FAILED`)
     return false
 }
 
@@ -127,53 +106,43 @@ export async function main(ns) {
     ns.disableLog('getServerDetails')
 
     const host = ns.getHostname()
-    log(ns, `START`)
 
+    // 1. Free RAM
     for (let i = 0; i < 5; i++) {
         try { ns.dnet.memoryReallocation() } catch { break }
     }
 
+    // 2. Kill duplicates
     for (const p of ns.ps(host)) {
         if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) ns.kill(p.pid)
     }
 
+    // 3. Probe neighbors
     let nearby
     try {
         ns.dnet.probe()
         nearby = ns.dnet.probe()
-    } catch (e) {
-        log(ns, `probe FAILED: ${e}`)
-        return
-    }
+    } catch { return }
 
-    if (!nearby || nearby.length === 0) { log(ns, `NO NEIGHBORS`); return }
+    if (!nearby || nearby.length === 0) return
 
-    log(ns, `${nearby.length} neighbors: ${nearby.join(', ')}`)
-
+    // 4. Auth + spawn on each neighbor
     for (const neighbor of nearby) {
         const authed = await authenticateServer(ns, neighbor)
         if (!authed) continue
 
         try {
             if (!ns.fileExists(SCRIPT_NAME, neighbor)) await ns.scp(SCRIPT_NAME, neighbor)
-            const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
-            log(ns, `spawned darknet.js on ${neighbor} pid=${pid}`)
-        } catch (e) {
-            log(ns, `ERROR darknet.js on ${neighbor}: ${e}`)
-        }
+            ns.exec(SCRIPT_NAME, neighbor, 1)
+        } catch { }
 
         try {
             if (!ns.fileExists(EXTRACTOR_NAME, neighbor)) await ns.scp(EXTRACTOR_NAME, neighbor)
             if (!ns.ps(neighbor).some(p => p.filename === EXTRACTOR_NAME)) {
-                const pid = ns.exec(EXTRACTOR_NAME, neighbor, 1)
-                log(ns, `spawned extractor on ${neighbor} pid=${pid}`)
+                ns.exec(EXTRACTOR_NAME, neighbor, 1)
             }
-        } catch (e) {
-            log(ns, `ERROR extractor on ${neighbor}: ${e}`)
-        }
+        } catch { }
     }
-
-    log(ns, `DONE`)
 }
 
 export function autocomplete(data) {
