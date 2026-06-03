@@ -80,6 +80,39 @@ function solvePassword(hint, hintData) {
         if (commonByLength[len]) return commonByLength[len]
     }
 
+    // "It's set to X" → already handled by keyMatch above
+    // "Remember to use X" / "use X" → number/password in hint
+    const useMatch = hint.match(/(?:use|enter|type|input)\s+(\w+)/i)
+    if (useMatch && useMatch[1]) return [useMatch[1]]
+
+    // Base conversion: "base N number X in base 10" or "base N, X"
+    const baseMatch = hint.match(/base\s+(\d+)\s+number\s+(\d+)/i)
+    if (baseMatch) {
+        const base = parseInt(baseMatch[1])
+        const num = baseMatch[2]
+        let result = 0
+        for (let i = 0; i < num.length; i++) {
+            result = result * base + parseInt(num[i])
+        }
+        return [String(result)]
+    }
+
+    // "the password is ... in base 10" with data like "8,326" → data has base,number
+    if (h.includes('base 10') && hintData) {
+        const parts = hintData.split(',').map(s => s.trim())
+        if (parts.length === 2) {
+            const base = parseInt(parts[0])
+            const num = parts[1]
+            if (base > 1 && num.length > 0) {
+                let result = 0
+                for (let i = 0; i < num.length; i++) {
+                    result = result * base + parseInt(num[i])
+                }
+                return [String(result)]
+            }
+        }
+    }
+
     // "PIN is empty" / "password is empty" → try empty string
     if (h.includes('empty') && (h.includes('pin') || h.includes('password'))) return ['', ...commonPasswords]
 
