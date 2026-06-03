@@ -191,6 +191,17 @@ function solvePassword(hint, hintData) {
         return ['123456']
     }
 
+    // Dog's name / pet name
+    if (h.includes("dog") || h.includes("pet") || h.includes("puppy") || h.includes("hound") || h.includes("fur"))
+        return [...new Set([
+            'rex', 'rover', 'fido', 'buster', 'max', 'buddy', 'charlie', 'jack', 'cooper',
+            'rocky', 'toby', 'duke', 'zeus', 'bear', 'tiger', 'shadow', 'bandit', 'sparky',
+            'barney', 'winston', 'ginger', 'daisy', 'molly', 'lady', 'sasha', 'lola',
+            'pluto', 'snoopy', 'odog', 'dog', 'doggy', 'pup', 'wolf', 'fox', 'cody',
+            'lassie', 'beethoven', 'scooby', 'clifford', 'marley', 'houdini',
+            ...extendedPasswords,
+        ])]
+
     // Maze / labyrinth / dark corridor riddle
     if (h.includes('maze') || h.includes('labyrinth') || h.includes('corridor') || h.includes('dungeon') ||
         h.includes('echo') || h.includes('footstep') || h.includes('silence') || h.includes('dark'))
