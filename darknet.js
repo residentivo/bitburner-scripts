@@ -15,6 +15,7 @@ const extendedPasswords = [
     'abc123', 'passw0rd', 'welcome', 'hello', 'charlie', 'donald',
     'mountain', 'summit', 'peak', 'top', 'ascend', 'everest', 'high',
     'open', 'login', 'unlock', 'pass', 'god', 'love', 'test', 'user',
+    '8848', '29029', 'sagarmatha', 'chomolungma',
 ]
 
 const commonByLength = {
