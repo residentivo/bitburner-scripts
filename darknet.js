@@ -296,15 +296,7 @@ export async function main(ns) {
             continue
         }
 
-        // Step D: exec extractor on neighbor (loot + phishing)
-        try {
-            const pidE = ns.exec(EXTRACTOR, neighbor, 1)
-            if (pidE) log(ns, `${neighbor} extractor pid=${pidE}`)
-        } catch (e) {
-            log(ns, `${neighbor} extractor error: ${e}`)
-        }
-
-        // Step E: exec darknet.js on neighbor (propagate to its neighbors)
+        // Step D: exec darknet.js on neighbor (propagate to its neighbors)
         try {
             const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
             if (pid) {
@@ -320,7 +312,7 @@ export async function main(ns) {
         }
     }
 
-    // Step F: run extractor on THIS server (loot local resources)
+    // Step E: run extractor on THIS server (loot local resources)
     try {
         const pid = ns.exec(EXTRACTOR, host, 1)
         if (pid) log(ns, `local extractor pid=${pid}`)
