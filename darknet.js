@@ -132,6 +132,13 @@ function solvePassword(hint, hintData) {
         h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
         return extendedPasswords
 
+    // Hints that are just symbols/emoji — try stripped + extended passwords
+    if (hint && !h.match(/[a-z]{3,}/)) {
+        const stripped = hint.replace(/[^a-zA-Z0-9!@#$%^&*_\-+=]/g, '')
+        const candidates = [...new Set([stripped, '', ...extendedPasswords])]
+        return candidates
+    }
+
     return []
 }
 
