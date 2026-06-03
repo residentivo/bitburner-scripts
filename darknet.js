@@ -210,11 +210,12 @@ export async function main(ns) {
     const host = ns.getHostname()
     log(ns, `START on ${host}`)
 
-    // Kill local duplicates
-    for (const p of ns.ps(host)) {
-        if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) {
-            ns.kill(p.pid)
-        }
+    // If another instance is already running, exit (don't kill — prevents cross-server murder)
+    const myPid = ns.pid
+    const others = ns.ps(host).filter(p => p.filename === SCRIPT_NAME && p.pid !== myPid)
+    if (others.length > 0) {
+        log(ns, `another instance already running (pid ${others[0].pid}), exiting`)
+        return
     }
 
     // Free RAM on this server
