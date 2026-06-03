@@ -24,12 +24,14 @@ function log(ns, msg) {
 }
 
 function solvePassword(hint, hintData) {
-    if (!hint) return null
+    if (!hint) return []
     const h = hint.toLowerCase()
 
+    // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(\w+)/i)
-    if (keyMatch) return keyMatch[1]
+    if (keyMatch) return [keyMatch[1]]
 
+    // Roman numeral
     const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
     if (romanMatch) {
         const roman = romanMatch[1].toUpperCase()
@@ -40,26 +42,29 @@ function solvePassword(hint, hintData) {
             const next = (i + 1 < roman.length) ? (rv[roman[i + 1]] || 0) : 0
             num += (val < next) ? -val : val
         }
-        return String(num)
+        return [String(num)]
     }
 
-    if (h.includes('default') || h.includes('factory')) return '__MULTI__'
+    // Default / factory → try all common passwords
+    if (h.includes('default') || h.includes('factory')) return commonPasswords
 
+    // Buffer length → try passwords of that length
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
-        if (commonByLength[len]) return '__BUFFER__' + len
+        if (commonByLength[len]) return commonByLength[len]
     }
 
+    // Numbers / captcha
     if (h.includes('numbers') || h.includes('prove you are human') || h.includes('captcha')) {
         if (hintData) {
             const extracted = hintData.replace(/[^0-9]/g, '')
-            if (extracted && extracted.length >= 3) return extracted
+            if (extracted && extracted.length >= 3) return [extracted]
         }
-        return '123456'
+        return ['123456']
     }
 
-    return null
+    return []
 }
 
 async function tryAuth(ns, hostname, password) {
@@ -81,14 +86,9 @@ async function authenticateServer(ns, hostname) {
     const hintData = details.data || ''
 
     const solved = solvePassword(hint, hintData)
-    if (!solved) return false
+    if (solved.length === 0) return false
 
-    let candidates
-    if (solved.startsWith('__MULTI__')) candidates = commonPasswords
-    else if (solved.startsWith('__BUFFER__')) candidates = commonByLength[parseInt(solved.replace('__BUFFER__', ''))] || []
-    else candidates = [solved]
-
-    for (const pw of candidates) {
+    for (const pw of solved) {
         if (await tryAuth(ns, hostname, pw)) return true
     }
 
