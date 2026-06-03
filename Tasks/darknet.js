@@ -191,7 +191,20 @@ function solvePassword(hint, hintData) {
         return ['123456']
     }
 
-    // Riddles
+    // Maze / labyrinth / dark corridor riddle
+    if (h.includes('maze') || h.includes('labyrinth') || h.includes('corridor') || h.includes('dungeon') ||
+        h.includes('echo') || h.includes('footstep') || h.includes('silence') || h.includes('dark'))
+        return [...new Set([
+            'maze', 'labyrinth', 'minotaur', 'theseus', 'ariadne', 'thread', 'exit', 'escape',
+            'dead', 'end', 'center', 'core', 'depth', 'abyss', 'dark', 'shadow', 'void',
+            'silence', 'echo', 'lost', 'hidden', 'path', 'way', 'door', 'gate', 'portal',
+            'candle', 'torch', 'light', 'key', 'north', 'south', 'east', 'west',
+            'left', 'right', 'forward', 'back', 'turn', 'follow', 'trust', 'fear',
+            '42', '0', '1', '13', '7', '666', '999', '314',
+            ...extendedPasswords,
+        ])]
+
+    // Riddles / vague hints → try extended passwords
     if (h.includes('master') || h.includes('riddle') || h.includes('true'))
         return extendedPasswords
 
