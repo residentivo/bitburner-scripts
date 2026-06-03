@@ -63,6 +63,18 @@ function log(ns, msg) {
     ns.print(`[dnet] ${msg}`)
 }
 
+async function logFail(ns, server, reason, hint = '') {
+    const line = `${server}|${reason}|${hint}\n`
+    const file = '/darknet-failures.txt'
+    try {
+        const existing = ns.read(file) || ''
+        // Only add if this server+reason not already logged
+        if (!existing.includes(`${server}|${reason}|`)) {
+            await ns.write(file, existing + line, 'w')
+        }
+    } catch (e) { /* ignore */ }
+}
+
 function solvePassword(hint, hintData) {
     if (!hint) return []
     const h = hint.toLowerCase()
@@ -282,6 +294,7 @@ export async function main(ns) {
             }
 
             if (!details.isOnline || !details.isConnectedToCurrentServer) {
+                await logFail(ns, neighbor, 'unreachable')
                 fails++
                 continue
             }
@@ -295,6 +308,7 @@ export async function main(ns) {
                 const candidates = solvePassword(hint, data)
 
                 if (candidates.length === 0) {
+                    await logFail(ns, neighbor, 'hint-unsolved', hint)
                     fails++
                     continue
                 }
@@ -313,6 +327,7 @@ export async function main(ns) {
 
                 if (!authed) {
                     log(ns, `${neighbor} AUTH FAILED`)
+                    await logFail(ns, neighbor, 'auth-failed', hint)
                     fails++
                     continue
                 }
