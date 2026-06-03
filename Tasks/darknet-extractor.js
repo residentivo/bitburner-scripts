@@ -22,9 +22,12 @@ export async function main(ns) {
     }
 
     while (true) {
-        // 1. Free blocked RAM
+        // 1. Free blocked RAM (only if blocked > 0)
         try {
-            await ns.dnet.memoryReallocation()
+            const blocked = await ns.dnet.getBlockedRam(host)
+            if (blocked > 0) {
+                await ns.dnet.memoryReallocation()
+            }
         } catch (e) { /* ignore */ }
 
         // 2. Loot .cache files
