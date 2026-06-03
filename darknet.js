@@ -1,8 +1,11 @@
 /**
- * darknet.js — Darknet helper (crash-safe, auto-propagate)
- * Auths neighbors, copies itself + darknet-ram.js, and spawns on each.
- * Each neighbor then probes and auths ITS neighbors (depth 2+).
- * hasSession check prevents re-auth loops.
+ * darknet.js — Darknet helper (loop mode, auto-propagate)
+ * Loops every 1s:
+ *   - Check if already running (skip spawn if so)
+ *   - Free RAM (memoryReallocation)
+ *   - Probe neighbors
+ *   - Auth (skip if hasSession), scp+exec propagate
+ *   - Run extractor locally
  */
 
 const SCRIPT_NAME = 'darknet.js'
@@ -65,7 +68,6 @@ function solvePassword(hint, hintData) {
     const h = hint.toLowerCase()
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
-    // Also: "The PIN is X", "password: X", "key: X"
     const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(?:is\s+)?(\w+)/i)
     if (keyMatch && keyMatch[1]) {
         const val = keyMatch[1].toLowerCase()
@@ -74,11 +76,11 @@ function solvePassword(hint, hintData) {
         }
     }
 
-    // "PIN: X" or "PIN X" format (no "is" between)
+    // "PIN: X" or "PIN X" format
     const pinDirect = hint.match(/pin\s*[:=]?\s*(\d+)/i)
     if (pinDirect && pinDirect[1]) return [pinDirect[1]]
 
-    // "There is no password" → empty password or common
+    // "There is no password"
     if (h.includes('no password') || h.includes('there is no')) return ['', ...commonPasswords]
 
     // Roman numeral
@@ -95,21 +97,21 @@ function solvePassword(hint, hintData) {
         return [String(num)]
     }
 
-    // Default / factory / never changed / still the same / no password / didn't set → try empty + common
+    // Default / factory / never changed
     if (h.includes('default') || h.includes('factory') || h.includes('never changed') ||
         h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
         h.includes('still') || h.includes('original') || h.includes('no password') ||
         h.includes('not set'))
         return ['', ...commonPasswords]
 
-    // Buffer length → try passwords of that length
+    // Buffer length
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
         if (commonByLength[len]) return commonByLength[len]
     }
 
-    // "Remember to use X" / "use X" → number/password in hint (not "type the numbers" captcha)
+    // "Remember to use X"
     if (!h.includes('prove you are human') && !h.includes('captcha')) {
         const useMatch = hint.match(/(?:use|enter|input)\s+(\w+)/i)
         if (useMatch && useMatch[1]) return [useMatch[1]]
@@ -129,7 +131,7 @@ function solvePassword(hint, hintData) {
         return [String(result)]
     }
 
-    // "the password is ... in base 10" with data like "16,7C" → data has base,number
+    // "the password is ... in base 10" with data like "16,7C"
     if (h.includes('base 10') && hintData) {
         const parts = hintData.split(',').map(s => s.trim())
         if (parts.length === 2) {
@@ -147,25 +149,23 @@ function solvePassword(hint, hintData) {
         }
     }
 
-    // "divisible by X" → if X=1, any number works; try common numeric passwords
+    // "divisible by X"
     const divMatch = hint.match(/divisible\s+by\s+(\d+)/i)
     if (divMatch) {
         const divBy = parseInt(divMatch[1])
         const candidates = []
         if (divBy === 1) {
-            // Every number is divisible by 1 — try common numbers
             candidates.push('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
                 '12', '15', '20', '24', '25', '30', '42', '50', '69', '100',
                 '123', '456', '789', '111', '222', '333', '420', '666', '777',
                 '999', '1234', '4321', '1337', '6969', '31415')
         } else {
-            // Generate multiples of divBy up to a reasonable limit
             for (let i = 1; i <= 100; i++) candidates.push(String(divBy * i))
         }
         return candidates
     }
 
-    // Range: "number between X and Y" or "number from X to Y"
+    // Range: "number between X and Y"
     const rangeMatch = hint.match(/between\s+(\d+)\s+and\s+(\d+)/i) ||
                        hint.match(/from\s+(\d+)\s+to\s+(\d+)/i)
     if (rangeMatch) {
@@ -176,10 +176,10 @@ function solvePassword(hint, hintData) {
             for (let i = lo; i <= hi; i++) candidates.push(String(i))
             return candidates
         }
-        return ['0', '1', '5', '10'] // fallback for large ranges
+        return ['0', '1', '5', '10']
     }
 
-    // "PIN is empty" / "password is empty" → try empty string
+    // "PIN is empty"
     if (h.includes('empty') && (h.includes('pin') || h.includes('password'))) return ['', ...commonPasswords]
 
     // Numbers / captcha
@@ -191,19 +191,18 @@ function solvePassword(hint, hintData) {
         return ['123456']
     }
 
-    // Riddles / vague hints → try extended passwords
+    // Riddles
     if (h.includes('master') || h.includes('riddle') || h.includes('true'))
         return extendedPasswords
 
-    // Mountain riddle → prioritize mountain passwords
+    // Mountain riddle
     if (h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
         return [...new Set([...mountainPasswords, ...extendedPasswords])]
 
-    // Hints that are just symbols/emoji — try stripped + extended passwords
+    // Symbol/emoji hints
     if (hint && !h.match(/[a-z]{3,}/)) {
         const stripped = hint.replace(/[^a-zA-Z0-9!@#$%^&*_\-+=]/g, '')
-        const candidates = [...new Set([stripped, '', ...extendedPasswords])]
-        return candidates
+        return [...new Set([stripped, '', ...extendedPasswords])]
     }
 
     return []
@@ -212,9 +211,9 @@ function solvePassword(hint, hintData) {
 /** @param {NS} ns */
 export async function main(ns) {
     const host = ns.getHostname()
-    log(ns, `START on ${host}`)
+    log(ns, `START on ${host} (loop mode)`)
 
-    // If another instance is already running, exit (don't kill — prevents cross-server murder)
+    // Dedup: if another instance is already running, exit
     const myPid = ns.pid
     const others = ns.ps(host).filter(p => p.filename === SCRIPT_NAME && p.pid !== myPid)
     if (others.length > 0) {
@@ -222,128 +221,118 @@ export async function main(ns) {
         return
     }
 
-    // Free RAM on this server
-    try {
-        await ns.dnet.memoryReallocation()
-        log(ns, 'memoryReallocation done')
-    } catch (e) {
-        log(ns, `memoryReallocation: ${e}`)
-    }
-
-    // Probe
-    let peers
-    try {
-        peers = await ns.dnet.probe()
-        log(ns, `probe: ${JSON.stringify(peers)}`)
-    } catch (e) {
-        log(ns, `probe error: ${e}`)
-        return
-    }
-
-    if (!peers || peers.length === 0) {
-        log(ns, 'no peers')
-        return
-    }
-
-    let spawned = 0
-    let fails = 0
-
-    for (const neighbor of peers) {
-        if (neighbor === 'home' || neighbor === host) continue
-
-        log(ns, `--- ${neighbor} ---`)
-
-        // Step A: get details
-        let details
+    while (true) {
+        // Step 0: Free RAM
         try {
-            details = await ns.dnet.getServerDetails(neighbor)
+            await ns.dnet.memoryReallocation()
+        } catch (e) { /* ignore */ }
+
+        // Step 1: Probe
+        let peers
+        try {
+            peers = await ns.dnet.probe()
         } catch (e) {
-            log(ns, `${neighbor} getServerDetails error: ${e}`)
-            fails++
+            log(ns, `probe error: ${e}`)
+            await ns.asleep(1000)
             continue
         }
 
-        if (!details.isOnline || !details.isConnectedToCurrentServer) {
-            log(ns, `${neighbor} unreachable`)
-            fails++
+        if (!peers || peers.length === 0) {
+            await ns.asleep(1000)
             continue
         }
 
-        if (details.hasSession) {
-            log(ns, `${neighbor} already has session, skip`)
-            continue
-        } else {
-            // Step B: solve + auth
-            const hint = details.passwordHint || ''
-            const data = details.data || ''
-            log(ns, `${neighbor} hint: "${hint}" data: "${data}"`)
-            const candidates = solvePassword(hint, data)
+        let spawned = 0
+        let fails = 0
 
-            if (candidates.length === 0) {
-                log(ns, `${neighbor} hint unsolved: "${hint}"`)
+        for (const neighbor of peers) {
+            if (neighbor === 'home' || neighbor === host) continue
+
+            // Step A: get details
+            let details
+            try {
+                details = await ns.dnet.getServerDetails(neighbor)
+            } catch (e) {
                 fails++
                 continue
             }
 
-            let authed = false
-            for (const pw of candidates) {
-                try {
-                    const r = await ns.dnet.authenticate(neighbor, pw)
-                    if (r.success) {
-                        log(ns, `${neighbor} auth OK '${pw}'`)
-                        authed = true
-                        break
-                    }
-                    log(ns, `${neighbor} auth fail '${pw}'`)
-                } catch (e) {
-                    log(ns, `${neighbor} auth error '${pw}': ${e}`)
+            if (!details.isOnline || !details.isConnectedToCurrentServer) {
+                fails++
+                continue
+            }
+
+            // Step B: auth (skip if already authenticated)
+            if (details.hasSession) {
+                // already authenticated, skip auth
+            } else {
+                const hint = details.passwordHint || ''
+                const data = details.data || ''
+                const candidates = solvePassword(hint, data)
+
+                if (candidates.length === 0) {
+                    fails++
+                    continue
+                }
+
+                let authed = false
+                for (const pw of candidates) {
+                    try {
+                        const r = await ns.dnet.authenticate(neighbor, pw)
+                        if (r.success) {
+                            log(ns, `${neighbor} auth OK '${pw}'`)
+                            authed = true
+                            break
+                        }
+                    } catch (e) { /* try next */ }
+                }
+
+                if (!authed) {
+                    log(ns, `${neighbor} AUTH FAILED`)
+                    fails++
+                    continue
                 }
             }
 
-            if (!authed) {
-                log(ns, `${neighbor} ALL AUTH FAILED`)
+            // Step C: scp scripts to neighbor
+            try {
+                await ns.scp(SCRIPT_NAME, neighbor)
+                await ns.scp('darknet-ram.js', neighbor)
+                await ns.scp(EXTRACTOR, neighbor)
+            } catch (e) {
                 fails++
                 continue
             }
-        }
 
-        // Step C: scp darknet.js + darknet-ram.js + extractor to neighbor
-        try {
-            await ns.scp(SCRIPT_NAME, neighbor)
-            await ns.scp('darknet-ram.js', neighbor)
-            await ns.scp(EXTRACTOR, neighbor)
-            log(ns, `${neighbor} scp OK`)
-        } catch (e) {
-            log(ns, `${neighbor} scp error: ${e}`)
-            fails++
-            continue
-        }
-
-        // Step D: exec darknet.js on neighbor (propagate to its neighbors)
-        try {
-            const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
-            if (pid) {
-                spawned++
-                log(ns, `${neighbor} darknet pid=${pid} (propagating)`)
-            } else {
-                log(ns, `${neighbor} darknet pid=0`)
-                fails++
+            // Step D: exec darknet.js on neighbor (propagate) — check if already running
+            const neighborProcs = ns.ps(neighbor)
+            const alreadyRunning = neighborProcs.some(p => p.filename === SCRIPT_NAME)
+            if (!alreadyRunning) {
+                try {
+                    const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
+                    if (pid) {
+                        spawned++
+                        log(ns, `${neighbor} darknet pid=${pid} (propagating)`)
+                    }
+                } catch (e) { /* ignore */ }
             }
-        } catch (e) {
-            log(ns, `${neighbor} darknet error: ${e}`)
-            fails++
         }
-    }
 
-    // Step E: run extractor on THIS server (loot local resources)
-    try {
-        const pid = ns.exec(EXTRACTOR, host, 1)
-        if (pid) log(ns, `local extractor pid=${pid}`)
-    } catch (e) {
-        log(ns, `local extractor error: ${e}`)
-    }
+        // Step E: run extractor on THIS server — check if already running
+        const localProcs = ns.ps(host)
+        const extractorRunning = localProcs.some(p => p.filename === EXTRACTOR)
+        if (!extractorRunning) {
+            try {
+                const pid = ns.exec(EXTRACTOR, host, 1)
+                if (pid) log(ns, `local extractor pid=${pid}`)
+            } catch (e) { /* ignore */ }
+        }
 
-    log(ns, `DONE: ${spawned} spawned, ${fails} failed, ${peers.length} total`)
+        if (spawned > 0 || fails > 0)
+            log(ns, `cycle: ${spawned} spawned, ${fails} failed, ${peers.length} peers`)
+
+        await ns.asleep(1000)
+    }
 }
 
 export function autocomplete(data) {
