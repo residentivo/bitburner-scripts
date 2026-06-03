@@ -8,6 +8,15 @@ const SCRIPT_NAME = 'darknet.js'
 
 const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
 
+const extendedPasswords = [
+    '', 'password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest',
+    'root', 'access', 'master', 'secret', 'dragon', 'monkey', 'shadow',
+    'sunshine', 'princess', 'football', 'baseball', 'trustno1', 'iloveyou',
+    'abc123', 'passw0rd', 'welcome', 'hello', 'charlie', 'donald',
+    'mountain', 'summit', 'peak', 'top', 'ascend', 'everest', 'high',
+    'open', 'login', 'unlock', 'pass', 'god', 'love', 'test', 'user',
+]
+
 const commonByLength = {
     3: ['cat', 'dog', 'foo', 'bar', '123', 'pwd'],
     4: ['pass', 'test', 'root', 'user', 'abcd', '1234', 'hack', 'open'],
@@ -56,12 +65,12 @@ function solvePassword(hint, hintData) {
         return [String(num)]
     }
 
-    // Default / factory / never changed / still the same / no password / didn't set → try all common
+    // Default / factory / never changed / still the same / no password / didn't set → try empty + common
     if (h.includes('default') || h.includes('factory') || h.includes('never changed') ||
         h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
         h.includes('still') || h.includes('original') || h.includes('no password') ||
-        h.includes('not set') || h.includes('empty'))
-        return commonPasswords
+        h.includes('not set'))
+        return ['', ...commonPasswords]
 
     // Buffer length → try passwords of that length
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
@@ -82,8 +91,10 @@ function solvePassword(hint, hintData) {
         return ['123456']
     }
 
-    // "only a true master" / riddle hints → try common passwords
-    if (h.includes('master') || h.includes('riddle') || h.includes('true')) return commonPasswords
+    // Riddles / vague hints → try extended passwords
+    if (h.includes('master') || h.includes('riddle') || h.includes('true') ||
+        h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
+        return extendedPasswords
 
     return []
 }
