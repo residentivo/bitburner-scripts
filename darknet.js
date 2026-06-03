@@ -25,9 +25,18 @@ function solvePassword(hint, hintData) {
     if (!hint) return []
     const h = hint.toLowerCase()
 
+    // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
+    // Must have a value after the keyword
     const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(\w+)/i)
-    if (keyMatch) return [keyMatch[1]]
+    if (keyMatch && keyMatch[1]) {
+        // Validate: the captured value should look like a password (not just "is", "the", "a")
+        const val = keyMatch[1].toLowerCase()
+        if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty'].includes(val)) {
+            return [keyMatch[1]]
+        }
+    }
 
+    // Roman numeral
     const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
     if (romanMatch) {
         const roman = romanMatch[1].toUpperCase()
@@ -41,14 +50,18 @@ function solvePassword(hint, hintData) {
         return [String(num)]
     }
 
-    if (h.includes('default') || h.includes('factory')) return commonPasswords
+    // Default / factory / never changed / still the same → try all common passwords
+    if (h.includes('default') || h.includes('factory') || h.includes('never changed') || h.includes("didn't change") || h.includes('still') || h.includes('original'))
+        return commonPasswords
 
+    // Buffer length → try passwords of that length
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
         if (commonByLength[len]) return commonByLength[len]
     }
 
+    // Numbers / captcha
     if (h.includes('numbers') || h.includes('prove you are human') || h.includes('captcha')) {
         if (hintData) {
             const extracted = hintData.replace(/[^0-9]/g, '')
@@ -56,6 +69,9 @@ function solvePassword(hint, hintData) {
         }
         return ['123456']
     }
+
+    // "only a true master" / riddle hints → try common passwords
+    if (h.includes('master') || h.includes('riddle') || h.includes('true')) return commonPasswords
 
     return []
 }
@@ -125,6 +141,7 @@ export async function main(ns) {
             // Step B: solve + auth
             const hint = details.passwordHint || ''
             const data = details.data || ''
+            log(ns, `${neighbor} hint: "${hint}" data: "${data}"`)
             const candidates = solvePassword(hint, data)
 
             if (candidates.length === 0) {
