@@ -23,8 +23,8 @@ const commonPasswords = [
 ]
 
 const mountainPasswords = [
-    '8848', '8849', '8848.86', '29029', '29032', '29035',
-    'everest', 'EVEREST', 'Everest',
+    '8848', '8849', '8848.86', '29029', '29032', '29035', '29028', '8848m', '8850',
+    'everest', 'EVEREST', 'Everest', 'mt-everest', 'mt_everest', 'mteverest',
     'sagarmatha', 'Sagarmatha', 'SAGARMATHA',
     'chomolungma', 'Chomolungma', 'CHOMOLUNGMA',
     'summit', 'SUMMIT', 'Summit',
@@ -36,10 +36,14 @@ const mountainPasswords = [
     'high', 'HIGH', 'High',
     'highest', 'HIGHEST', 'Highest',
     'basecamp', 'Basecamp', 'BASECAMP',
-    'hillary', 'Hillary', 'HILLARY',
+    'hillary', 'Hillary', 'HILLARY', 'tensing', 'norgay',
     'nepal', 'Nepal', 'NEPAL',
     'tibet', 'Tibet', 'TIBET',
-    '8848m', '29029ft',
+    '29029ft', 'k2', 'K2', 'kanchenjunga', 'lhotse', 'makalu',
+    'chooyu', 'dhaulagiri', 'manaslu', 'nandadevi', 'annapurna',
+    'gasherbrum', 'broadpeak', 'shishapangma',
+    'fuji', 'denali', 'matterhorn', 'kilimanjaro', 'aconcagua',
+    'olympos', 'olympus',
 ]
 
 const extendedPasswords = [
@@ -86,9 +90,11 @@ async function logFail(ns, server, reason, hint = '') {
     } catch (e) { /* ignore */ }
 }
 
-function solvePassword(hint, hintData) {
+function solvePassword(hint, hintData, hostname = '') {
     if (!hint) return []
     const h = hint.toLowerCase()
+    // Try hostname-based passwords for many hint types
+    const hostCandidates = hostname ? [hostname, hostname.toLowerCase(), hostname.replace(/[^a-zA-Z0-9]/g, '')] : []
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(?:is\s+)?(\w+)/i)
@@ -125,7 +131,7 @@ function solvePassword(hint, hintData) {
         h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
         h.includes('still') || h.includes('original') || h.includes('no password') ||
         h.includes('not set'))
-        return ['', ...commonPasswords]
+        return [...new Set([...hostCandidates, '', ...commonPasswords])]
 
     // Buffer length
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
@@ -244,7 +250,7 @@ function solvePassword(hint, hintData) {
 
     // Mountain riddle
     if (h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
-        return [...new Set([...mountainPasswords, ...extendedPasswords])]
+        return [...new Set([...hostCandidates, ...mountainPasswords, ...extendedPasswords])]
 
     // Symbol/emoji hints
     if (hint && !h.match(/[a-z]{3,}/)) {
@@ -319,7 +325,7 @@ export async function main(ns) {
             } else {
                 const hint = details.passwordHint || ''
                 const data = details.data || ''
-                const candidates = solvePassword(hint, data)
+                const candidates = solvePassword(hint, data, neighbor)
 
                 if (candidates.length === 0) {
                     await logFail(ns, neighbor, 'hint-unsolved', hint)
