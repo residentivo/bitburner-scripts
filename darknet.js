@@ -50,8 +50,11 @@ function solvePassword(hint, hintData) {
         return [String(num)]
     }
 
-    // Default / factory / never changed / still the same → try all common passwords
-    if (h.includes('default') || h.includes('factory') || h.includes('never changed') || h.includes("didn't change") || h.includes('still') || h.includes('original'))
+    // Default / factory / never changed / still the same / no password / didn't set → try all common
+    if (h.includes('default') || h.includes('factory') || h.includes('never changed') ||
+        h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
+        h.includes('still') || h.includes('original') || h.includes('no password') ||
+        h.includes('not set') || h.includes('empty'))
         return commonPasswords
 
     // Buffer length → try passwords of that length
