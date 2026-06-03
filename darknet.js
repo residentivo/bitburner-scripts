@@ -69,7 +69,7 @@ function solvePassword(hint, hintData) {
     const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(?:is\s+)?(\w+)/i)
     if (keyMatch && keyMatch[1]) {
         const val = keyMatch[1].toLowerCase()
-        if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty', 'to', 'set'].includes(val)) {
+        if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty', 'to', 'set', 'divisible'].includes(val)) {
             return [keyMatch[1]]
         }
     }
@@ -141,6 +141,24 @@ function solvePassword(hint, hintData) {
                 return [String(result)]
             }
         }
+    }
+
+    // "divisible by X" → if X=1, any number works; try common numeric passwords
+    const divMatch = hint.match(/divisible\s+by\s+(\d+)/i)
+    if (divMatch) {
+        const divBy = parseInt(divMatch[1])
+        const candidates = []
+        if (divBy === 1) {
+            // Every number is divisible by 1 — try common numbers
+            candidates.push('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10',
+                '12', '15', '20', '24', '25', '30', '42', '50', '69', '100',
+                '123', '456', '789', '111', '222', '333', '420', '666', '777',
+                '999', '1234', '4321', '1337', '6969', '31415')
+        } else {
+            // Generate multiples of divBy up to a reasonable limit
+            for (let i = 1; i <= 100; i++) candidates.push(String(divBy * i))
+        }
+        return candidates
     }
 
     // Range: "number between X and Y" or "number from X to Y"
