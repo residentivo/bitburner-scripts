@@ -7,15 +7,23 @@
 
 const SCRIPT_NAME = 'darknet.js'
 
-const commonPasswords = ['password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest']
+const commonPasswords = [
+    '', 'password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest',
+    'root', 'toor', 'daemon', 'sys', 'adm', 'bin', 'superuser', 'operator',
+    'server', 'system', 'changeit', 'changeme', 'mysql', 'postgres', 'oracle',
+    'cisco', 'public', 'private', 'blank', 'none', 'null',
+    'pass123', 'admin123', 'root123', 'abc123', 'passw0rd',
+    'web', 'www', 'ftp', 'ssh', 'telnet',
+    'open', 'login', 'unlock', 'access', 'secret',
+    'test', 'user', 'demo', 'temp', 'backup',
+]
 
 const extendedPasswords = [
-    '', 'password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest',
-    'root', 'access', 'master', 'secret', 'dragon', 'monkey', 'shadow',
-    'sunshine', 'princess', 'football', 'baseball', 'trustno1', 'iloveyou',
-    'abc123', 'passw0rd', 'welcome', 'hello', 'charlie', 'donald',
+    ...commonPasswords,
+    'dragon', 'monkey', 'shadow', 'sunshine', 'princess', 'football',
+    'baseball', 'trustno1', 'iloveyou', 'welcome', 'hello', 'charlie', 'donald',
     'mountain', 'summit', 'peak', 'top', 'ascend', 'everest', 'high',
-    'open', 'login', 'unlock', 'pass', 'god', 'love', 'test', 'user',
+    'god', 'love', 'master',
     '8848', '29029', 'sagarmatha', 'chomolungma',
 ]
 
