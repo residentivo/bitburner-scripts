@@ -1,20 +1,48 @@
 /**
- * darknet-launcher.js — Spawns darknet.js + extractor on darkweb.
- * Run periodically from daemon.js (every 60s).
+ * darknet-launcher.js — Ensures darknet scripts are on darkweb and running.
+ * Run periodically from daemon.js or cron.
+ * Copies scripts if TOR is purchased, spawns darknet.js if not already running.
  */
 
-export async function main(ns) {
-    const script = 'darknet.js'
-    const ext = 'darknet-extractor.js'
-    const target = 'darkweb'
+const SCRIPTS = ['darknet.js', 'darknet-ram.js', 'darknet-extractor.js']
+const TARGET = 'darkweb'
 
+export async function main(ns) {
+    // Check if TOR is purchased (darkweb accessible)
     try {
-        await ns.scp(script, target)
-        await ns.scp(ext, target)
-        const pid = ns.exec(script, target, 1)
-        ns.print(`launcher: spawned pid=${pid}`)
+        const hasDarkweb = ns.serverExists(TARGET)
+        if (!hasDarkweb) {
+            ns.print('darkweb not accessible yet (TOR not purchased)')
+            return
+        }
+    } catch {
+        ns.print('cannot check darkweb')
+        return
+    }
+
+    // Copy all scripts to darkweb
+    for (const script of SCRIPTS) {
+        try {
+            await ns.scp(script, TARGET)
+            ns.print(`scp ${script} OK`)
+        } catch (e) {
+            ns.print(`scp ${script} error: ${e}`)
+        }
+    }
+
+    // Check if darknet.js is already running on darkweb
+    const running = ns.ps(TARGET).some(p => p.filename === 'darknet.js')
+    if (running) {
+        ns.print('darknet.js already running on darkweb')
+        return
+    }
+
+    // Spawn darknet.js
+    try {
+        const pid = ns.exec('darknet.js', TARGET, 1)
+        ns.print(`spawned darknet.js pid=${pid}`)
     } catch (e) {
-        ns.print(`launcher: ${e}`)
+        ns.print(`spawn error: ${e}`)
     }
 }
 
