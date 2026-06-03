@@ -1,7 +1,8 @@
 /**
- * darknet.js — Darknet helper (crash-safe, per-neighbor isolation)
- * Each neighbor is fully processed before moving to the next.
- * Only copies darknet-test1.js (lightweight) to neighbors.
+ * darknet.js — Darknet helper (crash-safe, auto-propagate)
+ * Auths neighbors, copies itself + darknet-test1.js, and spawns on each.
+ * Each neighbor then probes and auths ITS neighbors (depth 2+).
+ * hasSession check prevents re-auth loops.
  */
 
 const SCRIPT_NAME = 'darknet.js'
@@ -230,8 +231,9 @@ export async function main(ns) {
             }
         }
 
-        // Step C: scp darknet-test1.js (lightweight)
+        // Step C: scp darknet.js + darknet-test1.js to neighbor
         try {
+            await ns.scp(SCRIPT_NAME, neighbor)
             await ns.scp('darknet-test1.js', neighbor)
             log(ns, `${neighbor} scp OK`)
         } catch (e) {
@@ -240,18 +242,26 @@ export async function main(ns) {
             continue
         }
 
-        // Step D: exec
+        // Step D: exec darknet-test1.js (memoryReallocation)
         try {
-            const pid = ns.exec('darknet-test1.js', neighbor, 1)
+            const pid1 = ns.exec('darknet-test1.js', neighbor, 1)
+            if (pid1) log(ns, `${neighbor} test1 pid=${pid1}`)
+        } catch (e) {
+            log(ns, `${neighbor} test1 error: ${e}`)
+        }
+
+        // Step E: exec darknet.js on neighbor (propagate to its neighbors)
+        try {
+            const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
             if (pid) {
                 spawned++
-                log(ns, `${neighbor} exec pid=${pid}`)
+                log(ns, `${neighbor} darknet pid=${pid} (propagating)`)
             } else {
-                log(ns, `${neighbor} exec pid=0`)
+                log(ns, `${neighbor} darknet pid=0`)
                 fails++
             }
         } catch (e) {
-            log(ns, `${neighbor} exec error: ${e}`)
+            log(ns, `${neighbor} darknet error: ${e}`)
             fails++
         }
     }
