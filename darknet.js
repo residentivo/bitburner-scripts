@@ -2,6 +2,7 @@
  * darknet.js — Darknet helper
  * Frees RAM, runs extractor, probes neighbors, auths and spawns.
  * All dnet API calls are awaited to prevent concurrency errors.
+ * No ns.asleep() — crashes on darkweb.
  */
 
 const SCRIPT_NAME = 'darknet.js'
@@ -106,16 +107,13 @@ export async function main(ns) {
         }
     }
 
-    // Free RAM — single call with long delay after
+    // Free RAM - single call, no loop
     try {
         await ns.dnet.memoryReallocation()
-        log(ns, 'memoryReallocation 1/1 done')
+        log(ns, 'memoryReallocation done')
     } catch (e) {
         log(ns, `memoryReallocation error: ${e}`)
     }
-
-    // Small delay before next dnet call
-    await ns.asleep(100)
 
     // Ensure extractor is running
     try {
@@ -126,8 +124,6 @@ export async function main(ns) {
     } catch (e) {
         log(ns, `extractor error: ${e}`)
     }
-
-    await ns.asleep(100)
 
     // Probe neighbors
     let nearby
@@ -149,7 +145,6 @@ export async function main(ns) {
     for (const neighbor of nearby) {
         if (neighbor === 'home' || neighbor === host) continue
 
-        // Skip if already running
         try {
             if (ns.ps(neighbor).some(p => p.filename === SCRIPT_NAME)) continue
         } catch { }
@@ -179,9 +174,6 @@ export async function main(ns) {
                 ns.exec(EXTRACTOR_NAME, neighbor, 1)
             }
         } catch { }
-
-        // Delay between operations on different servers
-        await ns.asleep(500)
     }
 
     log(ns, `DONE: ${spawned}/${nearby.length} spawned`)
