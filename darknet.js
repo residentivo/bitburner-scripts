@@ -115,6 +115,20 @@ function solvePassword(hint, hintData) {
         }
     }
 
+    // Range: "number between X and Y" or "number from X to Y"
+    const rangeMatch = hint.match(/between\s+(\d+)\s+and\s+(\d+)/i) ||
+                       hint.match(/from\s+(\d+)\s+to\s+(\d+)/i)
+    if (rangeMatch) {
+        const lo = parseInt(rangeMatch[1])
+        const hi = parseInt(rangeMatch[2])
+        if (hi - lo <= 50) {
+            const candidates = []
+            for (let i = lo; i <= hi; i++) candidates.push(String(i))
+            return candidates
+        }
+        return ['0', '1', '5', '10'] // fallback for large ranges
+    }
+
     // "PIN is empty" / "password is empty" → try empty string
     if (h.includes('empty') && (h.includes('pin') || h.includes('password'))) return ['', ...commonPasswords]
 
