@@ -26,15 +26,21 @@ function solvePassword(hint, hintData) {
     const h = hint.toLowerCase()
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
-    // Must have a value after the keyword
-    const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(\w+)/i)
+    // Also: "The PIN is X", "password: X", "key: X"
+    const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(?:is\s+)?(\w+)/i)
     if (keyMatch && keyMatch[1]) {
-        // Validate: the captured value should look like a password (not just "is", "the", "a")
         const val = keyMatch[1].toLowerCase()
-        if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty'].includes(val)) {
+        if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty', 'to'].includes(val)) {
             return [keyMatch[1]]
         }
     }
+
+    // "PIN: X" or "PIN X" format (no "is" between)
+    const pinDirect = hint.match(/pin\s*[:=]?\s*(\d+)/i)
+    if (pinDirect && pinDirect[1]) return [pinDirect[1]]
+
+    // "There is no password" → empty password or common
+    if (h.includes('no password') || h.includes('there is no')) return ['', ...commonPasswords]
 
     // Roman numeral
     const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
