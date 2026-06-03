@@ -6,6 +6,7 @@
  */
 
 const SCRIPT_NAME = 'darknet.js'
+const EXTRACTOR = 'darknet-extractor.js'
 
 const commonPasswords = [
     '', 'password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest',
@@ -283,10 +284,11 @@ export async function main(ns) {
             }
         }
 
-        // Step C: scp darknet.js + darknet-ram.js to neighbor
+        // Step C: scp darknet.js + darknet-ram.js + extractor to neighbor
         try {
             await ns.scp(SCRIPT_NAME, neighbor)
             await ns.scp('darknet-ram.js', neighbor)
+            await ns.scp(EXTRACTOR, neighbor)
             log(ns, `${neighbor} scp OK`)
         } catch (e) {
             log(ns, `${neighbor} scp error: ${e}`)
@@ -294,12 +296,12 @@ export async function main(ns) {
             continue
         }
 
-        // Step D: exec darknet-ram.js (memoryReallocation)
+        // Step D: exec extractor on neighbor (loot + phishing)
         try {
-            const pid1 = ns.exec('darknet-ram.js', neighbor, 1)
-            if (pid1) log(ns, `${neighbor} ram pid=${pid1}`)
+            const pidE = ns.exec(EXTRACTOR, neighbor, 1)
+            if (pidE) log(ns, `${neighbor} extractor pid=${pidE}`)
         } catch (e) {
-            log(ns, `${neighbor} ram error: ${e}`)
+            log(ns, `${neighbor} extractor error: ${e}`)
         }
 
         // Step E: exec darknet.js on neighbor (propagate to its neighbors)
@@ -316,6 +318,14 @@ export async function main(ns) {
             log(ns, `${neighbor} darknet error: ${e}`)
             fails++
         }
+    }
+
+    // Step F: run extractor on THIS server (loot local resources)
+    try {
+        const pid = ns.exec(EXTRACTOR, host, 1)
+        if (pid) log(ns, `local extractor pid=${pid}`)
+    } catch (e) {
+        log(ns, `local extractor error: ${e}`)
     }
 
     log(ns, `DONE: ${spawned} spawned, ${fails} failed, ${peers.length} total`)

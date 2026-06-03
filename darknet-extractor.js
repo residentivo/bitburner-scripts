@@ -1,45 +1,46 @@
 /**
- * darknet-extractor.js — Darknet resource extraction
+ * darknet-extractor.js — Darknet resource extraction (single-run)
  *
- * Runs on each darknet server to extract resources:
+ * Runs once per invocation on a darknet server:
  *  1. Free blocked RAM with ns.dnet.memoryReallocation()
  *  2. Loot .cache files with ns.dnet.openCache()
- *  3. Run phishing attacks with ns.dnet.phishingAttack()
+ *  3. Run phishing attack with ns.dnet.phishingAttack()
  *
- * Loops forever with no sleep — runs as fast as possible.
+ * No loops, no while(true) — safe for darknet servers.
  */
-
-function disableLogs(ns, listOfLogs) {
-    listOfLogs.forEach(log => ns.disableLog(log))
-}
-
-/** @param {NS} ns */
 export async function main(ns) {
-    disableLogs(ns, ['getServerUsedRam', 'exec', 'scp', 'ls'])
-
     const host = ns.getHostname()
+    ns.print(`[extractor] START on ${host}`)
 
-    // Check dnet API
-    try { ns.dnet.probe() } catch { return }
-
-    while (true) {
-        // 1. Free blocked RAM
-        for (let i = 0; i < 5; i++) {
-            try { ns.dnet.memoryReallocation() } catch { break }
-        }
-
-        // 2. Loot .cache files
-        try {
-            for (const file of ns.ls(host, '.cache')) {
-                try { ns.dnet.openCache(file) } catch { }
-            }
-        } catch { }
-
-        // 3. Phishing
-        try { await ns.dnet.phishingAttack() } catch { }
+    // 1. Free blocked RAM
+    try {
+        await ns.dnet.memoryReallocation()
+        ns.print('[extractor] memoryReallocation OK')
+    } catch (e) {
+        ns.print(`[extractor] memoryReallocation: ${e}`)
     }
-}
 
-export function autocomplete(data) {
-    return ["--tail"]
+    // 2. Loot .cache files
+    try {
+        const files = ns.ls(host, '.cache')
+        for (const file of files) {
+            try {
+                await ns.dnet.openCache(file)
+                ns.print(`[extractor] looted ${file}`)
+            } catch { }
+        }
+        if (files.length === 0) ns.print('[extractor] no .cache files')
+    } catch (e) {
+        ns.print(`[extractor] ls error: ${e}`)
+    }
+
+    // 3. Phishing
+    try {
+        const result = await ns.dnet.phishingAttack()
+        ns.print(`[extractor] phishing: ${JSON.stringify(result)}`)
+    } catch (e) {
+        ns.print(`[extractor] phishing: ${e}`)
+    }
+
+    ns.print('[extractor] DONE')
 }
