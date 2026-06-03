@@ -18,13 +18,32 @@ const commonPasswords = [
     'test', 'user', 'demo', 'temp', 'backup',
 ]
 
+const mountainPasswords = [
+    '8848', '8849', '8848.86', '29029', '29032', '29035',
+    'everest', 'EVEREST', 'Everest',
+    'sagarmatha', 'Sagarmatha', 'SAGARMATHA',
+    'chomolungma', 'Chomolungma', 'CHOMOLUNGMA',
+    'summit', 'SUMMIT', 'Summit',
+    'peak', 'PEAK', 'Peak',
+    'top', 'TOP', 'Top',
+    'ascend', 'ASCEND', 'Ascend',
+    'mountain', 'MOUNTAIN', 'Mountain',
+    'climb', 'CLIMB', 'Climb',
+    'high', 'HIGH', 'High',
+    'highest', 'HIGHEST', 'Highest',
+    'basecamp', 'Basecamp', 'BASECAMP',
+    'hillary', 'Hillary', 'HILLARY',
+    'nepal', 'Nepal', 'NEPAL',
+    'tibet', 'Tibet', 'TIBET',
+    '8848m', '29029ft',
+]
+
 const extendedPasswords = [
     ...commonPasswords,
     'dragon', 'monkey', 'shadow', 'sunshine', 'princess', 'football',
     'baseball', 'trustno1', 'iloveyou', 'welcome', 'hello', 'charlie', 'donald',
-    'mountain', 'summit', 'peak', 'top', 'ascend', 'everest', 'high',
     'god', 'love', 'master',
-    '8848', '29029', 'sagarmatha', 'chomolungma',
+    ...mountainPasswords,
 ]
 
 const commonByLength = {
@@ -150,9 +169,12 @@ function solvePassword(hint, hintData) {
     }
 
     // Riddles / vague hints → try extended passwords
-    if (h.includes('master') || h.includes('riddle') || h.includes('true') ||
-        h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
+    if (h.includes('master') || h.includes('riddle') || h.includes('true'))
         return extendedPasswords
+
+    // Mountain riddle → prioritize mountain passwords
+    if (h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
+        return [...new Set([...mountainPasswords, ...extendedPasswords])]
 
     // Hints that are just symbols/emoji — try stripped + extended passwords
     if (hint && !h.match(/[a-z]{3,}/)) {
