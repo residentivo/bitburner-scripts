@@ -64,13 +64,24 @@ function log(ns, msg) {
 }
 
 async function logFail(ns, server, reason, hint = '') {
-    const line = `${server}|${reason}|${hint}\n`
+    const key = `${server}|${reason}|`
+    const line = `${key}${hint}\n`
     const file = '/darknet-failures.txt'
     try {
-        const existing = ns.read(file) || ''
-        // Only add if this server+reason not already logged
-        if (!existing.includes(`${server}|${reason}|`)) {
-            await ns.write(file, existing + line, 'w')
+        // Read existing from home (if we can scp it here)
+        let existing = ns.read(file) || ''
+        try {
+            await ns.scp(file, ns.getHostname(), 'home')
+            existing = ns.read(file) || existing
+        } catch (e) { /* home not reachable yet */ }
+
+        if (!existing.includes(key)) {
+            const merged = existing + line
+            await ns.write(file, merged, 'w')
+            // Push back to home
+            try {
+                await ns.scp(file, 'home')
+            } catch (e) { /* ignore */ }
         }
     } catch (e) { /* ignore */ }
 }
