@@ -202,7 +202,8 @@ export async function main(ns) {
         }
 
         if (details.hasSession) {
-            log(ns, `${neighbor} already has session`)
+            log(ns, `${neighbor} already has session, skip`)
+            continue
         } else {
             // Step B: solve + auth
             const hint = details.passwordHint || ''
