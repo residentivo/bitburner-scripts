@@ -70,11 +70,14 @@ function solvePassword(hint, hintData) {
         if (commonByLength[len]) return commonByLength[len]
     }
 
+    // "PIN is empty" / "password is empty" → try empty string
+    if (h.includes('empty') && (h.includes('pin') || h.includes('password'))) return ['', ...commonPasswords]
+
     // Numbers / captcha
     if (h.includes('numbers') || h.includes('prove you are human') || h.includes('captcha')) {
         if (hintData) {
             const extracted = hintData.replace(/[^0-9]/g, '')
-            if (extracted && extracted.length >= 3) return [extracted]
+            if (extracted && extracted.length >= 1) return [extracted]
         }
         return ['123456']
     }
