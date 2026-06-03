@@ -16,63 +16,63 @@ function safeLog(ns, msg) {
 
 /** @param {NS} ns */
 export async function main(ns) {
-    ns.disableLog('getServerUsedRam')
-    ns.disableLog('exec')
-    ns.disableLog('scp')
-    ns.disableLog('ls')
-    ns.disableLog('read')
-    ns.disableLog('write')
-
     const host = ns.getHostname()
-    safeLog(ns, `=== MINIMAL START pid=${ns.pid} on ${host} ===`)
+    safeLog(ns, `=== START pid=${ns.pid} on ${host} ===`)
 
-    // Test 1: basic API check
-    safeLog(ns, `ns.dnet exists: ${typeof ns.dnet}`)
-    safeLog(ns, `ns.dnet.probe exists: ${typeof ns.dnet?.probe}`)
-
-    // Test 2: probe
-    try {
-        const result = ns.dnet.probe()
-        safeLog(ns, `probe() returned: ${JSON.stringify(result)} (type: ${typeof result})`)
-        safeLog(ns, `probe() length: ${result?.length}`)
-    } catch (e) {
-        safeLog(ns, `probe() ERROR: ${e}`)
-    }
-
-    // Test 3: getServerDetails for each probed server
-    try {
-        const probed = ns.dnet.probe()
-        for (const s of (probed || [])) {
-            try {
-                const d = ns.dnet.getServerDetails(s)
-                safeLog(ns, `getServerDetails(${s}): isOnline=${d.isOnline} isConnected=${d.isConnectedToCurrentServer} hasSession=${d.hasSession}`)
-            } catch (e) {
-                safeLog(ns, `getServerDetails(${s}) ERROR: ${e}`)
-            }
+    // Kill duplicates
+    for (const p of ns.ps(host)) {
+        if (p.filename === ns.getScriptName() && p.pid !== ns.pid) {
+            ns.kill(p.pid)
+            safeLog(ns, `Killed duplicate pid=${p.pid}`)
         }
-    } catch (e) {
-        safeLog(ns, `loop ERROR: ${e}`)
     }
 
-    // Test 4: check if we can stay alive (loop)
-    safeLog(ns, 'Starting loop...')
-    let iterations = 0
-    while (iterations < 5) {
-        iterations++
-        safeLog(ns, `Iteration ${iterations}`)
+    // Test APIs
+    safeLog(ns, `ns.dnet type: ${typeof ns.dnet}`)
+    safeLog(ns, `ns.dnet.probe type: ${typeof ns.dnet?.probe}`)
+
+    const probed = ns.dnet.probe()
+    safeLog(ns, `probe(): ${JSON.stringify(probed)}`)
+
+    for (const s of (probed || [])) {
+        try {
+            const d = ns.dnet.getServerDetails(s)
+            safeLog(ns, `getServerDetails(${s}): online=${d.isOnline} connected=${d.isConnectedToCurrentServer} session=${d.hasSession}`)
+        } catch (e) {
+            safeLog(ns, `getServerDetails(${s}) ERROR: ${e}`)
+        }
+    }
+
+    // Test extractor spawn
+    const ext = 'darknet-extractor.js'
+    const hasExt = ns.ps(host).some(p => p.filename === ext)
+    safeLog(ns, `extractor running: ${hasExt}`)
+    if (!hasExt) {
+        try {
+            await ns.scp(ext, host)
+            const ePid = ns.exec(ext, host, 1)
+            safeLog(ns, `spawned extractor pid=${ePid}`)
+        } catch (e) {
+            safeLog(ns, `extractor spawn ERROR: ${e}`)
+        }
+    }
+
+    // Stay alive - loop forever
+    safeLog(ns, 'Entering main loop (5 iterations)...')
+    for (let i = 1; i <= 5; i++) {
         try {
             ns.dnet.memoryReallocation()
-            safeLog(ns, `  memoryReallocation OK`)
+            safeLog(ns, `[${i}] memoryReallocation OK`)
         } catch (e) {
-            safeLog(ns, `  memoryReallocation ERROR: ${e}`)
+            safeLog(ns, `[${i}] memoryReallocation ERROR: ${e}`)
         }
         try {
             const p = ns.dnet.probe()
-            safeLog(ns, `  probe OK: ${JSON.stringify(p)}`)
+            safeLog(ns, `[${i}] probe OK: ${JSON.stringify(p)}`)
         } catch (e) {
-            safeLog(ns, `  probe ERROR: ${e}`)
+            safeLog(ns, `[${i}] probe ERROR: ${e}`)
         }
     }
 
-    safeLog(ns, `=== MINIMAL DONE ===`)
+    safeLog(ns, `=== DONE on ${host} ===`)
 }
