@@ -40,7 +40,7 @@ function solvePassword(hint, hintData) {
     const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(?:is\s+)?(\w+)/i)
     if (keyMatch && keyMatch[1]) {
         const val = keyMatch[1].toLowerCase()
-        if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty', 'to'].includes(val)) {
+        if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty', 'to', 'set'].includes(val)) {
             return [keyMatch[1]]
         }
     }
@@ -80,10 +80,11 @@ function solvePassword(hint, hintData) {
         if (commonByLength[len]) return commonByLength[len]
     }
 
-    // "It's set to X" → already handled by keyMatch above
-    // "Remember to use X" / "use X" → number/password in hint
-    const useMatch = hint.match(/(?:use|enter|type|input)\s+(\w+)/i)
-    if (useMatch && useMatch[1]) return [useMatch[1]]
+    // "Remember to use X" / "use X" → number/password in hint (not "type the numbers" captcha)
+    if (!h.includes('prove you are human') && !h.includes('captcha')) {
+        const useMatch = hint.match(/(?:use|enter|input)\s+(\w+)/i)
+        if (useMatch && useMatch[1]) return [useMatch[1]]
+    }
 
     // Base conversion: "base N number X in base 10" or "base N, X"
     const baseMatch = hint.match(/base\s+(\d+)\s+number\s+(\d+)/i)
