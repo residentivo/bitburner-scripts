@@ -1,8 +1,9 @@
 /**
- * darknet.js — Darknet helper
+ * darknet.js — Darknet helper (safe single-run)
  * Frees RAM, runs extractor, probes neighbors, auths and spawns.
  * All dnet API calls are awaited to prevent concurrency errors.
  * No ns.asleep() — crashes on darkweb.
+ * No ns.ps() on remote servers — can crash game.
  */
 
 const SCRIPT_NAME = 'darknet.js'
@@ -76,20 +77,47 @@ async function authenticateServer(ns, hostname) {
     let details
     try {
         details = await ns.dnet.getServerDetails(hostname)
-    } catch { return false }
+    } catch (e) {
+        log(ns, `getServerDetails error: ${e}`)
+        return false
+    }
 
-    if (!details.isOnline) return false
-    if (!details.isConnectedToCurrentServer) return false
-    if (details.hasSession) return true
+    if (!details.isOnline) {
+        log(ns, `${hostname} offline`)
+        return false
+    }
+    if (!details.isConnectedToCurrentServer) {
+        log(ns, `${hostname} not connected`)
+        return false
+    }
+    if (details.hasSession) {
+        log(ns, `${hostname} already has session`)
+        return true
+    }
 
     const hint = details.passwordHint || ''
     const hintData = details.data || ''
+    log(ns, `${hostname} hint: ${JSON.stringify(hint)}`)
 
     const solved = solvePassword(hint, hintData)
-    if (solved.length === 0) return false
+    if (solved.length === 0) {
+        log(ns, `${hostname} could not solve hint`)
+        return false
+    }
+
+    log(ns, `${hostname} candidates: ${JSON.stringify(solved)}`)
 
     for (const pw of solved) {
-        if (await tryAuth(ns, hostname, pw)) return true
+        try {
+            const ok = await tryAuth(ns, hostname, pw)
+            if (ok) {
+                log(ns, `${hostname} auth OK with '${pw}'`)
+                return true
+            }
+            log(ns, `${hostname} auth FAIL '${pw}'`)
+        } catch (e) {
+            log(ns, `${hostname} auth error '${pw}': ${e}`)
+        }
     }
 
     return false
@@ -98,12 +126,13 @@ async function authenticateServer(ns, hostname) {
 /** @param {NS} ns */
 export async function main(ns) {
     const host = ns.getHostname()
-    log(ns, `START pid=${ns.pid}`)
+    log(ns, `START pid=${ns.pid} on ${host}`)
 
-    // Kill duplicates
+    // Kill duplicates on local server only
     for (const p of ns.ps(host)) {
         if (p.filename === SCRIPT_NAME && p.pid !== ns.pid) {
             ns.kill(p.pid)
+            log(ns, `killed duplicate pid=${p.pid}`)
         }
     }
 
@@ -115,7 +144,7 @@ export async function main(ns) {
         log(ns, `memoryReallocation error: ${e}`)
     }
 
-    // Ensure extractor is running
+    // Ensure extractor is running (local only)
     try {
         if (!ns.ps(host).some(p => p.filename === EXTRACTOR_NAME)) {
             const ePid = ns.exec(EXTRACTOR_NAME, host, 1)
@@ -145,35 +174,63 @@ export async function main(ns) {
     for (const neighbor of nearby) {
         if (neighbor === 'home' || neighbor === host) continue
 
-        try {
-            if (ns.ps(neighbor).some(p => p.filename === SCRIPT_NAME)) continue
-        } catch { }
+        // Skip ns.ps() on remote — can crash game. Just try scp/exec and handle errors.
 
-        log(ns, `auth ${neighbor}...`)
-        const authed = await authenticateServer(ns, neighbor)
+        log(ns, `--- processing ${neighbor} ---`)
+
+        // Authenticate
+        let authed
+        try {
+            authed = await authenticateServer(ns, neighbor)
+        } catch (e) {
+            log(ns, `authenticate throw ${neighbor}: ${e}`)
+            continue
+        }
+
         if (!authed) {
             log(ns, `auth FAIL ${neighbor}`)
             continue
         }
-        log(ns, `auth OK ${neighbor}`)
 
+        // Copy darknet.js
         try {
             await ns.scp(SCRIPT_NAME, neighbor)
+            log(ns, `scp ${SCRIPT_NAME} OK`)
+        } catch (e) {
+            log(ns, `scp ${SCRIPT_NAME} error: ${e}`)
+            continue
+        }
+
+        // Copy extractor
+        try {
+            await ns.scp(EXTRACTOR_NAME, neighbor)
+            log(ns, `scp ${EXTRACTOR_NAME} OK`)
+        } catch (e) {
+            log(ns, `scp ${EXTRACTOR_NAME} error: ${e}`)
+        }
+
+        // Exec darknet.js
+        try {
             const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
             if (pid) {
                 spawned++
                 log(ns, `spawned ${neighbor} pid=${pid}`)
+            } else {
+                log(ns, `exec returned pid=0 for ${neighbor}`)
             }
         } catch (e) {
-            log(ns, `spawn error ${neighbor}: ${e}`)
+            log(ns, `exec error ${neighbor}: ${e}`)
         }
 
+        // Exec extractor
         try {
-            await ns.scp(EXTRACTOR_NAME, neighbor)
-            if (!ns.ps(neighbor).some(p => p.filename === EXTRACTOR_NAME)) {
-                ns.exec(EXTRACTOR_NAME, neighbor, 1)
+            const eid = ns.exec(EXTRACTOR_NAME, neighbor, 1)
+            if (eid) {
+                log(ns, `spawned extractor on ${neighbor} pid=${eid}`)
             }
-        } catch { }
+        } catch (e) {
+            // non-critical
+        }
     }
 
     log(ns, `DONE: ${spawned}/${nearby.length} spawned`)
