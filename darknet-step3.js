@@ -20,7 +20,7 @@ export async function main(ns) {
 
     // scp
     try {
-        await ns.scp('darknet-test1.js', target)
+        await ns.scp('darknet-ram.js', target)
         ns.print('scp OK')
     } catch (e) {
         ns.print('scp ERROR: ' + e)
@@ -29,7 +29,7 @@ export async function main(ns) {
 
     // exec
     try {
-        const pid = ns.exec('darknet-test1.js', target, 1)
+        const pid = ns.exec('darknet-ram.js', target, 1)
         ns.print('exec pid=' + pid)
     } catch (e) {
         ns.print('exec ERROR: ' + e)

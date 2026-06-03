@@ -102,7 +102,7 @@ export async function main(ns) {
     }
 
     // Test scp
-    const target = 'darknet-test1.js'
+    const target = 'darknet-ram.js'
     ns.print('scp ' + target + ' to ' + neighbor)
     await ns.scp(target, neighbor)
     ns.print('scp OK')

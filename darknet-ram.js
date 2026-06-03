@@ -1,5 +1,5 @@
 /**
- * darknet-test1.js — Test memoryReallocation only
+ * darknet-ram.js — Free RAM via memoryReallocation on this darknet server
  */
 export async function main(ns) {
     ns.print('START')

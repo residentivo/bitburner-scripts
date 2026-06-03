@@ -1,6 +1,6 @@
 /**
  * darknet.js — Darknet helper (crash-safe, auto-propagate)
- * Auths neighbors, copies itself + darknet-test1.js, and spawns on each.
+ * Auths neighbors, copies itself + darknet-ram.js, and spawns on each.
  * Each neighbor then probes and auths ITS neighbors (depth 2+).
  * hasSession check prevents re-auth loops.
  */
@@ -238,10 +238,10 @@ export async function main(ns) {
             }
         }
 
-        // Step C: scp darknet.js + darknet-test1.js to neighbor
+        // Step C: scp darknet.js + darknet-ram.js to neighbor
         try {
             await ns.scp(SCRIPT_NAME, neighbor)
-            await ns.scp('darknet-test1.js', neighbor)
+            await ns.scp('darknet-ram.js', neighbor)
             log(ns, `${neighbor} scp OK`)
         } catch (e) {
             log(ns, `${neighbor} scp error: ${e}`)
@@ -249,12 +249,12 @@ export async function main(ns) {
             continue
         }
 
-        // Step D: exec darknet-test1.js (memoryReallocation)
+        // Step D: exec darknet-ram.js (memoryReallocation)
         try {
-            const pid1 = ns.exec('darknet-test1.js', neighbor, 1)
-            if (pid1) log(ns, `${neighbor} test1 pid=${pid1}`)
+            const pid1 = ns.exec('darknet-ram.js', neighbor, 1)
+            if (pid1) log(ns, `${neighbor} ram pid=${pid1}`)
         } catch (e) {
-            log(ns, `${neighbor} test1 error: ${e}`)
+            log(ns, `${neighbor} ram error: ${e}`)
         }
 
         // Step E: exec darknet.js on neighbor (propagate to its neighbors)
