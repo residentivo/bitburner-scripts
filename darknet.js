@@ -168,11 +168,27 @@ function hostnameVariants(hostname) {
 
     // Step 8: All pairwise + triple combos of leet-decoded parts
     // This produces things like: dark+matrix=darkmatrix, cyber+security=cybersecurity
+    // Also produce combos with each part REVERSED (yhcrana→anarchy, skrowtenten→nettennetworks)
+    const revLeetParts = leetParts.map(p => p.split('').reverse().join('')).filter(r => r.length >= 3)
+    for (const rp of revLeetParts) add(rp)
+    // Combos of normal parts
     for (let i = 0; i < leetParts.length; i++) {
         for (let j = i + 1; j < leetParts.length; j++) {
             add(leetParts[i] + leetParts[j], leetParts[j] + leetParts[i])
             // CamelCase
             add(leetParts[i].charAt(0).toUpperCase() + leetParts[i].slice(1) + leetParts[j].charAt(0).toUpperCase() + leetParts[j].slice(1))
+        }
+    }
+    // Combos of reversed parts (e.g. anarchy+of+shadows = shadows_of_anarchy)
+    for (let i = 0; i < revLeetParts.length; i++) {
+        for (let j = i + 1; j < revLeetParts.length; j++) {
+            add(revLeetParts[i] + revLeetParts[j], revLeetParts[j] + revLeetParts[i])
+        }
+    }
+    // Mixed: normal + reversed
+    for (const np of leetParts) {
+        for (const rp of revLeetParts) {
+            add(np + rp, rp + np)
         }
     }
     for (let i = 0; i < leetParts.length; i++) {
@@ -445,6 +461,47 @@ function solvePassword(hint, hintData, hostname = '') {
     // global
     if (hlow.includes('global'))
         popCulture.push('global', 'world', 'intl', 'international', 'planet')
+    // rho_construction / fulcrum / omega / love / UwU / FatBit / tetrads / bungo / etc
+    if (hlow.includes('rho'))
+        popCulture.push('rho', 'construction', 'build', 'density', 'greek')
+    if (hlow.includes('fulcrum'))
+        popCulture.push('fulcrum', 'pivot', 'balance', 'lever', 'center', 'core')
+    if (hlow.includes('omega'))
+        popCulture.push('omega', 'last', 'final', 'end', 'ultimate', 'z')
+    if (hlow === 'love')
+        popCulture.push('love', 'heart', 'amor', 'cura', 'adore', 'passion', '0')
+    if (hlow === 'uwu' || hlow === 'owo')
+        popCulture.push('uwu', 'owo', 'cute', 'kawaii', 'anime', 'weeb', 'furries')
+    if (hlow.includes('fatbit'))
+        popCulture.push('fatbit', 'fat', 'bit', 'bigbit', 'phatbit')
+    if (hlow.includes('tetrads'))
+        popCulture.push('tetrads', 'tetrad', 'four', 'quad', '4', 'quartet')
+    if (hlow.includes('bungo'))
+        popCulture.push('bungo', 'bongo', 'drum', 'beat', 'jungle')
+    if (hlow.includes('echonet') || hlow.includes('echo_net'))
+        popCulture.push('echonet', 'echo', 'network', 'ping', 'sonar', 'reflect')
+    if (hlow.includes('vitalife'))
+        popCulture.push('vitalife', 'vital', 'life', 'health', 'bio', 'energy')
+    if (hlow.includes('nethub'))
+        popCulture.push('nethub', 'network', 'hub', 'switch', 'router')
+    if (hlow.includes('icarus'))
+        popCulture.push('icarus', 'sun', 'wax', 'wing', 'fly', 'daedalus', 'fall')
+    if (hlow.includes('zb_institute') || hlow.includes('institute'))
+        popCulture.push('institute', 'research', 'academic', 'university', 'zb', 'tech')
+    if (hlow.includes('nova'))
+        popCulture.push('nova', 'new', 'star', 'supernova', 'explosion')
+    if (hlow.includes('syscore'))
+        popCulture.push('syscore', 'core', 'system', 'kernel')
+    if (hlow.includes('crackcorp'))
+        popCulture.push('crackcorp', 'crack', 'corp', 'corporation')
+    if (hlow.includes('regnig'))
+        popCulture.push('regnig', 'reign', 'king', 'rule', 'govern', 'power')
+    if (hlow.includes('amgis') || hlow.includes('sigma'))
+        popCulture.push('sigma', 'amgis', 'four_sigma', '4sigma', 'probability', 'standard')
+    if (hlow.includes('skrow'))
+        popCulture.push('networks', 'skrow', 'nettenworks')
+    if (hlow.includes('mmocfed'))
+        popCulture.push('mmocfed', 'defcomm', 'defense', 'command', 'military', 'comms')
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     // But NOT "The default password is set" / "The password is set to default" — those fall through
@@ -452,7 +509,8 @@ function solvePassword(hint, hintData, hostname = '') {
     if (keyMatch && keyMatch[1]) {
         const val = keyMatch[1].toLowerCase()
         if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty', 'to', 'set', 'divisible', 'made'].includes(val)) {
-            return [keyMatch[1]]
+            // Return the extracted value, but also try hostname variants (password might be different)
+            return [...new Set([keyMatch[1], ...hostVariants])]
         }
     }
     // "password is X" but only if X looks like a concrete value (not "set", "default", "required")
@@ -460,7 +518,7 @@ function solvePassword(hint, hintData, hostname = '') {
     if (pwMatch && pwMatch[1]) {
         const val = pwMatch[1].toLowerCase()
         if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty', 'to', 'set', 'default', 'required', 'divisible', 'made', 'configured', 'chosen', 'unknown', 'missing'].includes(val)) {
-            return [pwMatch[1]]
+            return [...new Set([pwMatch[1], ...hostVariants])]
         }
     }
 
@@ -524,13 +582,13 @@ function solvePassword(hint, hintData, hostname = '') {
     // "The password is shuffled NNN" — all permutations
     const shuffledMatch = hint.match(/shuffled\s+(\d+)/i)
     if (shuffledMatch) {
-        return [...new Set(permutations(shuffledMatch[1]))]
+        return [...new Set([...permutations(shuffledMatch[1]), ...hostVariants])]
     }
 
     // "I accidentally sorted the password: NNN" — unsort = all permutations
     const sortedMatch = hint.match(/sorted\s+(?:the\s+)?(?:password|pin)?\s*[:=]?\s*(\d+)/i)
     if (sortedMatch) {
-        return [...new Set(permutations(sortedMatch[1]))]
+        return [...new Set([...permutations(sortedMatch[1]), ...hostVariants])]
     }
 
     // "There is no password"
