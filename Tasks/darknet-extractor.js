@@ -11,8 +11,7 @@ const EXTRACTOR_NAME = 'darknet-extractor.js'
 
 export async function main(ns) {
     const host = ns.getHostname()
-    ns.disableLog('scp')
-    ns.disableLog('exec')
+    ns.disableLog('ALL')
 
     // Dedup
     const myPid = ns.pid

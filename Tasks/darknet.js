@@ -71,17 +71,20 @@ function permutations(str) {
     return [...new Set(results)]
 }
 
-function log(ns, msg) {
+async function log(ns, msg) {
     const line = `[dnet] ${msg}\n`
-    // Write to file on home instead of terminal
+    const file = '/darknet-log.txt'
     try {
-        const file = '/darknet-log.txt'
-        const existing = ns.read(file) || ''
-        // Keep last 200 lines max
+        // Pull latest log from home first
+        try { await ns.scp(file, ns.getHostname(), 'home') } catch (e) { /* ok */ }
+        let existing = ns.read(file) || ''
+        // Keep last 200 lines
         const lines = (existing + line).split('\n')
         const trimmed = lines.slice(-200).join('\n')
         ns.write(file, trimmed, 'w')
-    } catch (e) { /* fallback to print */ ns.print(line.trim()) }
+        // Push back to home
+        try { await ns.scp(file, 'home') } catch (e) { /* ok */ }
+    } catch (e) { /* fallback */ ns.print(line.trim()) }
 }
 
 async function logFail(ns, server, reason, hint = '') {
@@ -330,19 +333,20 @@ function solvePassword(hint, hintData, hostname = '') {
 
     // Range: "number between X and Y" or "a number between X and Y"
     const rangeMatch = hint.match(/(?:a\s+)?number\s+between\s+(\d+)\s+and\s+(\d+)/i) ||
-                       hint.match(/from\s+(\d+)\s+to\s+(\d+)/i)
+                       hint.match(/from\s+(\d+)\s+to\s+(\d+)/i) ||
+                       hint.match(/between\s+(\d+)\s+and\s+(\d+)/i)
     if (rangeMatch) {
         const lo = parseInt(rangeMatch[1])
         const hi = parseInt(rangeMatch[2])
-        if (hi - lo <= 200) {
-            const candidates = []
-            for (let i = lo; i <= hi; i++) candidates.push(String(i))
-            return candidates
-        }
-        // For large ranges, try common numbers
         const candidates = [...hostCandidates]
-        for (let i = lo; i <= Math.min(lo + 50, hi); i++) candidates.push(String(i))
-        for (let i = Math.max(hi - 10, lo); i <= hi; i++) candidates.push(String(i))
+        if (hi - lo <= 200) {
+            for (let i = lo; i <= hi; i++) candidates.push(String(i))
+        } else {
+            for (let i = lo; i <= Math.min(lo + 50, hi); i++) candidates.push(String(i))
+            for (let i = Math.max(hi - 10, lo); i <= hi; i++) candidates.push(String(i))
+        }
+        // Also try common passwords as some servers accept words for "number" hints
+        candidates.push(...commonPasswords)
         return [...new Set(candidates)]
     }
 
@@ -400,15 +404,22 @@ function solvePassword(hint, hintData, hostname = '') {
         ])]
 
     // "Only a true master may pass" / master riddle
-    if (h.includes('master') || h.includes('true master'))
+    if (h.includes('master') || h.includes('true master') || h.includes('may pass'))
         return [...new Set([
             'master', 'MASTER', 'Master', 'truth', 'TRUTH', 'Truth',
             'wise', 'Wise', 'WISE', 'sage', 'Sage', 'SAGE',
             'king', 'Knight', 'warrior', 'hero', 'champion',
             'gandalf', 'merlin', 'yoda', 'dumbledore', 'raistlin',
             'open', 'sesame', 'abracadabra', 'alohomora',
-            '42', '0', '1', '7', '3', '13',
-            ...hostCandidates, ...extendedPasswords,
+            'mellon', 'friend', 'speak', 'enter', 'password',
+            'moria', 'balrog', 'fellowship', 'shire', 'hobbit',
+            'excalibur', 'camelot', 'arthur', 'lancelot', 'avalon',
+            'ancalime', 'elessar', 'elbereth', 'galadriel', 'legolas',
+            'nihao', 'konnichiwa', 'ola', 'hello', 'welcome',
+            'please', 'letmein', 'iamroot', 'sudo', 'su',
+            '42', '0', '1', '7', '3', '13', '69', '777', '1337',
+            'blade', 'cyber', 'hacker', 'crack', 'hack', 'root',
+            ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
 
     // "you are one who's'nt authorized" / "not authorized" riddle
@@ -460,9 +471,8 @@ function solvePassword(hint, hintData, hostname = '') {
 /** @param {NS} ns */
 export async function main(ns) {
     const host = ns.getHostname()
-    // Suppress noisy logs
-    ns.disableLog('scp')
-    ns.disableLog('exec')
+    // Suppress ALL noisy logs — only our file log remains
+    ns.disableLog('ALL')
 
     // Dedup: if another instance is already running, exit
     const myPid = ns.pid
