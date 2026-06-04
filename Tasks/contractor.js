@@ -663,16 +663,21 @@ function solveProblem(type, input) {
 
 /** @param {NS} ns */
 export async function main(ns) {
-  let allServers = new Set(["home"]);
-  let queue = ["home"];
+  // Start with home + darkweb (darkweb not reachable via ns.scan from home)
+  let allServers = new Set(["home", "darkweb"]);
+  let queue = ["home", "darkweb"];
+
+  // Scan normal network from home + darkweb
   while (queue.length > 0) {
     let host = queue.pop();
-    for (let n of ns.scan(host)) {
-      if (!allServers.has(n)) {
-        allServers.add(n);
-        queue.push(n);
+    try {
+      for (let n of ns.scan(host)) {
+        if (!allServers.has(n)) {
+          allServers.add(n);
+          queue.push(n);
+        }
       }
-    }
+    } catch (e) { /* darkweb might not be scannable, skip */ }
   }
 
   let total = 0, solved = 0, failed = 0;
