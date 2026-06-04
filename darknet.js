@@ -171,6 +171,14 @@ function hostnameVariants(hostname) {
     // Also produce combos with each part REVERSED (yhcrana→anarchy, skrowtenten→nettennetworks)
     const revLeetParts = leetParts.map(p => p.split('').reverse().join('')).filter(r => r.length >= 3)
     for (const rp of revLeetParts) add(rp)
+    // KEY INSIGHT: Entire hostname might be a reversed phrase
+    // e.g. dog_enihcam_eht_fo_hcruhc → [dog,enihcam,eht,fo,hcruhc] → rev each → [god,machine,the,of,church] → reverse order → church_of_the_machine_god
+    const reversedOrderPhrase = [...revLeetParts].reverse().join('')
+    const reversedOrderUnderscore = [...revLeetParts].reverse().join('_')
+    const revPartsForward = revLeetParts.join('')
+    add(reversedOrderPhrase, reversedOrderUnderscore, revPartsForward)
+    // Also try the full reversed leetParts in original order with underscores
+    add(leetParts.join('_'), revLeetParts.join('_'))
     // Combos of normal parts
     for (let i = 0; i < leetParts.length; i++) {
         for (let j = i + 1; j < leetParts.length; j++) {
@@ -354,8 +362,8 @@ function solvePassword(hint, hintData, hostname = '') {
     if (hlow.includes('aevum'))
         popCulture.push('aevum', 'eternity', 'age', 'time', 'forever', 'infinite', 'aeon', 'eonic')
     // omuretsu (Japanese/reversed tesumo?)
-    if (hlow.includes('omuretsu'))
-        popCulture.push('omuretsu', 'tesumo', 'sumo', 'muretso', 'japanese', 'sushi', 'ramen')
+    if (hlow.includes('omuretsu') || hlow.includes('omuret5u') || hlow.includes('omur375u') || hlow.includes('omure7su'))
+        popCulture.push('omuretsu', 'tesumo', 'sumo', 'muretso', 'japanese', 'sushi', 'ramen', 'omuret5u', 'omur375u', 'omure7su')
     // Oriath (Path of Exile)
     if (hlow.includes('oriath'))
         popCulture.push('oriath', 'poE', 'pathofexile', 'exile', 'wraeclast', 'sarn', 'kitava', 'sin', 'innocence', 'theocracy')
@@ -502,6 +510,35 @@ function solvePassword(hint, hintData, hostname = '') {
         popCulture.push('networks', 'skrow', 'nettenworks')
     if (hlow.includes('mmocfed'))
         popCulture.push('mmocfed', 'defcomm', 'defense', 'command', 'military', 'comms')
+    // Latest batch
+    if (hlow.includes('chongqing'))
+        popCulture.push('chongqing', 'chinese', 'city', 'sichuan', 'hotpot', 'yangtze')
+    if (hlow.includes('procagem') || hlow.includes('megacorp'))
+        popCulture.push('megacorp', 'procagem', 'mega', 'corporation', 'corp')
+    if (hlow.includes('illuminati'))
+        popCulture.push('illuminati', 'newworldorder', 'nwo', 'secret', 'conspiracy', 'eye', 'triangle')
+    if (hlow.includes('bladeburners'))
+        popCulture.push('bladeburners', 'blade', 'burner', 'bb', 'blackburn')
+    if (hlow.includes('syndicate') || hlow.includes('covenant'))
+        popCulture.push('syndicate', 'covenant', 'organization', 'order', 'faction', 'guild', 'league')
+    if (hlow.includes('rothman'))
+        popCulture.push('rothman', 'rothmanuniversity', 'university', 'college', 'school', 'academic')
+    if (hlow.includes('storm'))
+        popCulture.push('storm', 'thunder', 'lightning', 'rain', 'tempest', 'hurricane')
+    if (hlow.includes('deltaone'))
+        popCulture.push('deltaone', 'delta', 'one', 'd1', 'change')
+    if (hlow.includes('solaris'))
+        popCulture.push('solaris', 'sun', 'oracle', 'sparc', 'unix')
+    if (hlow.includes('national_security') || hlow.includes('nsa'))
+        popCulture.push('nsa', 'nationalsecurity', 'agency', 'government', 'surveillance', 'crypto')
+    if (hlow.includes('four_sigma'))
+        popCulture.push('foursigma', 'four_sigma', '4sigma', 'sigma', 'quant', 'hedge')
+    if (hlow.includes('new_tokyo') || hlow.includes('n3w_7okyo'))
+        popCulture.push('newtokyo', 'new_tokyo', 'tokyo', 'japan', 'neotokyo', 'n3w_7okyo')
+    if (hlow.includes('galactic'))
+        popCulture.push('galactic', 'galaxy', 'space', 'star', 'cosmic', 'milkyway')
+    if (hlow.includes('universal'))
+        popCulture.push('universal', 'global', 'world', 'all', 'everywhere')
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     // But NOT "The default password is set" / "The password is set to default" — those fall through
