@@ -23,41 +23,99 @@ function solveProblem(type, input) {
   // === Compression III: LZ Compression ===
   if (type === "Compression III: LZ Compression") {
     if (!input || input.length === 0) return "";
-    let compressed = "", decoded = "", pos = 0;
-    while (pos < input.length) {
-      let litChars = "", backLenFound = 0, backOffFound = 0;
-      while (pos + litChars.length < input.length) {
-        let testDec = decoded + litChars, bestBL = 0, bestBO = 0, matchStart = pos + litChars.length;
-        if (litChars.length > 0) {
-          for (let off = 1; off <= Math.min(9, testDec.length); off++) {
-            let fl = 0;
-            while (fl < 9 && matchStart + fl < input.length) {
-              let srcIdx = testDec.length - off + (fl % off);
-              if (srcIdx < 0 || srcIdx >= testDec.length) break;
-              if (input[matchStart + fl] === testDec[srcIdx]) fl++;
-              else break;
-            }
-            if (fl > bestBL) { bestBL = fl; bestBO = off; }
+    const plain = input;
+    // DP approach matching the official Bitburner implementation
+    // state[i][j]: i=0 means literal of length j, i>0 means backref offset i, length j
+    let cur_state = Array.from({length:10}, () => Array(10).fill(null));
+    let new_state = Array.from({length:10}, () => Array(10).fill(null));
+
+    const set = (state, i, j, str) => {
+      const current = state[i][j];
+      if (current == null || str.length < current.length) {
+        state[i][j] = str;
+      } else if (str.length === current.length && Math.random() < 0.5) {
+        state[i][j] = str;
+      }
+    };
+
+    // initial state: literal of length 1
+    cur_state[0][1] = "";
+
+    for (let i = 1; i < plain.length; ++i) {
+      for (const row of new_state) row.fill(null);
+      const c = plain[i];
+
+      // handle literals
+      for (let length = 1; length <= 9; ++length) {
+        const string = cur_state[0][length];
+        if (string == null) continue;
+
+        if (length < 9) {
+          set(new_state, 0, length + 1, string);
+        } else {
+          set(new_state, 0, 1, string + "9" + plain.substring(i - 9, i) + "0");
+        }
+
+        for (let offset = 1; offset <= Math.min(9, i); ++offset) {
+          if (plain[i - offset] === c) {
+            set(new_state, offset, 1, string + String(length) + plain.substring(i - length, i));
           }
         }
-        if (bestBL >= 3) { backLenFound = bestBL; backOffFound = bestBO; break; }
-        if (litChars.length >= 9) break;
-        litChars += input[pos + litChars.length];
       }
-      if (litChars.length === 0) litChars = input[pos];
-      pos += litChars.length;
-      decoded += litChars;
-      compressed += String(litChars.length) + litChars;
-      if (pos >= input.length) break;
-      if (backLenFound >= 3) {
-        let backref = "";
-        for (let j = 0; j < backLenFound; j++) backref += decoded[decoded.length - backOffFound + (j % backOffFound)];
-        compressed += String(backLenFound) + String(backOffFound);
-        decoded += backref;
-        pos += backLenFound;
-      } else compressed += "0";
+
+      // handle backreferences
+      for (let offset = 1; offset <= 9; ++offset) {
+        for (let length = 1; length <= 9; ++length) {
+          const string = cur_state[offset][length];
+          if (string == null) continue;
+
+          if (plain[i - offset] === c) {
+            if (length < 9) {
+              set(new_state, offset, length + 1, string);
+            } else {
+              set(new_state, offset, 1, string + "9" + String(offset) + "0");
+            }
+          }
+
+          set(new_state, 0, 1, string + String(length) + String(offset));
+
+          for (let new_offset = 1; new_offset <= Math.min(9, i); ++new_offset) {
+            if (plain[i - new_offset] === c) {
+              set(new_state, new_offset, 1, string + String(length) + String(offset) + "0");
+            }
+          }
+        }
+      }
+
+      const tmp = new_state;
+      new_state = cur_state;
+      cur_state = tmp;
     }
-    return compressed;
+
+    let result = null;
+    for (let len = 1; len <= 9; ++len) {
+      let string = cur_state[0][len];
+      if (string == null) continue;
+      string += String(len) + plain.substring(plain.length - len, plain.length);
+      if (result == null || string.length < result.length) {
+        result = string;
+      } else if (string.length === result.length && Math.random() < 0.5) {
+        result = string;
+      }
+    }
+    for (let offset = 1; offset <= 9; ++offset) {
+      for (let len = 1; len <= 9; ++len) {
+        let string = cur_state[offset][len];
+        if (string == null) continue;
+        string += String(len) + "" + String(offset);
+        if (result == null || string.length < result.length) {
+          result = string;
+        } else if (string.length === result.length && Math.random() < 0.5) {
+          result = string;
+        }
+      }
+    }
+    return result ?? "";
   }
 
   // === Array Jumping Game II ===
