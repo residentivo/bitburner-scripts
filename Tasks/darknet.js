@@ -204,7 +204,24 @@ function solvePassword(hint, hintData, hostname = '') {
         h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
         h.includes('still') || h.includes('original') || h.includes('no password') ||
         h.includes('not set'))
-        return [...new Set([...hostCandidates, '', ...commonPasswords])]
+        return [...new Set([
+            ...hostCandidates, ...popCulture,
+            '', 'password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest',
+            'root', 'toor', 'daemon', 'sys', 'adm', 'bin', 'superuser', 'operator',
+            'server', 'system', 'changeit', 'changeme', 'mysql', 'postgres', 'oracle',
+            'cisco', 'public', 'private', 'blank', 'none', 'null',
+            'open', 'login', 'unlock', 'access', 'secret', 'test', 'user', 'demo',
+            'pass', 'pwd', 'passw0rd', 'p@ssw0rd', 'admin123', 'root123', 'abc123',
+            '0000', '1111', '1234', '4321', '7777', '9999',
+            'password1', 'password123', 'admin1', 'admin1234', 'root1', 'test1',
+            'welcome', 'hello', 'master', 'super', 'god', 'love',
+            // Common device/service defaults
+            'ubnt', 'zyxel', 'netgear', 'dlink', 'tplink', 'linksys', 'asus',
+            'arris', 'motorola', 'huawei', 'technicolor', 'sagemcom',
+            // Software defaults
+            'jenkins', 'docker', 'nginx', 'apache', 'redis', 'mongo', 'grafana',
+            'postgres1', 'mysql1', 'admin!', 'root!', 'sa', 'dbo',
+        ])]
 
     // Buffer length: "Warning: password buffer is N bytes"
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
@@ -337,15 +354,25 @@ function solvePassword(hint, hintData, hostname = '') {
         ])]
     }
 
-    // Dog's name / pet name
-    if (h.includes("dog") || h.includes("pet") || h.includes("puppy") || h.includes("hound") || h.includes("fur"))
+    // Dog's name / pet name / "my first dog's name"
+    if (h.includes("dog") || h.includes("pet") || h.includes("puppy") || h.includes("hound") || h.includes("fur") || h.includes("first dog"))
         return [...new Set([
             'rex', 'rover', 'fido', 'buster', 'max', 'buddy', 'charlie', 'jack', 'cooper',
             'rocky', 'toby', 'duke', 'zeus', 'bear', 'tiger', 'shadow', 'bandit', 'sparky',
             'barney', 'winston', 'ginger', 'daisy', 'molly', 'lady', 'sasha', 'lola',
             'pluto', 'snoopy', 'odog', 'dog', 'doggy', 'pup', 'wolf', 'fox', 'cody',
             'lassie', 'beethoven', 'scooby', 'clifford', 'marley', 'houdini',
-            ...hostCandidates, ...extendedPasswords,
+            'ace', 'apollo', 'archie', 'bailey', 'barkley', 'benji', 'biscuit', 'blaze',
+            'boomer', 'bruno', 'bubba', 'buddy', 'copper', 'dakota', 'dexter', 'diego',
+            'duffy', 'eddie', 'flash', 'frankie', 'george', 'gizmo', 'goofy', 'harley',
+            'henry', 'hugo', 'indy', 'jasper', 'jake', 'koda', 'leo', 'linus',
+            'lucky', 'luke', 'murphy', 'nala', 'odie', 'oliver', 'otis', 'ozzy',
+            'patch', 'peanut', 'prince', 'rascal', 'romeo', 'roscoe', 'ruby', 'rusty',
+            'sam', 'sammy', 'scout', 'scrappy', 'sebastian', 'simba', 'spike', 'stella',
+            'taco', 'teddy', 'thor', 'tiny', 'tito', 'waffles', 'walter', 'wiggles',
+            'winnebago', 'woof', 'yoshi', 'ziggy', 'zoe',
+            'old yeller', 'copper', 'balto', 'toto', 'courage', 'brian', 'porthos',
+            ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
 
     // Maze / labyrinth / dark corridor riddle
