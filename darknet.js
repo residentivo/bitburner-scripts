@@ -176,7 +176,7 @@ function solvePassword(hint, hintData, hostname = '') {
     // "There is no password"
     if (h.includes('no password') || h.includes('there is no')) return ['', ...commonPasswords]
 
-    // Roman numeral
+    // Roman numeral / Latin number words: "value of the number 'X'"
     const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
     if (romanMatch) {
         const roman = romanMatch[1].toUpperCase()
@@ -188,6 +188,15 @@ function solvePassword(hint, hintData, hostname = '') {
             num += (val < next) ? -val : val
         }
         return [String(num)]
+    }
+    // Latin number words: nulla=0, unus=1, duo=2, tres=3, quattuor=4, quinque=5, sex=6, septem=7, octo=8, novem=9, decem=10
+    const latinMatch = hint.match(/value of the number ['"]?(\w+)['"]?/i)
+    if (latinMatch) {
+        const latin = latinMatch[1].toLowerCase()
+        const latinNums = { nulla:0, nil:0, nihilo:0, unus:1, una:1, duo:2, duae:2, tres:3, tria:3, quattuor:4, quinque:5, sex:6, septem:7, octo:8, novem:9, decem:10, undecim:11, duodecim:12, tredecim:13, quattuordecim:14, quindecim:15, sedecim:16, septendecim:17, duodeviginti:18, undeviginti:19, viginti:20, triginta:30, quadraginta:40, quinquaginta:50, sexaginta:60, septuaginta:70, octoginta:80, nonaginta:90, centum:100, ducenti:200, trecenti:300, quadringenti:400, quingenti:500, sescenti:600, septingenti:700, octingenti:800, nongenti:900, mille:1000 }
+        if (latin in latinNums) return [String(latinNums[latin])]
+        // Try as the word itself if not found
+        return [...new Set([latin, '0', '1', ...hostCandidates, ...commonPasswords])]
     }
 
     // Default / factory / never changed / didn't set
@@ -497,6 +506,20 @@ export async function main(ns) {
                 }
 
                 if (!authed) {
+                    // Try heartbleed for more info
+                    try {
+                        const logs = await ns.dnet.heartbleed(neighbor)
+                        if (logs && logs.length > 0) {
+                            log(ns, `${neighbor} heartbleed: ${JSON.stringify(logs).substring(0, 200)}`)
+                            // Try to extract password hints from logs
+                            for (const l of (Array.isArray(logs) ? logs : [logs])) {
+                                const lstr = String(l)
+                                // If log contains a password-like string, try it next cycle
+                                const pwHint = lstr.match(/password[:\s]+(\S+)/i)
+                                if (pwHint) log(ns, `${neighbor} hint from log: ${pwHint[1]}`)
+                            }
+                        }
+                    } catch (e) { /* heartbleed not available */ }
                     log(ns, `${neighbor} AUTH FAILED`)
                     await logFail(ns, neighbor, 'auth-failed', hint)
                     fails++
