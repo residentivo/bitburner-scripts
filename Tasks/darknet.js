@@ -239,7 +239,7 @@ function solvePassword(hint, hintData, hostname = '') {
     if (h.includes('default') || h.includes('factory') || h.includes('never changed') ||
         h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
         h.includes('still') || h.includes('original') || h.includes('no password') ||
-        h.includes('not set'))
+        h.includes('not set') || h.includes("i never"))
         return [...new Set([
             ...hostCandidates, ...popCulture,
             '', 'password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest',
@@ -257,6 +257,25 @@ function solvePassword(hint, hintData, hostname = '') {
             // Software defaults
             'jenkins', 'docker', 'nginx', 'apache', 'redis', 'mongo', 'grafana',
             'postgres1', 'mysql1', 'admin!', 'root!', 'sa', 'dbo',
+            // More defaults — routers/IoT/printers/gear
+            'admin:', 'root:', 'user:user', 'supervisor', 'monitor', 'manager',
+            'setup', 'initial', 'factory', 'default1', 'default123', 'config',
+            'standard', 'preset', 'outofbox', 'fresh', 'brandnew', 'vanilla',
+            'plain', 'basic', 'starter', 'beginner', 'first', 'original1',
+            // IoT/embedded
+            'alpine', 'busybox', 'openwrt', 'ddwrt', 'tomato', 'libreelec',
+            // More services
+            'tomcat', 'jboss', 'wildfly', 'glassfish', 'rabbitmq', 'activemq',
+            'zookeeper', 'consul', 'vault', 'etcd', 'celery', 'airflow', 'superset',
+            'minio', 'ceph', 'nfs', 'samba', 'postfix', 'dovecot', 'sendmail',
+            // Printers
+            'printer', 'hp', 'canon', 'epson', 'brother', 'ricoh', 'xerox',
+            // Misc defaults
+            '12345', '123456789', '12345678', '1234567', '1234567890',
+            'password!', 'admin@123', 'root@123', 'changeme!', 'welcome1',
+            'test123', 'guest123', 'demo123', 'user123', 'pass123',
+            '00000', '000000', '11111', '111111', 'rootme', 'toorroot',
+            'letmein!', 'qwerty123', 'abc1234', 'pass1234', 'secret1',
         ])]
 
     // Buffer length: "Warning: password buffer is N bytes"
@@ -363,11 +382,14 @@ function solvePassword(hint, hintData, hostname = '') {
         const lo = parseInt(rangeMatch[1])
         const hi = parseInt(rangeMatch[2])
         const candidates = [...hostCandidates]
-        if (hi - lo <= 200) {
+        if (hi - lo <= 300) {
             for (let i = lo; i <= hi; i++) candidates.push(String(i))
         } else {
-            for (let i = lo; i <= Math.min(lo + 50, hi); i++) candidates.push(String(i))
-            for (let i = Math.max(hi - 10, lo); i <= hi; i++) candidates.push(String(i))
+            // Cover more range — first 100, last 50, and step through
+            for (let i = lo; i <= Math.min(lo + 100, hi); i++) candidates.push(String(i))
+            for (let i = Math.max(hi - 50, lo); i <= hi; i++) candidates.push(String(i))
+            // Step through at intervals of 10
+            for (let i = lo; i <= hi; i += 10) candidates.push(String(i))
         }
         // Also try common passwords as some servers accept words for "number" hints
         candidates.push(...commonPasswords)
@@ -443,6 +465,21 @@ function solvePassword(hint, hintData, hostname = '') {
             'please', 'letmein', 'iamroot', 'sudo', 'su',
             '42', '0', '1', '7', '3', '13', '69', '777', '1337',
             'blade', 'cyber', 'hacker', 'crack', 'hack', 'root',
+            // More master/riddle
+            'iamamaster', 'iamtheMaster', 'truemaster', 'onlytrue',
+            'wisdom', 'enlightenment', 'discipline', 'skill', 'expert',
+            'grandmaster', 'archmaster', 'highmaster', 'lord', 'lady',
+            'emperor', 'pharoah', 'shogun', 'dalai', 'lama',
+            'sensei', 'shifu', 'guru', 'swami', 'roshi',
+            'obewan', 'kenobi', 'skywalker', 'palpatine', 'vader',
+            'midochlorian', 'force', 'jedi', 'sith', 'theforce',
+            'neo', 'morpheus', 'oracle', 'architect', 'one',
+            'aslan', 'narnia', 'winter', 'deepmagic', 'deepspeak',
+            'sauron', 'saruman', 'istari', 'valar', 'maiar', 'eru',
+            'puzzle', 'riddle', 'enigma', 'mystery', 'secret',
+            'worthy', 'proven', 'earned', 'deserve', 'pass',
+            'mastery', 'knowledge', 'understanding', 'insight',
+            'iamwise', 'iamtrue', 'iamstrong', 'iamworthy',
             ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
 
@@ -453,7 +490,17 @@ function solvePassword(hint, hintData, hostname = '') {
             'access', 'granted', 'denied', 'permit', 'allow', 'accept', 'approve',
             'user', 'admin', 'root', 'sudo', 'su', 'login', 'auth', 'token',
             '0', '1', '42', '1337', '401', '403', '200',
-            ...hostCandidates, ...extendedPasswords,
+            // More auth-related
+            'authorize', 'authorised', 'unauthorised', 'whos', "who'snt", 'whont',
+            'iamauthorized', 'iamnot', 'iamroot', 'iamsuper',
+            'yesiam', 'noiam', 'indeed', 'certainly', 'absolutely', 'ofcourse',
+            'not', 'invalid', 'reject', 'refuse', 'forbid', 'block',
+            'pass', 'fail', 'ok', 'okay', 'true', 'false',
+            'whitelist', 'blacklist', 'acl', 'rbac', 'policy', 'credential',
+            ' iam ', 'whoami', 'identity', 'certified', 'licensed', 'registered',
+            'member', 'vip', 'elite', 'privileged', 'entitled', 'worthy',
+            'iamtheking', 'iamtheone', 'iamchosen', 'iamworthy',
+            ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
 
     // "(I'm busy browsing social media at the cafe)" — social media / cafe riddle
@@ -463,27 +510,79 @@ function solvePassword(hint, hintData, hostname = '') {
             'social', 'media', 'browse', 'cafe', 'coffee', 'latte', 'espresso', 'cappuccino', 'mocha', 'americano', 'macchiato', 'ristretto', 'flatwhite',
             'wifi', 'password', 'freewifi', 'freewifi!', 'guestwifi', 'cafewifi', 'netcafe',
             'coffee1', 'cafe1', '1234', '12345', 'admin', 'open',
+            // More cafe/wifi/social
+            'coffeeshop', 'wificonnection', 'wifipassword', 'networkkey', 'wireless',
+            'starbucks', 'costa', 'pret', 'nero', 'dunkin', 'timhortons', 'caribou',
+            'mcdonalds', 'mcdwifi', 'attwifi', 'xfinitywifi', 'coxwifi', 'spectrumwifi',
+            'freepublicwifi', 'publicwifi', 'hotelwifi', 'airportwifi', 'librarywifi',
+            'cafepassword', 'password123', 'wifi123', 'net123', 'guest1', 'visitor',
+            'frappe', 'coldbrew', 'pour', 'drip', 'filter', 'arabica', 'robusta',
+            'facebook.com', 'twitter.com', 'instagram.com', 'reddit.com',
+            'fb', 'ig', 'tw', 'tik', 'yt', 'pin', 'li', 'sc', 'wa', 'tg',
+            'browsing', 'scrolling', 'liking', 'sharing', 'posting', 'streaming',
+            'influencer', 'follower', 'dm', 'pm', 'feed', 'timeline', 'status',
             ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
 
     // Mountain riddle
     if (h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
-        return [...new Set([...hostCandidates, ...popCulture, ...mountainPasswords, ...extendedPasswords])]
+        return [...new Set([
+            ...hostCandidates, ...popCulture,
+            '8848', '8849', '8848.86', '29029', '29032', '29035', '29028', '8848m', '8850',
+            'everest', 'EVEREST', 'Everest', 'mt-everest', 'mt_everest', 'mteverest',
+            'sagarmatha', 'Sagarmatha', 'SAGARMATHA',
+            'chomolungma', 'Chomolungma', 'CHOMOLUNGMA',
+            'summit', 'SUMMIT', 'Summit',
+            'peak', 'PEAK', 'Peak',
+            'top', 'TOP', 'Top',
+            'ascend', 'ASCEND', 'Ascend',
+            'mountain', 'MOUNTAIN', 'Mountain',
+            'climb', 'CLIMB', 'Climb',
+            'high', 'HIGH', 'High',
+            'highest', 'HIGHEST', 'Highest',
+            'basecamp', 'Basecamp', 'BASECAMP',
+            'hillary', 'Hillary', 'HILLARY', 'tensing', 'norgay',
+            'nepal', 'Nepal', 'NEPAL',
+            'tibet', 'Tibet', 'TIBET',
+            '29029ft', 'k2', 'K2', 'kanchenjunga', 'lhotse', 'makalu',
+            'chooyu', 'dhaulagiri', 'manaslu', 'nandadevi', 'annapurna',
+            'gasherbrum', 'broadpeak', 'shishapangma',
+            'fuji', 'denali', 'matterhorn', 'kilimanjaro', 'aconcagua',
+            'olympos', 'olympus',
+            // More mountain terms
+            'ridge', 'crevasse', 'snow', 'glacier', 'avalanche', 'altitude',
+            'alpine', 'andean', 'himalaya', 'himalayan', 'rockies', 'alps', 'appalachian',
+            'everest1', 'summit1', 'peak1', 'top1', 'climb1',
+            'edmund', 'edmundhillary', 'tenzingnorgay', 'tenzing', 'norgay',
+            '8611', '8586', '8585', '8516', '8485', '8462', '8201', '8167', '8158', '8126',
+            '8888', '8850', '8844', '8840',
+            'pinnacle', 'apex', 'zenith', 'crest', 'crown', 'tip',
+            'ascendthehighest', 'highestmountain', 'mountaintop',
+            ...extendedPasswords,
+        ])]
 
     // Riddle fallback
     if (h.includes('riddle') || h.includes('true'))
         return [...new Set([...hostCandidates, ...extendedPasswords])]
 
-    // Symbol/emoji hints like "!!🌶️!!"
+    // Symbol/emoji hints like "!!🌶️!!" or "XD"
+    // These are short non-word hints — interpret them thematically
     if (hint && !h.match(/[a-z]{3,}/)) {
         const stripped = hint.replace(/[^a-zA-Z0-9!@#$%^&*_\-+=]/g, '')
         return [...new Set([
-            stripped, '',
-            // Spicy/hot variants
+            stripped, '', hint, h,
+            // XD — laughing/emoticon
+            'xd', 'XD', 'Xd', 'lol', 'LOL', 'lmao', 'haha', 'hehe', 'rofl',
+            'laugh', 'smile', 'grin', 'joy', 'fun', 'funny', 'humor', 'joke',
+            ':)', ':D', ':P', ';)', ':(', 'xD', 'XDXD', 'xdlol',
+            '1337', '69', '42', '0', '1',
+            // Spicy/hot variants (emoji 🌶️)
             'spicy', 'hot', 'fire', 'pepper', 'chili', 'habanero', 'jalapeno',
             'ghostpepper', 'capsaicin', 'scoville', 'heat', 'burn', 'flame',
             '!!', '!!!', '!@#', '!@#$',
-            ...hostCandidates, ...extendedPasswords,
+            // Symbols as-is
+            '!!!', '!?!', '!@', '#!', '##',
+            ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
     }
 
