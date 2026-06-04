@@ -108,102 +108,112 @@ async function logFail(ns, server, reason, hint = '') {
     } catch (e) { /* ignore */ }
 }
 
+// Generate ALL plausible password variants from a hostname
+function hostnameVariants(hostname) {
+    if (!hostname) return []
+    const leetMap = {'4':'a','3':'e','1':'i','0':'o','7':'t','5':'s'}
+    const rot13 = (s) => s.replace(/[a-zA-Z]/g, c => String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26))
+    const leetDecode = (s) => { let r = ''; for (const c of s.toLowerCase()) r += leetMap[c] || c; return r }
+    const caps = (s) => [s, s.toLowerCase(), s.toUpperCase(), s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()]
+    const seen = new Set()
+    const out = []
+    const add = (...vals) => { for (const v of vals) { if (v && !seen.has(v)) { seen.add(v); out.push(v) } } }
+
+    // Step 1: Emoji decode (MUST be first — affects all downstream)
+    const emojiDecoded = hostname
+        .replace(/\u{1F171}/gu, 'B').replace(/\u{1F170}/gu, 'A')
+        .replace(/\u{1F17E}/gu, 'O').replace(/\u{1F17F}/gu, 'P')
+        .replace(/\u{1F18E}/gu, 'AB')
+    const source = emojiDecoded !== hostname ? emojiDecoded : hostname
+
+    // Step 2: Clean versions
+    const hostClean = source.replace(/[^a-zA-Z0-9]/g, '')
+    const alphaOnly = source.replace(/[^a-zA-Z]/g, '')
+    const numOnly = source.replace(/[^0-9]/g, '')
+
+    // Step 3: Core variants — all casings of clean hostname
+    if (hostClean) add(...caps(hostClean))
+    if (alphaOnly && alphaOnly !== hostClean) add(...caps(alphaOnly))
+    if (numOnly) add(numOnly)
+
+    // Step 4: Leet-decode the whole thing
+    const hostLeet = leetDecode(hostClean)
+    if (hostLeet !== hostClean.toLowerCase()) add(...caps(hostLeet))
+
+    // Step 5: Reverse
+    add(hostClean.split('').reverse().join(''))
+    add(hostLeet.split('').reverse().join(''))
+
+    // Step 6: ROT13
+    add(rot13(hostClean))
+
+    // Step 7: Split on ALL delimiters + leet-decode each part
+    const parts = source.split(/[:$;^_.\-&%@#+]+/).filter(p => p.length > 0)
+    const leetParts = []
+    for (const part of parts) {
+        const pClean = part.replace(/[^a-zA-Z0-9]/g, '')
+        if (!pClean) continue
+        add(...caps(pClean))
+        const pLeet = leetDecode(pClean)
+        if (pLeet !== pClean.toLowerCase()) {
+            add(...caps(pLeet))
+            leetParts.push(pLeet)
+        } else {
+            leetParts.push(pClean.toLowerCase())
+        }
+        // Number parts (e.g. :7310 → 7310)
+        const pNum = part.replace(/[^0-9]/g, '')
+        if (pNum) add(pNum)
+    }
+
+    // Step 8: All pairwise + triple combos of leet-decoded parts
+    // This produces things like: dark+matrix=darkmatrix, cyber+security=cybersecurity
+    for (let i = 0; i < leetParts.length; i++) {
+        for (let j = i + 1; j < leetParts.length; j++) {
+            add(leetParts[i] + leetParts[j], leetParts[j] + leetParts[i])
+            // CamelCase
+            add(leetParts[i].charAt(0).toUpperCase() + leetParts[i].slice(1) + leetParts[j].charAt(0).toUpperCase() + leetParts[j].slice(1))
+        }
+    }
+    for (let i = 0; i < leetParts.length; i++) {
+        for (let j = i + 1; j < leetParts.length; j++) {
+            for (let k = j + 1; k < leetParts.length; k++) {
+                add(leetParts[i] + leetParts[j] + leetParts[k])
+                add(leetParts[k] + leetParts[j] + leetParts[i])
+            }
+        }
+    }
+    // Full concatenation of all parts
+    if (leetParts.length > 3) add(leetParts.join(''))
+
+    // Step 9: Common mutations of top variants
+    const topVariants = out.slice(0, 20) // first 20 are the most likely
+    for (const v of topVariants) {
+        add(v + '1', v + '123', '!' + v, v + '!', v + '@', v + '#')
+    }
+
+    // Step 10: Special hostname patterns
+    // Chinese characters: 茶店 → tea, cha
+    if (hostname && /[\u4e00-\u9fff]/.test(hostname)) add('cha', 'tea', 'chadain')
+    // Punctuation-only: .... → dot, dots
+    if (/^[^a-zA-Z0-9]+$/.test(hostname)) add(hostname, 'dot', 'dots')
+    // SQL injection: ;-- → bobby, droptable
+    if (hostname.includes(';--')) add('droptable', 'bobbytables', 'sql', 'sqli', "';--", "1=1")
+    // Reversed word detection: rekcah → hacker, repyh → hyper
+    for (const lp of leetParts) {
+        const rev = lp.split('').reverse().join('')
+        if (rev.length >= 3 && rev !== lp) add(rev)
+    }
+
+    return out
+}
+
 function solvePassword(hint, hintData, hostname = '') {
     if (!hint) return []
     const h = hint.toLowerCase()
-    const hostClean = hostname ? hostname.replace(/[^a-zA-Z0-9]/g, '') : ''
-    // Generate many hostname-based password candidates
-    const hostCandidates = []
-    if (hostname) {
-        hostCandidates.push(hostname, hostname.toLowerCase(), hostClean)
-        // Reverse
-        const reversed = hostname.split('').reverse().join('')
-        const revClean = hostClean.split('').reverse().join('')
-        hostCandidates.push(reversed, revClean)
-        // ROT13
-        const rot13 = (s) => s.replace(/[a-zA-Z]/g, c => String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26))
-        hostCandidates.push(rot13(hostClean))
-        // Common transforms
-        hostCandidates.push(hostClean + '1', hostClean + '123', '!' + hostClean, hostClean + '!')
-        // Just the alphabetic parts
-        const alphaOnly = hostname.replace(/[^a-zA-Z]/g, '')
-        if (alphaOnly && alphaOnly !== hostClean) hostCandidates.push(alphaOnly, alphaOnly.toLowerCase())
-        // Number-only parts
-        const numOnly = hostname.replace(/[^0-9]/g, '')
-        if (numOnly) hostCandidates.push(numOnly)
-        // For dot-heavy hostnames like "...." or "....:7310", extract trailing numbers
-        const trailingNumMatch = hostname.match(/[::^%$&;@]*(\d+)/)
-        if (trailingNumMatch) hostCandidates.push(trailingNumMatch[1])
-        // For punctuation-only hostnames like "....", also try the literal hostname
-        if (/^[^a-zA-Z0-9]+$/.test(hostname)) {
-            hostCandidates.push(hostname, hostname.replace(/\./g, ''), 'dot', 'dots', 'points')
-        }
-        // Leet speak decode
-        const leetMap = {'4':'a','3':'e','1':'i','0':'o','7':'t','5':'s'}
-        let decoded = ''
-        for (const c of hostClean.toLowerCase()) decoded += leetMap[c] || c
-        if (decoded !== hostClean.toLowerCase()) hostCandidates.push(decoded)
 
-        // Emoji-letter decode: 🅱→B, 🅰→A, 🅾→O, 🅿→P, 🆎→AB
-        const emojiDecoded = hostname
-            .replace(/\u{1F171}/gu, 'B')  // 🅱
-            .replace(/\u{1F170}/gu, 'A')  // 🅰
-            .replace(/\u{1F17E}/gu, 'O')  // 🅾
-            .replace(/\u{1F17F}/gu, 'P')  // 🅿
-            .replace(/\u{1F18E}/gu, 'AB') // 🆎
-        if (emojiDecoded !== hostname) {
-            hostCandidates.push(emojiDecoded, emojiDecoded.toLowerCase())
-            const emojiClean = emojiDecoded.replace(/[^a-zA-Z0-9]/g, '')
-            if (emojiClean) hostCandidates.push(emojiClean, emojiClean.toLowerCase())
-            // Reversed emoji-decoded (🅱️uh%repyh → Buhrepyh → hyperhub reversed)
-            const emojiReverse = emojiClean.split('').reverse().join('')
-            if (emojiReverse) hostCandidates.push(emojiReverse, emojiReverse.toLowerCase())
-            // Leet-decode the emoji-cleaned version too (e.g. B1tBurner → BitBurner)
-            let emojiLeet = ''
-            for (const c of emojiClean.toLowerCase()) emojiLeet += leetMap[c] || c
-            if (emojiLeet !== emojiClean.toLowerCase()) hostCandidates.push(emojiLeet, emojiLeet.charAt(0).toUpperCase() + emojiLeet.slice(1))
-        }
-
-        // Split hostname on delimiters and try each part + combos
-        const splitSource = emojiDecoded !== hostname ? emojiDecoded : hostname
-        const parts = splitSource.split(/[:$;^_.\-]+/).filter(p => p.length > 0)
-        // Also leet-decode each part individually
-        const leetParts = []
-        for (const part of parts) {
-            hostCandidates.push(part, part.toLowerCase(), part.toUpperCase())
-            // Common mutations
-            hostCandidates.push(part + '1', '!' + part, part + '!', part + '123')
-            // Leet decode of this part
-            const partClean = part.replace(/[^a-zA-Z0-9]/g, '')
-            let partDecoded = ''
-            for (const c of partClean.toLowerCase()) partDecoded += leetMap[c] || c
-            if (partDecoded !== partClean.toLowerCase()) {
-                hostCandidates.push(partDecoded, partDecoded.charAt(0).toUpperCase() + partDecoded.slice(1))
-                leetParts.push(partDecoded)
-            } else {
-                leetParts.push(partClean.toLowerCase())
-            }
-        }
-        // Pairwise combos (e.g. neon+hacker, hacker+oasis)
-        for (let i = 0; i < parts.length; i++) {
-            for (let j = i + 1; j < parts.length; j++) {
-                const a = parts[i].toLowerCase(), b = parts[j].toLowerCase()
-                hostCandidates.push(a + b, b + a)
-                hostCandidates.push(parts[i] + parts[j], parts[j] + parts[i])
-            }
-        }
-        // Also pairwise combos of leet-decoded parts (e.g. dark+matrix=darkmatrix)
-        for (let i = 0; i < leetParts.length; i++) {
-            for (let j = i + 1; j < leetParts.length; j++) {
-                hostCandidates.push(leetParts[i] + leetParts[j], leetParts[j] + leetParts[i])
-            }
-        }
-        // Triple combos for 3+ parts
-        if (parts.length >= 3) {
-            const all = parts.map(p => p.toLowerCase()).join('')
-            hostCandidates.push(all)
-        }
-    }
+    // Generate hostname variants (used by ALL hint types)
+    const hostVariants = hostnameVariants(hostname)
 
     // Pop culture / themed passwords based on hostname hints
     const popCulture = []
@@ -395,6 +405,46 @@ function solvePassword(hint, hintData, hostname = '') {
     // cryp7o@w3b / cryptoweb
     if (hlow.includes('cryp7o') && hlow.includes('w3b'))
         popCulture.push('cryptoweb', 'cryp7ow3b', 'crypto', 'web', 'encrypt', 'cipher', 'tls')
+    // New from latest batch
+    // nevahlov (volhanev reversed? or nevalhlov → Valhlov → Valhalla?)
+    if (hlow.includes('nevahlov') || hlow.includes('volhanev'))
+        popCulture.push('nevahlov', 'volhanev', 'valhalla', 'valhlov', 'asgard', 'norse', 'viking', 'odin', 'warrior')
+    // freedom
+    if (hlow === 'freedom' || hlow.includes('freedom'))
+        popCulture.push('freedom', 'free', 'liberty', 'independence', 'open', 'libre')
+    // dallas / city names
+    if (hlow.includes('dallas'))
+        popCulture.push('dallas', 'texas', 'cowboy', 'ranch', 'lonestar', 'dallas1')
+    // smart devices
+    if (hlow.includes('smart') || hlow.includes('doorbell') || hlow.includes('s4msong') || hlow.includes('samsung'))
+        popCulture.push('smart', 'samsung', 'doorbell', 'iot', 'device', 'smarthome', 'connect', 'setup')
+    // sec7or / sector / city hall
+    if (hlow.includes('sec7or') || hlow.includes('sector'))
+        popCulture.push('sector', 'sec7or', 'ci7y', 'city', 'hall', 'district', 'zone', '12')
+    // m1chelle / michelle
+    if (hlow.includes('m1chelle') || hlow.includes('michelle'))
+        popCulture.push('michelle', 'm1chelle', 'shell', 'mish', 'micki')
+    // fir3wa11 / firewall
+    if (hlow.includes('fir3wa11') || hlow.includes('firewall'))
+        popCulture.push('firewall', 'fir3wa11', 'fw', 'iptables', 'block', 'filter', 'allow')
+    // 1ed4t1c / edict / zero_day reversed
+    if (hlow.includes('1ed4t1c') || hlow.includes('edict'))
+        popCulture.push('edict', '1ed4t1c', 'decree', 'law', 'rule', 'order', 'mandate')
+    // orez / zero reversed
+    if (hlow.includes('orez'))
+        popCulture.push('zero', 'orez', '0', 'null', 'nothing')
+    // null / services
+    if (hlow.includes('null'))
+        popCulture.push('null', 'nil', 'none', 'empty', 'void', '0')
+    // crypto_flame / meta_systems
+    if (hlow.includes('meta') && hlow.includes('syst'))
+        popCulture.push('metasystems', 'meta', 'systems', 'system', 'meta_systems')
+    // byte / tech
+    if (hlow.includes('byte'))
+        popCulture.push('byte', 'byte1', 'bite', '8bit', 'octet')
+    // global
+    if (hlow.includes('global'))
+        popCulture.push('global', 'world', 'intl', 'international', 'planet')
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     // But NOT "The default password is set" / "The password is set to default" — those fall through
@@ -427,7 +477,7 @@ function solvePassword(hint, hintData, hostname = '') {
         candidates.push(...permutations(String(n)))
         // Common math
         candidates.push(String(Math.floor(n / 2)), String(n * 2), String(n + 1), String(n - 1))
-        return [...new Set([...candidates, ...hostCandidates, ...commonPasswords])]
+        return [...new Set([...candidates, ...hostVariants, ...commonPasswords])]
     }
 
     // "PIN X" or "The PIN is X" or "PIN uses X" or "PIN: X"
@@ -468,7 +518,7 @@ function solvePassword(hint, hintData, hostname = '') {
             const pinNum = parseInt(pin)
             candidates.push(String(pinNum * 2), String(pinNum * 3), String(pinNum + 1), String(pinNum - 1))
         }
-        return [...new Set([...candidates, ...hostCandidates, ...popCulture])]
+        return [...new Set([...candidates, ...hostVariants, ...popCulture])]
     }
 
     // "The password is shuffled NNN" — all permutations
@@ -485,7 +535,7 @@ function solvePassword(hint, hintData, hostname = '') {
 
     // "There is no password"
     if (h.includes('no password') || h.includes('there is no'))
-        return [...new Set(['', ...hostCandidates, ...popCulture, ...commonPasswords])]
+        return [...new Set(['', ...hostVariants, ...popCulture, ...commonPasswords])]
 
     // Roman numeral / Latin number words: "value of the number 'X'"
     const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
@@ -507,7 +557,7 @@ function solvePassword(hint, hintData, hostname = '') {
         const latinNums = { nulla:0, nil:0, nihilo:0, unus:1, una:1, duo:2, duae:2, tres:3, tria:3, quattuor:4, quinque:5, sex:6, septem:7, octo:8, novem:9, decem:10, undecim:11, duodecim:12, tredecim:13, quattuordecim:14, quindecim:15, sedecim:16, septendecim:17, duodeviginti:18, undeviginti:19, viginti:20, triginta:30, quadraginta:40, quinquaginta:50, sexaginta:60, septuaginta:70, octoginta:80, nonaginta:90, centum:100, ducenti:200, trecenti:300, quadringenti:400, quingenti:500, sescenti:600, septingenti:700, octingenti:800, nongenti:900, mille:1000 }
         if (latin in latinNums) return [String(latinNums[latin])]
         // Try as the word itself if not found
-        return [...new Set([latin, '0', '1', ...hostCandidates, ...commonPasswords])]
+        return [...new Set([latin, '0', '1', ...hostVariants, ...commonPasswords])]
     }
 
     // Default / factory / never changed / didn't set / "the password is the default password"
@@ -516,7 +566,7 @@ function solvePassword(hint, hintData, hostname = '') {
         h.includes('still') || h.includes('original') || h.includes('no password') ||
         h.includes('not set'))
         return [...new Set([
-            ...hostCandidates, ...popCulture,
+            ...hostVariants, ...popCulture,
             '', 'password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest',
             'root', 'toor', 'daemon', 'sys', 'adm', 'bin', 'superuser', 'operator',
             'server', 'system', 'changeit', 'changeme', 'mysql', 'postgres', 'oracle',
@@ -545,7 +595,7 @@ function solvePassword(hint, hintData, hostname = '') {
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
-        const candidates = [...hostCandidates, ...popCulture]
+        const candidates = [...hostVariants, ...popCulture]
         // Massive wordlists by length
         const wordsByLen = {
             3: ['cat','dog','foo','bar','baz','qux','pwd','key','abc','xyz','net','web','ssh','ftp','sql','api','hex','bin','oct','raw','red','big','hot','top','low','new','old','cap','log','bit','set','get','run','end','map','tag','ref','pid','uid','gid','dev','mod','sys','env','var','lib','inc','ext','err','dbg','val','idx','num','len','max','min','sum','avg','add','sub','mul','div','rem','rat','vec','mat','row','col','dim','nil','nan','inf','yes','no','off','not','and','nor','xor','imp','iff','tru','fls','arr','obj','str','int','chr','buf','reg','seg','stk','que','lst','tre','grp','set','fun','app','win','frm','dlg','btn','tab','fld','img','txt','lnk','drv','dev','com','net','org','edu','gov','mil','int','pro','biz','inf','name','mobi','asia','cat','jobs','post','tel','travel','xxx','coop','aero','museum','arpa','root','local'],
@@ -623,7 +673,7 @@ function solvePassword(hint, hintData, hostname = '') {
     const divMatch = hint.match(/divisible\s+by\s+(\d+)/i)
     if (divMatch) {
         const divBy = parseInt(divMatch[1])
-        const candidates = [...hostCandidates]
+        const candidates = [...hostVariants]
         if (divBy === 1) {
             // Every number is divisible by 1 — brute force 0-9999
             for (let i = 0; i <= 9999; i++) candidates.push(String(i))
@@ -644,7 +694,7 @@ function solvePassword(hint, hintData, hostname = '') {
     if (rangeMatch) {
         const lo = parseInt(rangeMatch[1])
         const hi = parseInt(rangeMatch[2])
-        const candidates = [...hostCandidates, ...popCulture]
+        const candidates = [...hostVariants, ...popCulture]
         if (hi - lo <= 200) {
             for (let i = lo; i <= hi; i++) candidates.push(String(i))
         } else {
@@ -679,7 +729,7 @@ function solvePassword(hint, hintData, hostname = '') {
             '1234', '12345', '123456', '1337', '42', '0', '1',
             '123', '456', '789', '1111', '9999', '0000', '4242',
             '31337', '65536', '8080', '443', '80',
-            ...hostCandidates, ...popCulture, ...commonPasswords,
+            ...hostVariants, ...popCulture, ...commonPasswords,
         ])]
     }
 
@@ -701,7 +751,7 @@ function solvePassword(hint, hintData, hostname = '') {
             'taco', 'teddy', 'thor', 'tiny', 'tito', 'waffles', 'walter', 'wiggles',
             'winnebago', 'woof', 'yoshi', 'ziggy', 'zoe',
             'old yeller', 'copper', 'balto', 'toto', 'courage', 'brian', 'porthos',
-            ...hostCandidates, ...popCulture, ...extendedPasswords,
+            ...hostVariants, ...popCulture, ...extendedPasswords,
         ])]
 
     // Maze / labyrinth / dark corridor riddle
@@ -719,7 +769,7 @@ function solvePassword(hint, hintData, hostname = '') {
             'th3l4byr1nth', 'th3_l4byr1nth', 'thelabyrinth', 'the_labyrinth',
             'l4byr1nth', 'l4byr',
             '42', '0', '1', '13', '7', '666', '999', '314',
-            ...hostCandidates, ...popCulture, ...extendedPasswords,
+            ...hostVariants, ...popCulture, ...extendedPasswords,
         ])]
 
     // "Only a true master may pass" / master riddle
@@ -740,7 +790,7 @@ function solvePassword(hint, hintData, hostname = '') {
             'neon', 'inc', 'neoninc', 'ne0n',
             '42', '0', '1', '7', '3', '13', '69', '777', '1337',
             'blade', 'cyber', 'hacker', 'crack', 'hack', 'root',
-            ...hostCandidates, ...popCulture, ...extendedPasswords,
+            ...hostVariants, ...popCulture, ...extendedPasswords,
         ])]
 
     // "you are one who's'nt authorized" / "not authorized" riddle
@@ -753,7 +803,7 @@ function solvePassword(hint, hintData, hostname = '') {
             'iam', 'i_am', 'not', 'who', 'whos', 'whont', 'wont', 'will',
             '0', '1', '42', '1337', '401', '403', '200',
             // Hostname as password (common for these riddles)
-            ...hostCandidates, ...popCulture, ...extendedPasswords,
+            ...hostVariants, ...popCulture, ...extendedPasswords,
         ])]
 
     // "(I'm busy browsing social media at the cafe)" — social media / cafe riddle
@@ -767,20 +817,20 @@ function solvePassword(hint, hintData, hostname = '') {
             'tea', 'cha', 'chadain', 'teashop', 'matcha', 'oolong', 'greentea', 'boba', 'bubbletea', 'chinese',
             'wifi', 'password', 'freewifi', 'freewifi!', 'guestwifi', 'cafewifi', 'netcafe',
             'coffee1', 'cafe1', '1234', '12345', 'admin', 'open',
-            ...hostCandidates, ...popCulture, ...extendedPasswords,
+            ...hostVariants, ...popCulture, ...extendedPasswords,
         ])]
 
     // Mountain riddle
     if (h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
         return [...new Set([
-            ...hostCandidates, ...popCulture, ...mountainPasswords, ...extendedPasswords,
+            ...hostVariants, ...popCulture, ...mountainPasswords, ...extendedPasswords,
             // Also try reversed hostname (gro;rekcah = hacker)
-            ...hostCandidates.filter(c => c.length > 2).map(c => c.split('').reverse().join('')),
+            ...hostVariants.filter(c => c.length > 2).map(c => c.split('').reverse().join('')),
         ])]
 
     // Riddle fallback
     if (h.includes('riddle') || h.includes('true'))
-        return [...new Set([...hostCandidates, ...extendedPasswords])]
+        return [...new Set([...hostVariants, ...extendedPasswords])]
 
     // Symbol/emoji hints like "!!🌶️!!"
     if (hint && !h.match(/[a-z]{3,}/)) {
@@ -806,13 +856,13 @@ function solvePassword(hint, hintData, hostname = '') {
             '!!', '!!!', '!@#', '!@#$', '!1!', '!0!',
             // Punctuation-only patterns with numbers
             '0', '1', '42', '69', '666', '1337',
-            ...hostCandidates, ...popCulture, ...extendedPasswords,
+            ...hostVariants, ...popCulture, ...extendedPasswords,
         ])]
     }
 
     // Fallback: if we have a hint but no solver, try everything
     // This catches any unrecognized hints
-    return [...new Set([...hostCandidates, ...popCulture, '', ...commonPasswords])]
+    return [...new Set([...hostVariants, ...popCulture, '', ...commonPasswords])]
 }
 
 /** @param {NS} ns */
