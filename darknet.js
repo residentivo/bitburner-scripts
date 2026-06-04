@@ -131,6 +131,13 @@ function solvePassword(hint, hintData, hostname = '') {
         // Number-only parts
         const numOnly = hostname.replace(/[^0-9]/g, '')
         if (numOnly) hostCandidates.push(numOnly)
+        // For dot-heavy hostnames like "...." or "....:7310", extract trailing numbers
+        const trailingNumMatch = hostname.match(/[::^%$&;@]*(\d+)/)
+        if (trailingNumMatch) hostCandidates.push(trailingNumMatch[1])
+        // For punctuation-only hostnames like "....", also try the literal hostname
+        if (/^[^a-zA-Z0-9]+$/.test(hostname)) {
+            hostCandidates.push(hostname, hostname.replace(/\./g, ''), 'dot', 'dots', 'points')
+        }
         // Leet speak decode
         const leetMap = {'4':'a','3':'e','1':'i','0':'o','7':'t','5':'s'}
         let decoded = ''
@@ -222,6 +229,97 @@ function solvePassword(hint, hintData, hostname = '') {
         popCulture.push('blade', 'b1ade', 'bladerunner', 'runner', 'deckard', 'replicant', 'tyrell', 'nexus', 'neon', 'cyberpunk', 'android', 'ricardo', 'batty')
     if (hlow.includes('bit') && hlow.includes('system'))
         popCulture.push('bitsystems', 'bitsys', 'binary', 'byte', 'bit', 'system', 'sys', '0b', '0x', 'overflow', '8bit', '16bit', '32bit', '64bit')
+    // Dark / cyber / tech themed
+    if (hlow.includes('cyber') || hlow.includes('phantom') || hlow.includes('dark'))
+        popCulture.push('cyber', 'phantom', 'dark', 'cyberphantom', 'darkphantom', 'cyberpunk', 'ghost', 'shadow', 'stealth', 'neon', 'noir')
+    if (hlow.includes('neo') && (hlow.includes('blade') || hlow.includes('corp')))
+        popCulture.push('neo', 'neocorp', 'neoblade', 'matrix', 'one', 'theone', 'morpheus', 'trinity', 'zion', 'nebuchadnezzar')
+    if (hlow.includes('black') || hlow.includes('hand'))
+        popCulture.push('blackhand', 'black', 'hand', 'shadow', 'assassin', 'night', 'darkness', 'syndicate', 'mafia', 'yakuza')
+    if (hlow.includes('tweeter') || hlow.includes('tweet'))
+        popCulture.push('tweeter', 'tweet', 'twitter', 'bird', 'bluebird', 'chirp', 'x', 'retweet', 'follow')
+    if (hlow.includes('crack'))
+        popCulture.push('crack', 'cracker', 'cracking', 'hashcat', 'john', 'brute', 'rainbow', 'crack_networks', 'crackcorp', '0day')
+    if (hlow.includes('hospital') || hlow.includes('matrix'))
+        popCulture.push('hospital', 'matrix', 'hospitalmatrix', 'surgeon', 'nurse', 'doctor', 'patient', 'med', 'health', 'cure')
+    if (hlow.includes('zenith') || hlow.includes('zeni7h'))
+        popCulture.push('zenith', 'zeni7h', 'peak', 'summit', 'top', 'apex', 'pinnacle', 'crest', 'crown')
+    if (hlow.includes('hydro') || hlow.includes('water'))
+        popCulture.push('hydro', 'water', 'aqua', 'fluid', 'dam', 'river', 'stream', 'ocean', 'wave', 'current')
+    if (hlow.includes('anor') || hlow.includes('londo'))
+        popCulture.push('anorlondo', 'anor', 'londo', 'ornstein', 'smough', 'gwyndolin', 'solaire', 'darkwraith', 'gwyn', 'priscilla', 'dark', 'sun', 'fire', 'lordsoul')
+    if (hlow.includes('m1n3cr4ft') || hlow.includes('minecraft'))
+        popCulture.push('minecraft', 'm1n3cr4ft', 'creeper', 'enderman', 'diamond', 'redstone', 'herobrine', 'steve', 'notch', 'pickaxe')
+    // SQL injection / hacker hosts
+    if (hlow.includes('drop') || hlow.includes('table') || hlow.includes(';--'))
+        popCulture.push('drop', 'droptable', 'sql', 'sqli', 'injection', 'bobby', 'bobbytables', 'hacker', ';--', '1=1', 'or1=1', 'admin--', "' or '1'='1")
+    // Reversed hostnames: gro;rekcah = hacker backwards
+    if (hlow.includes('rekcah'))
+        popCulture.push('hacker', 'rekcah', 'crack', 'hack', 'reverse', 'mirror')
+    // Chinese hostnames: 茶店 = tea shop
+    if (hostname && /[\u4e00-\u9fff]/.test(hostname))
+        popCulture.push('cha', 'tea', 'chadain', '茶店', 'teashop', 'cafe', 'coffee', 'matcha', 'oolong', 'green', 'chinese')
+    // IoT hosts
+    if (hlow.includes('smart') || hlow.includes('fridge') || hlow.includes('toaster'))
+        popCulture.push('smart', 'fridge', 'toaster', 'iot', 'device', 'appliance', 'connected', 'wifi', 'default', 'admin')
+    // Ultra tech
+    if (hlow.includes('u17ra') || hlow.includes('ultra') || hlow.includes('7ech') || hlow.includes('tech'))
+        popCulture.push('ultra', 'u17ra', 'tech', '7ech', 'ultimate', 'extreme', 'advance', 'next', 'future')
+    // Cat related
+    if (hlow.includes('cat') || hlow.includes('meow'))
+        popCulture.push('cat', 'meow', 'kitty', 'feline', 'whiskers', 'paws', 'purr', 'tabby', 'garfield', 'tom', 'scratch')
+    // XD host
+    if (hlow === 'xd' || hlow.includes('xd'))
+        popCulture.push('xd', 'XD', 'lol', 'lmao', 'rofl', 'haha', 'teehee', 'hehe', 'giggle', 'laugh')
+    // Metacitadel / citadel
+    if (hlow.includes('citadel') || hlow.includes('c1tadel'))
+        popCulture.push('citadel', 'c1tadel', 'fortress', 'castle', 'keep', 'stronghold', 'bastion', 'rampart')
+    // Kuaigong
+    if (hlow.includes('kuaigong'))
+        popCulture.push('kuaigong', 'kuai', 'gong', 'fast', 'quick', 'speed', 'rapid')
+    // Microhard
+    if (hlow.includes('microhard'))
+        popCulture.push('microhard', 'microsoft', 'micro', 'hard', 'windows', 'bill', 'gates', 'surface', 'azure')
+    // Omnitek
+    if (hlow.includes('omnitek'))
+        popCulture.push('omnitek', 'omni', 'tek', 'all', 'everything', 'tech')
+    // Watchdog
+    if (hlow.includes('watchdog'))
+        popCulture.push('watchdog', 'guard', 'sentinel', 'guardian', 'protector', 'keeper', 'lookout')
+    // Netweb
+    if (hlow.includes('netweb'))
+        popCulture.push('netweb', 'network', 'web', 'internet', 'online', 'cloud', 'mesh')
+    // 5ummit / summit
+    if (hlow.includes('5ummit') || hlow.includes('summit'))
+        popCulture.push('summit', '5ummit', 'peak', 'mountain', 'conference', 'top')
+    // c3lls3rvic3s
+    if (hlow.includes('c3lls3rvic3s') || hlow.includes('cellservice'))
+        popCulture.push('cellservices', 'c3lls3rvic3s', 'cell', 'service', 'mobile', 'phone', 'carrier', 'network', 'signal')
+    // echo-hyper / netlink
+    if (hlow.includes('echo') || hlow.includes('hyper'))
+        popCulture.push('echo', 'hyper', 'echohyper', 'ping', 'response', 'bounce', 'reflect', 'amplify')
+    if (hlow.includes('netlink'))
+        popCulture.push('netlink', 'link', 'connection', 'bridge', 'gateway', 'router', 'switch')
+    // bitrunners / bitcitadel
+    if (hlow.includes('bitrunner'))
+        popCulture.push('bitrunners', 'runner', 'run', 'bits', 'binary', 'mining', 'rig')
+    if (hlow.includes('bitcitadel'))
+        popCulture.push('bitcitadel', 'bit', 'citadel', 'fortress', 'crypto', 'vault')
+    // light & grid
+    if (hlow.includes('light') && hlow.includes('grid'))
+        popCulture.push('lightgrid', 'light', 'grid', 'power', 'energy', 'electric', 'voltage', 'watt', 'lumen')
+    // localhost
+    if (hlow === 'localhost' || hlow.includes('localhost'))
+        popCulture.push('localhost', '127.0.0.1', 'local', 'home', 'loopback', 'self', 'host')
+    // helios / terminal
+    if (hlow.includes('helios') || hlow.includes('terminal'))
+        popCulture.push('helios', 'sun', 'solar', 'apollo', 'terminal', 'console', 'shell', 'command')
+    // genesis / net::genesis
+    if (hlow.includes('genesis'))
+        popCulture.push('genesis', 'beginning', 'origin', 'alpha', 'creation', 'first', 'start')
+    // Anonymous / anonymou5
+    if (hlow.includes('anonymou') || hlow.includes('an0nymou'))
+        popCulture.push('anonymous', 'anonymou5', 'anon', 'legion', 'expectus', 'mask', 'v', 'vendetta', 'guyfawkes')
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     // But NOT "The default password is set" / "The password is set to default" — those fall through
@@ -311,7 +409,8 @@ function solvePassword(hint, hintData, hostname = '') {
     }
 
     // "There is no password"
-    if (h.includes('no password') || h.includes('there is no')) return ['', ...commonPasswords]
+    if (h.includes('no password') || h.includes('there is no'))
+        return [...new Set(['', ...hostCandidates, ...popCulture, ...commonPasswords])]
 
     // Roman numeral / Latin number words: "value of the number 'X'"
     const romanMatch = hint.match(/value of the number ['"]?([IVXLCDM]+)['"]?/i)
@@ -336,7 +435,7 @@ function solvePassword(hint, hintData, hostname = '') {
         return [...new Set([latin, '0', '1', ...hostCandidates, ...commonPasswords])]
     }
 
-    // Default / factory / never changed / didn't set
+    // Default / factory / never changed / didn't set / "the password is the default password"
     if (h.includes('default') || h.includes('factory') || h.includes('never changed') ||
         h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
         h.includes('still') || h.includes('original') || h.includes('no password') ||
@@ -351,13 +450,20 @@ function solvePassword(hint, hintData, hostname = '') {
             'pass', 'pwd', 'passw0rd', 'p@ssw0rd', 'admin123', 'root123', 'abc123',
             '0000', '1111', '1234', '4321', '7777', '9999',
             'password1', 'password123', 'admin1', 'admin1234', 'root1', 'test1',
-            'welcome', 'hello', 'master', 'super', 'god', 'love',
+            'welcome', 'hello', 'master', 'super', 'god', 'love', 'code',
             // Common device/service defaults
             'ubnt', 'zyxel', 'netgear', 'dlink', 'tplink', 'linksys', 'asus',
             'arris', 'motorola', 'huawei', 'technicolor', 'sagemcom',
             // Software defaults
             'jenkins', 'docker', 'nginx', 'apache', 'redis', 'mongo', 'grafana',
             'postgres1', 'mysql1', 'admin!', 'root!', 'sa', 'dbo',
+            // IoT/smart device defaults
+            'smart', 'fridge', 'toaster', 'device', 'iot', 'setup', 'connect',
+            // Parody/tech corp names (microhard=Microsoft parody, etc)
+            'microhard', 'omnitek', 'kuaigong', 'megacorp', 'apex', 'rogue',
+            'hospital', 'arcade', '4rc4de', 'summit', '5ummit',
+            // Factory literal
+            'factory', 'factory1', 'factoryreset', 'settings', 'default1',
         ])]
 
     // Buffer length: "Warning: password buffer is N bytes"
@@ -491,11 +597,14 @@ function solvePassword(hint, hintData, hostname = '') {
             const extracted = hintData.replace(/[^0-9]/g, '')
             if (extracted && extracted.length >= 1) return [extracted]
         }
-        // Without data, brute force common captcha answers
+        // Without data, brute force common captcha answers + hostname numbers
+        const numFromHost = hostname ? hostname.replace(/[^0-9]/g, '') : ''
         return [...new Set([
+            numFromHost,
             '1234', '12345', '123456', '1337', '42', '0', '1',
             '123', '456', '789', '1111', '9999', '0000', '4242',
-            ...commonPasswords,
+            '31337', '65536', '8080', '443', '80',
+            ...hostCandidates, ...popCulture, ...commonPasswords,
         ])]
     }
 
@@ -573,10 +682,14 @@ function solvePassword(hint, hintData, hostname = '') {
         ])]
 
     // "(I'm busy browsing social media at the cafe)" — social media / cafe riddle
-    if (h.includes('social media') || h.includes('browsing') || h.includes('cafe') || h.includes('coffee'))
+    // Also matches Chinese tea shop hosts (茶店 etc)
+    if (h.includes('social media') || h.includes('browsing') || h.includes('cafe') || h.includes('coffee') ||
+        h.includes('tea') || (hostname && /[\u4e00-\u9fff]/.test(hostname)))
         return [...new Set([
             'facebook', 'twitter', 'instagram', 'reddit', 'tiktok', 'youtube', 'myspace', 'tumblr', 'snapchat', 'pinterest', 'linkedin', 'slack', 'discord', 'whatsapp', 'telegram',
             'social', 'media', 'browse', 'cafe', 'coffee', 'latte', 'espresso', 'cappuccino', 'mocha', 'americano', 'macchiato', 'ristretto', 'flatwhite',
+            // Tea shop variants (茶店 = tea shop)
+            'tea', 'cha', 'chadain', 'teashop', 'matcha', 'oolong', 'greentea', 'boba', 'bubbletea', 'chinese',
             'wifi', 'password', 'freewifi', 'freewifi!', 'guestwifi', 'cafewifi', 'netcafe',
             'coffee1', 'cafe1', '1234', '12345', 'admin', 'open',
             ...hostCandidates, ...popCulture, ...extendedPasswords,
@@ -584,7 +697,11 @@ function solvePassword(hint, hintData, hostname = '') {
 
     // Mountain riddle
     if (h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
-        return [...new Set([...hostCandidates, ...popCulture, ...mountainPasswords, ...extendedPasswords])]
+        return [...new Set([
+            ...hostCandidates, ...popCulture, ...mountainPasswords, ...extendedPasswords,
+            // Also try reversed hostname (gro;rekcah = hacker)
+            ...hostCandidates.filter(c => c.length > 2).map(c => c.split('').reverse().join('')),
+        ])]
 
     // Riddle fallback
     if (h.includes('riddle') || h.includes('true'))
