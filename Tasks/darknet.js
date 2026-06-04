@@ -548,7 +548,6 @@ export async function main(ns) {
                     try {
                         const r = await ns.dnet.authenticate(neighbor, pw)
                         if (r.success) {
-                            log(ns, `${neighbor} OK '${pw}'`)
                             authed = true
                             break
                         }
