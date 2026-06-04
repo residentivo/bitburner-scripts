@@ -136,6 +136,45 @@ function solvePassword(hint, hintData, hostname = '') {
         let decoded = ''
         for (const c of hostClean.toLowerCase()) decoded += leetMap[c] || c
         if (decoded !== hostClean.toLowerCase()) hostCandidates.push(decoded)
+
+        // Emoji-letter decode: 🅱️→B, 🅰️→A, 🅾️→O, 🅿️→P, 🆎→AB
+        const emojiDecoded = hostname
+            .replace(/\u{1F17E}/gu, 'B')
+            .replace(/\u{1F130}/gu, 'A')
+            .replace(/\u{1F17D}/gu, 'O')
+            .replace(/\u{1F17F}/gu, 'P')
+            .replace(/\u{1F18E}/gu, 'AB')
+        if (emojiDecoded !== hostname) {
+            hostCandidates.push(emojiDecoded, emojiDecoded.toLowerCase())
+            const emojiClean = emojiDecoded.replace(/[^a-zA-Z0-9]/g, '')
+            if (emojiClean) hostCandidates.push(emojiClean, emojiClean.toLowerCase())
+            // Leet-decode the emoji-cleaned version too (e.g. B1tBurner → BitBurner)
+            let emojiLeet = ''
+            for (const c of emojiClean.toLowerCase()) emojiLeet += leetMap[c] || c
+            if (emojiLeet !== emojiClean.toLowerCase()) hostCandidates.push(emojiLeet, emojiLeet.charAt(0).toUpperCase() + emojiLeet.slice(1))
+        }
+
+        // Split hostname on delimiters and try each part + combos
+        const splitSource = emojiDecoded !== hostname ? emojiDecoded : hostname
+        const parts = splitSource.split(/[:$;^_.\-]+/).filter(p => p.length > 0)
+        for (const part of parts) {
+            hostCandidates.push(part, part.toLowerCase(), part.toUpperCase())
+            // Common mutations
+            hostCandidates.push(part + '1', '!' + part, part + '!', part + '123')
+        }
+        // Pairwise combos (e.g. neon+hacker, hacker+oasis)
+        for (let i = 0; i < parts.length; i++) {
+            for (let j = i + 1; j < parts.length; j++) {
+                const a = parts[i].toLowerCase(), b = parts[j].toLowerCase()
+                hostCandidates.push(a + b, b + a)
+                hostCandidates.push(parts[i] + parts[j], parts[j] + parts[i])
+            }
+        }
+        // Triple combos for 3+ parts
+        if (parts.length >= 3) {
+            const all = parts.map(p => p.toLowerCase()).join('')
+            hostCandidates.push(all)
+        }
     }
 
     // Pop culture / themed passwords based on hostname hints
@@ -151,13 +190,24 @@ function solvePassword(hint, hintData, hostname = '') {
         popCulture.push('everest', 'sagarmatha', 'chomolungma', '8848', '29029')
     if (hlow.includes('fitness') || hlow.includes('gym') || hlow.includes('snap'))
         popCulture.push('fitness', 'gym', 'workout', 'lift', 'gain', 'protein', 'cardio', 'sweat', 'muscle', 'iron', 'pump', 'fit', 'strong', 'power', 'endurance')
+    if (hlow.includes('clarke') || hlow.includes('incorporated') || hlow.includes('anonymous'))
+        popCulture.push('clarke', 'hal', 'hal9000', 'hal9001', '2001', '2001space', 'odyssey', 'monolith', 'heuristic', 'daisy', 'daisydaisy', 'skynet', 'ai', 'deepthought', '42', '42!', '42!!', 'spicy', 'hot', 'pepper', 'chili', 'clarkeinc', 'anonymous', 'anon', 'incognito')
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
-    const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(?:is\s+)?(\w+)/i)
+    // But NOT "The default password is set" / "The password is set to default" — those fall through
+    const keyMatch = hint.match(/(?:key|secret|pin|it'?s set to)\s+(?:is\s+)?(\w+)/i)
     if (keyMatch && keyMatch[1]) {
         const val = keyMatch[1].toLowerCase()
         if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty', 'to', 'set', 'divisible', 'made'].includes(val)) {
             return [keyMatch[1]]
+        }
+    }
+    // "password is X" but only if X looks like a concrete value (not "set", "default", "required")
+    const pwMatch = hint.match(/password\s+is\s+(\w+)/i)
+    if (pwMatch && pwMatch[1]) {
+        const val = pwMatch[1].toLowerCase()
+        if (!['is', 'the', 'a', 'an', 'not', 'still', 'empty', 'to', 'set', 'default', 'required', 'divisible', 'made', 'configured', 'chosen', 'unknown', 'missing'].includes(val)) {
+            return [pwMatch[1]]
         }
     }
 
@@ -441,6 +491,8 @@ function solvePassword(hint, hintData, hostname = '') {
             'ancalime', 'elessar', 'elbereth', 'galadriel', 'legolas',
             'nihao', 'konnichiwa', 'ola', 'hello', 'welcome',
             'please', 'letmein', 'iamroot', 'sudo', 'su',
+            // Neon-specific (neon^inc host)
+            'neon', 'inc', 'neoninc', 'ne0n',
             '42', '0', '1', '7', '3', '13', '69', '777', '1337',
             'blade', 'cyber', 'hacker', 'crack', 'hack', 'root',
             ...hostCandidates, ...popCulture, ...extendedPasswords,
@@ -452,8 +504,11 @@ function solvePassword(hint, hintData, hostname = '') {
             'authorized', 'unauthorized', 'yes', 'no', 'maybe', 'please', 'letmein',
             'access', 'granted', 'denied', 'permit', 'allow', 'accept', 'approve',
             'user', 'admin', 'root', 'sudo', 'su', 'login', 'auth', 'token',
+            // "who's'nt" = who won't → negation riddle, password might be the opposite
+            'iam', 'i_am', 'not', 'who', 'whos', 'whont', 'wont', 'will',
             '0', '1', '42', '1337', '401', '403', '200',
-            ...hostCandidates, ...extendedPasswords,
+            // Hostname as password (common for these riddles)
+            ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
 
     // "(I'm busy browsing social media at the cafe)" — social media / cafe riddle
@@ -476,13 +531,28 @@ function solvePassword(hint, hintData, hostname = '') {
 
     // Symbol/emoji hints like "!!🌶️!!"
     if (hint && !h.match(/[a-z]{3,}/)) {
+        // Try to decode common emojis to words
+        const emojiWordMap = {
+            '🌶️': 'spicy', '🔥': 'fire', '💀': 'dead', '❤️': 'love', '⚡': 'power',
+            '🌟': 'star', '👑': 'king', '🗡️': 'blade', '🚀': 'rocket', '💎': 'diamond',
+            '🔑': 'key', '🗝️': 'key', '🔒': 'lock', '🔓': 'unlock', '☠️': 'skull',
+            '⭐': 'star', '🌈': 'rainbow', '🎯': 'target', '🍕': 'pizza', '🎵': 'music',
+            '💻': 'computer', '🤖': 'robot', '👾': 'alien', '🧠': 'brain', '🦾': 'arm',
+        }
+        const emojiWords = []
+        for (const [emoji, word] of Object.entries(emojiWordMap)) {
+            if (hint.includes(emoji)) emojiWords.push(word)
+        }
         const stripped = hint.replace(/[^a-zA-Z0-9!@#$%^&*_\-+=]/g, '')
         return [...new Set([
             stripped, '',
+            ...emojiWords,
             // Spicy/hot variants
             'spicy', 'hot', 'fire', 'pepper', 'chili', 'habanero', 'jalapeno',
             'ghostpepper', 'capsaicin', 'scoville', 'heat', 'burn', 'flame',
-            '!!', '!!!', '!@#', '!@#$',
+            '!!', '!!!', '!@#', '!@#$', '!1!', '!0!',
+            // Punctuation-only patterns with numbers
+            '0', '1', '42', '69', '666', '1337',
             ...hostCandidates, ...extendedPasswords,
         ])]
     }
