@@ -22,9 +22,17 @@ const commonPasswords = [
     'test', 'user', 'demo', 'temp', 'backup',
     '0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888', '9999',
     '00000', '11111', '12345', '54321',
+    '111111', '222222', '333333', '444444', '555555', '666666', '777777', '888888', '999999',
+    '1234567', '12345678', '123456789', '7654321',
+    'aaaaaa', '123123', '123321', '121212', '654321', '159753',
+    '696969', '6969', '7777777',
     'pass', 'god', 'love', 'master', 'dragon', 'monkey', 'shadow', 'sunshine',
     'princess', 'football', 'baseball', 'trustno1', 'iloveyou', 'welcome',
     'hello', 'charlie', 'donald', 'michael', 'jessica', 'jennifer',
+    'superman', 'batman', 'spiderman', 'hunter', 'buster', 'freedom',
+    'qwertyuiop', '1qaz2wsx', 'qazwsx', '123qwe', 'zxcvbnm', 'asdfgh', 'asdfghjkl',
+    'jordan', 'joshua', 'maggie', 'ginger', 'ashley', 'amanda',
+    'cheese', 'summer', 'winter', 'spring', 'autumn',
 ]
 
 const mountainPasswords = [
