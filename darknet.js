@@ -157,10 +157,22 @@ function solvePassword(hint, hintData, hostname = '') {
         // Split hostname on delimiters and try each part + combos
         const splitSource = emojiDecoded !== hostname ? emojiDecoded : hostname
         const parts = splitSource.split(/[:$;^_.\-]+/).filter(p => p.length > 0)
+        // Also leet-decode each part individually
+        const leetParts = []
         for (const part of parts) {
             hostCandidates.push(part, part.toLowerCase(), part.toUpperCase())
             // Common mutations
             hostCandidates.push(part + '1', '!' + part, part + '!', part + '123')
+            // Leet decode of this part
+            const partClean = part.replace(/[^a-zA-Z0-9]/g, '')
+            let partDecoded = ''
+            for (const c of partClean.toLowerCase()) partDecoded += leetMap[c] || c
+            if (partDecoded !== partClean.toLowerCase()) {
+                hostCandidates.push(partDecoded, partDecoded.charAt(0).toUpperCase() + partDecoded.slice(1))
+                leetParts.push(partDecoded)
+            } else {
+                leetParts.push(partClean.toLowerCase())
+            }
         }
         // Pairwise combos (e.g. neon+hacker, hacker+oasis)
         for (let i = 0; i < parts.length; i++) {
@@ -168,6 +180,12 @@ function solvePassword(hint, hintData, hostname = '') {
                 const a = parts[i].toLowerCase(), b = parts[j].toLowerCase()
                 hostCandidates.push(a + b, b + a)
                 hostCandidates.push(parts[i] + parts[j], parts[j] + parts[i])
+            }
+        }
+        // Also pairwise combos of leet-decoded parts (e.g. dark+matrix=darkmatrix)
+        for (let i = 0; i < leetParts.length; i++) {
+            for (let j = i + 1; j < leetParts.length; j++) {
+                hostCandidates.push(leetParts[i] + leetParts[j], leetParts[j] + leetParts[i])
             }
         }
         // Triple combos for 3+ parts
@@ -192,6 +210,18 @@ function solvePassword(hint, hintData, hostname = '') {
         popCulture.push('fitness', 'gym', 'workout', 'lift', 'gain', 'protein', 'cardio', 'sweat', 'muscle', 'iron', 'pump', 'fit', 'strong', 'power', 'endurance')
     if (hlow.includes('clarke') || hlow.includes('incorporated') || hlow.includes('anonymous'))
         popCulture.push('clarke', 'hal', 'hal9000', 'hal9001', '2001', '2001space', 'odyssey', 'monolith', 'heuristic', 'daisy', 'daisydaisy', 'skynet', 'ai', 'deepthought', '42', '42!', '42!!', 'spicy', 'hot', 'pepper', 'chili', 'clarkeinc', 'anonymous', 'anon', 'incognito')
+    if (hlow.includes('goto') || hlow.includes('g0t0') || hlow.includes('g0to'))
+        popCulture.push('goto', 'goto10', 'goto_10', '10', 'loop', 'infinite', 'basic', 'gwbasic', 'qbasic', 'run', 'end', 'cont', 'next', 'step', 'basic10', '10goto10', 'g0t0', 'g0t010')
+    if (hlow.includes('pineapple'))
+        popCulture.push('pineapple', 'pineapplepen', 'ppap', 'penpineapple', 'tropical', 'fruit', 'ananas', 'abacaxi', 'hawaii', 'maui', 'honolulu')
+    if (hlow.includes('rogue') || hlow.includes('roguesecuri'))
+        popCulture.push('rogue', 'rogueone', 'rogueone', 'rebel', 'spy', 'agent', 'covert', 'stealth', 'roguesecurity', 'security', 'secure', 'sec', 'secu', 'securi7y', 'r0gue')
+    if (hlow.includes('cryp7o') || hlow.includes('crypto') || hlow.includes('sanctuary') || hlow.includes('5anc7uary'))
+        popCulture.push('crypto', 'cryp7o', 'sanctuary', '5anc7uary', 'sanc7uary', 'encrypt', 'cipher', 'aes', 'rsa', 'sha256', 'hash', 'cryptosanctuary', 'cryp7o5anc7uary', 'temple', 'shrine', 'haven', 'refuge', 'asylum')
+    if (hlow.includes('blade') || hlow.includes('b1ade'))
+        popCulture.push('blade', 'b1ade', 'bladerunner', 'runner', 'deckard', 'replicant', 'tyrell', 'nexus', 'neon', 'cyberpunk', 'android', 'ricardo', 'batty')
+    if (hlow.includes('bit') && hlow.includes('system'))
+        popCulture.push('bitsystems', 'bitsys', 'binary', 'byte', 'bit', 'system', 'sys', '0b', '0x', 'overflow', '8bit', '16bit', '32bit', '64bit')
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     // But NOT "The default password is set" / "The password is set to default" — those fall through
@@ -235,14 +265,35 @@ function solvePassword(hint, hintData, hostname = '') {
         // "PIN uses 224" — try 224 and permutations, plus partial matches
         if (h.includes('use')) {
             candidates.push(...permutations(pin))
-            // Also try subsets and common combos with those digits
             const digits = pin.split('')
-            // try each digit alone, pairs, etc
             for (const d of digits) candidates.push(d)
-            // try pin with leading zeros
-            candidates.push('0' + pin, '00' + pin)
-            // try pin reversed
+            // reversed
             candidates.push(pin.split('').reverse().join(''))
+            // "PIN uses 145" → generate all PINs containing those digits
+            // 3-digit: just permutations (already added above)
+            // 4-digit PINs with one extra digit (0-9)
+            for (let extra = 0; extra <= 9; extra++) {
+                const extended = pin + String(extra)
+                candidates.push(...permutations(extended))
+            }
+            // 5-digit PINs with two extra digits (common combos)
+            for (let e1 = 0; e1 <= 9; e1++) {
+                for (let e2 = 0; e2 <= 9; e2++) {
+                    // Only a few common patterns to avoid explosion
+                    if (e1 === e2 || e1 === 0 || e2 === 0) {
+                        const extended = pin + String(e1) + String(e2)
+                        // Just try sorted and a few perms, not all
+                        candidates.push(extended, extended.split('').reverse().join(''))
+                        const sorted = extended.split('').sort().join('')
+                        candidates.push(sorted)
+                    }
+                }
+            }
+            // Pad with leading zeros
+            candidates.push('0' + pin, '00' + pin, '000' + pin)
+            // Common math with those digits
+            const pinNum = parseInt(pin)
+            candidates.push(String(pinNum * 2), String(pinNum * 3), String(pinNum + 1), String(pinNum - 1))
         }
         return [...new Set([...candidates, ...hostCandidates, ...popCulture])]
     }
@@ -412,12 +463,19 @@ function solvePassword(hint, hintData, hostname = '') {
     if (rangeMatch) {
         const lo = parseInt(rangeMatch[1])
         const hi = parseInt(rangeMatch[2])
-        const candidates = [...hostCandidates]
+        const candidates = [...hostCandidates, ...popCulture]
         if (hi - lo <= 200) {
             for (let i = lo; i <= hi; i++) candidates.push(String(i))
         } else {
+            // Too many — sample strategically
             for (let i = lo; i <= Math.min(lo + 50, hi); i++) candidates.push(String(i))
             for (let i = Math.max(hi - 10, lo); i <= hi; i++) candidates.push(String(i))
+            // Common interesting numbers in range
+            for (let i = lo; i <= hi; i++) {
+                if (i === 42 || i === 69 || i === 13 || i === 7 || i === 0 || i === 1 ||
+                    i === 99 || i === 100 || (i > 0 && (i & (i-1)) === 0)) // powers of 2
+                    candidates.push(String(i))
+            }
         }
         // Also try common passwords as some servers accept words for "number" hints
         candidates.push(...commonPasswords)
@@ -471,8 +529,11 @@ function solvePassword(hint, hintData, hostname = '') {
             'silence', 'echo', 'lost', 'hidden', 'path', 'way', 'door', 'gate', 'portal',
             'candle', 'torch', 'light', 'key', 'north', 'south', 'east', 'west',
             'left', 'right', 'forward', 'back', 'turn', 'follow', 'trust', 'fear',
-            'daedalus', 'icarus', 'minos', 'crete', ' underworld', 'labyrinthine',
+            'daedalus', 'icarus', 'minos', 'crete', 'underworld', 'labyrinthine',
             'corridoor', 'twist', 'spiral', 'winding', 'enigma', 'riddle', 'conundrum',
+            // L4byr1nth specific
+            'th3l4byr1nth', 'th3_l4byr1nth', 'thelabyrinth', 'the_labyrinth',
+            'l4byr1nth', 'l4byr',
             '42', '0', '1', '13', '7', '666', '999', '314',
             ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
@@ -553,7 +614,7 @@ function solvePassword(hint, hintData, hostname = '') {
             '!!', '!!!', '!@#', '!@#$', '!1!', '!0!',
             // Punctuation-only patterns with numbers
             '0', '1', '42', '69', '666', '1337',
-            ...hostCandidates, ...extendedPasswords,
+            ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
     }
 
