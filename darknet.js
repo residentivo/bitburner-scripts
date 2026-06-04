@@ -238,7 +238,16 @@ function hostnameVariants(hostname) {
     return out
 }
 
+// Hardcoded passwords for specific hostnames (discovered manually / via heartbleed)
+const HARDCODED_PASSWORDS = {
+    'th3_l4byr1nth': '!!the:masterwork:of:daedalus<5109>!!',
+}
+
 function solvePassword(hint, hintData, hostname = '') {
+    // Hardcoded override — always try first
+    if (hostname && HARDCODED_PASSWORDS[hostname]) {
+        return [HARDCODED_PASSWORDS[hostname], ...hostnameVariants(hostname)]
+    }
     if (!hint) return []
     const h = hint.toLowerCase()
 
