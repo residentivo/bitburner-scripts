@@ -78,9 +78,9 @@ async function log(ns, msg) {
         // Pull latest log from home first
         try { await ns.scp(file, ns.getHostname(), 'home') } catch (e) { /* ok */ }
         let existing = ns.read(file) || ''
-        // Keep last 200 lines
+        // Keep last 50 lines per host (less spam)
         const lines = (existing + line).split('\n')
-        const trimmed = lines.slice(-200).join('\n')
+        const trimmed = lines.slice(-50).join('\n')
         ns.write(file, trimmed, 'w')
         // Push back to home
         try { await ns.scp(file, 'home') } catch (e) { /* ok */ }
@@ -88,23 +88,29 @@ async function log(ns, msg) {
 }
 
 async function logFail(ns, server, reason, hint = '') {
-    const key = `${server}|${reason}|`
-    const line = `${key}${hint}\n`
+    const key = `${server}|${reason}|${hint}`
     const file = '/darknet-failures.txt'
     try {
+        // Pull latest from home, merge, deduplicate, write back
         let existing = ns.read(file) || ''
         try {
             await ns.scp(file, ns.getHostname(), 'home')
             existing = ns.read(file) || existing
         } catch (e) { /* home not reachable yet */ }
 
-        if (!existing.includes(key)) {
-            const merged = existing + line
-            await ns.write(file, merged, 'w')
-            try {
-                await ns.scp(file, 'home')
-            } catch (e) { /* ignore */ }
+        // Deduplicate: keep only unique keys
+        const seen = new Set()
+        const lines = existing.split('\n').filter(l => l.trim())
+        const deduped = []
+        for (const l of lines) {
+            if (!seen.has(l)) { seen.add(l); deduped.push(l) }
         }
+        // Add new entry if not seen
+        if (!seen.has(key)) deduped.push(key)
+
+        const output = deduped.join('\n') + '\n'
+        await ns.write(file, output, 'w')
+        try { await ns.scp(file, 'home') } catch (e) { /* ignore */ }
     } catch (e) { /* ignore */ }
 }
 
@@ -539,6 +545,25 @@ function solvePassword(hint, hintData, hostname = '') {
         popCulture.push('galactic', 'galaxy', 'space', 'star', 'cosmic', 'milkyway')
     if (hlow.includes('universal'))
         popCulture.push('universal', 'global', 'world', 'all', 'everywhere')
+    // More from latest batch
+    if (hlow.includes('the_slums') || hlow.includes('slums'))
+        popCulture.push('slums', 'the_slums', 'ghetto', 'poor', 'undercity', 'favela')
+    if (hlow.includes('foodnstuff') || hlow.includes('foodns7uff'))
+        popCulture.push('foodnstuff', 'food', 'stuff', 'snack', 'eat', 'noodle')
+    if (hlow.includes('amanda'))
+        popCulture.push('amanda', 'mandy', 'aanda')
+    if (hlow.includes('biteme') || hlow.includes('b17e'))
+        popCulture.push('biteme', 'bite', 'byte', 'biteme!', 'eatme')
+    if (hlow.includes('nwo'))
+        popCulture.push('nwo', 'newworldorder', 'nw', 'order')
+    if (hlow.includes('v7_7ram5') || hlow.includes('v_rams'))
+        popCulture.push('vrams', 'v7_7ram5', 'ram', 'memory', 'dram', 'vram')
+    if (hlow.includes('abc123') || hlow === 'abc123')
+        popCulture.push('abc123', 'abc', '123', 'abc123!')
+    if (hlow.includes('l0calh0st') || hlow.includes('localh0st'))
+        popCulture.push('localhost', 'l0calh0st', 'local', 'home', '127001', 'loopback')
+    if (hlow.includes('h0me'))
+        popCulture.push('home', 'h0me', 'house', 'base', 'root')
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     // But NOT "The default password is set" / "The password is set to default" — those fall through
