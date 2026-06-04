@@ -112,7 +112,31 @@ function solvePassword(hint, hintData, hostname = '') {
     if (!hint) return []
     const h = hint.toLowerCase()
     const hostClean = hostname ? hostname.replace(/[^a-zA-Z0-9]/g, '') : ''
-    const hostCandidates = hostname ? [hostname, hostname.toLowerCase(), hostClean] : []
+    // Generate many hostname-based password candidates
+    const hostCandidates = []
+    if (hostname) {
+        hostCandidates.push(hostname, hostname.toLowerCase(), hostClean)
+        // Reverse
+        const reversed = hostname.split('').reverse().join('')
+        const revClean = hostClean.split('').reverse().join('')
+        hostCandidates.push(reversed, revClean)
+        // ROT13
+        const rot13 = (s) => s.replace(/[a-zA-Z]/g, c => String.fromCharCode((c <= 'Z' ? 90 : 122) >= (c = c.charCodeAt(0) + 13) ? c : c - 26))
+        hostCandidates.push(rot13(hostClean))
+        // Common transforms
+        hostCandidates.push(hostClean + '1', hostClean + '123', '!' + hostClean, hostClean + '!')
+        // Just the alphabetic parts
+        const alphaOnly = hostname.replace(/[^a-zA-Z]/g, '')
+        if (alphaOnly && alphaOnly !== hostClean) hostCandidates.push(alphaOnly, alphaOnly.toLowerCase())
+        // Number-only parts
+        const numOnly = hostname.replace(/[^0-9]/g, '')
+        if (numOnly) hostCandidates.push(numOnly)
+        // Leet speak decode
+        const leetMap = {'4':'a','3':'e','1':'i','0':'o','7':'t','5':'s'}
+        let decoded = ''
+        for (const c of hostClean.toLowerCase()) decoded += leetMap[c] || c
+        if (decoded !== hostClean.toLowerCase()) hostCandidates.push(decoded)
+    }
 
     // Pop culture / themed passwords based on hostname hints
     const popCulture = []
@@ -539,7 +563,7 @@ export async function main(ns) {
                             log(ns, `${neighbor} BLEED: ${JSON.stringify(logs).substring(0, 300)}`)
                         }
                     } catch (e) { /* not available */ }
-                    log(ns, `${neighbor} FAIL '${hint}'`)
+                    log(ns, `${neighbor} FAIL '${hint}' data='${data}'`)
                     await logFail(ns, neighbor, 'auth-failed', hint)
                     continue
                 }
