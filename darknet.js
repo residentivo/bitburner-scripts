@@ -201,43 +201,40 @@ function solvePassword(hint, hintData, hostname = '') {
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
-        // Generate all common passwords of exactly this length + brute force numeric
-        const candidates = [...hostCandidates]
-        // Add all common passwords of this length
+        const candidates = [...hostCandidates, ...popCulture]
+        // Massive wordlists by length
+        const wordsByLen = {
+            3: ['cat','dog','foo','bar','baz','qux','pwd','key','abc','xyz','net','web','ssh','ftp','sql','api','hex','bin','oct','raw','red','big','hot','top','low','new','old','cap','log','bit','set','get','run','end','map','tag','ref','pid','uid','gid','dev','mod','sys','env','var','lib','inc','ext','err','dbg','val','idx','num','len','max','min','sum','avg','add','sub','mul','div','rem','rat','vec','mat','row','col','dim','nil','nan','inf','yes','no','off','not','and','nor','xor','imp','iff','tru','fls','arr','obj','str','int','chr','buf','reg','seg','stk','que','lst','tre','grp','set','fun','app','win','frm','dlg','btn','tab','fld','img','txt','lnk','drv','dev','com','net','org','edu','gov','mil','int','pro','biz','inf','name','mobi','asia','cat','jobs','post','tel','travel','xxx','coop','aero','museum','arpa','root','local'],
+            4: ['pass','test','root','user','abcd','1234','hack','open','null','void','true','fail','exit','loop','code','data','file','link','load','save','help','info','warn','error','debug','trace','login','auth','tick','halt','ping','sync','lock','wait','fork','exec','kill','push','pull','seek','jump','call','send','recv','read','write','pipe','open','shut','bind','conn','disc','list','peek','poll','drop','swap','move','copy','fill','sort','find','scan','next','prev','last','head','tail','step','stop','skip','mark','flag','size','type','mode','flag','mask','port','host','addr','name','path','base','dest','core','temp','swap','page','byte','word','line','block','chunk','frame','pixel','grid','node','edge','tree','root','leaf','seed','hash','sign','cert','keys','salt','seed','token','code','seed','rand','time','date','week','year','zone','diff','span','rate','freq','step','iter','loop','turn','tick','mile','kilo','mega','giga','tera','peta','exbi','zebi','yobi','zero','null','none','some','any','all','both','each','more','less','much','many','only','just','very','also','then','else','when','once','ever','never','still','back','deep','high','long','wide','near','far','here','away','left','right','up','down','over','past','into','onto','upon','from','with','that','this','what','which','how','why'],
+            5: ['admin','qwert','abcde','12345','hello','world','sword','blade','shift','enter','space','break','pause','clear','reset','power','start','abort','flush','clean','crash','panic','fault','throw','catch','guard','check','valid','verify','trust','allow','grant','revoke','deny','block','limit','count','first','index','slice','range','delta','alpha','bravo','gamma','delta','theta','sigma','omega','prime','sqrt','floor','ceil','round','abs','sign','log2','log10','power','exp','sin','cos','tan','asin','acos','atan','atan2','sinh','cosh','tanh','clamp','lerp','min','max','swap','revrs','sort','uniq','flat','join','split','trim','strip','lower','upper','title','camel','snake','kebab','pascal','dot','path','slash','comma','colon','semi','point','vuln','exploit','shell','spawn','daemon','nginx','apache','linux','unix','posix','bash','zsh','csh','ksh','ssh','scp','sftp','rsync','curl','wget','ping','traceroute','dns','dhcp','nfs','smb','cifs','ldap','kerberos','oauth','jwt','ssrf','xss','csrf','rce','sqli','xxe'],
+            6: ['123456','qwerty','secret','abcdef','letme1','access','oracle','ubuntu','debian','fedora','centos','redhat','gentoo','arch','alpine','window','macos','kernel','system','driver','module','packet','socket','thread','socket','server','client','broker','master','worker','leader','follower','proxy','cache','queue','stack','stream','buffer','object','render','shader','matrix','vector','tensor','scalar','domain','record','schema','cursor','cursor','cursor','python','golang','kotlin','swift','ruby','perl','rust','haskell','clojure','elixir','erlang','scala','lua','risc','arm','x86','amd64','mips','sparc','ppc','sysv','bsd','glibc','musl','tinfo','ncurse','readli','zlib','bzip2','xz','lz4','zstd','brotli','snappy','lzfse','acodec','mpeg','h264','h265','vp8','vp9','av1','opus','flac','vorbis','aac','mp3','wav','ogg','webm','mkv','mp4','flv','avi','gif','png','jpeg','tiff','webp','svg','pdf','docx','xlsx','json','yaml','toml','xml','html','css','js','ts','py','rb','go','rs','java','c','cpp','h','sh','bash','fish','zsh','ps1','bat','cmd','sql','r','m','pl','lua','vim','el','clj','ex','erl','hs','ml','scala','kt','dart','swift','zig','nim','v','wasm','net','com','org','wifi','wpa2','tls12','sshd','nginx','apache','docker','k8s','etcd','vault','consul','kafka','redis','mongo','mysql','psql','mariad','sqlite','oracle','msssql','couch','neo4j','influx','grafan','promet','elastic','logsta','kibana','jenkin','gitlab','github','codepi','travic','circle','argo','flux','helm','kusto','terraform'],
+            7: ['1234567','7654321','1111111','0000000','9999999','letmein','changeme','trustno','abcdefg','testing','default','welcome','pass123','admin12','root1234','backup1','network','service','process','session','connect','request','respond','message','handler','control','command','monitor','trigger','deploy','release','rollback','restart','upgrade','downgrade','refresh','rebuild','compile','execute','analyze','display','console','terminal','prompt','dialog','option','setting','feature','plugin','module','extend','update','install','uninstal','config','preference','profile','account','privacy','security','encrypt','decrypt','encode','decode','compress','decompress','serialize','deserial','validate','sanitize','transform','convert','resolve','reject','fulfill','observe','subscribe','dispatch','emit','listen','notify','publish','consume','produce','process','compute','calculate','simulate','optimize','minimize','maximize','approxim','interpol','extrapo','regress','predict','classify','cluster','detect','recognize','identify','extract','generate','compose','aggregate','reduce','filter','project','invert','transpose','conjugate','normalize','orthogo','diagonal','symmetr','determi','eigen','singular','factoriz','decompos','permute','combin','shuffle','sample','random','stochast','markov','bayes','gaussian','poisson','uniform','exponent','weibull','pareto','lognorm','bernoul','binomia','hyperg','negbino','geom','chisq','fstat','tstat','betafunc','erf','gammafn','zetafn','digamma','polygam','bessel','legendr','chebys','hermite','laguerr','jacobi','fourier','laplace','hilbert','z transf','mellin','cauchy','riemann','dirichl','mobius','euler','fermat','mersenn','carmich','wilson','fermat2','bezout','euclid','kroneck','legendr2','jacobi2','ramanuj','hardy','waring','goldbac','collatz','thue','prouhet','morse','gray','huffman','shannon','fano','arthur','turing','church','godel','cantor','hilbert2','noether','gauss2','euler2','fermat3','laplace2','fourier2','newton2','leibniz','banach','jordan2','gram2','schmidt','schur','weierst','riemann2','mobius2','cauchy2','klein','poincar','rieman3','manifol','topolog','metric2','hausdor','fractal','mandelb','julia2','cantor2','sierpin','koch2','minkows','fatou2','bifurca','logisti','lorenz2','rossler','henon2','arnold2','chirikov','circle2','sine2','baker2','ikeda2','tinkerbell','gingerb','mahlena','swatrz','kapreka','collatz2','ulam2','goodste','busybea','tagasys','life2','rule110','conway2','langton','turmit2','curtist','margolu','levy2','brownia','wiener2','ornstei','uhlenbe','ito2','straton','fokker2','planck2','kolmogo','chapman','riccati','bessel2','airy2','hermite2','laguerr2','hyperg2','conflue','whittak','meijer2','fox2','hfun2','appell2','lauric2','pfaff2','gauss3','kummer2','euler3','dirichl2','lerch2','polylog','li2','clausen','glaisher','katona','chowla','hooley','barban','viggo','bombier','elliot','selberg2','weil2','tate2','lang2','grothen','atiyah2','wiles2','perelman','yau2','donalds','kontse','voevod','milnor2','smale2','nash2','morse2','thom2','cerf2','kirby2','lens2','kervair','rokhlin','wall2','browder','sullivan','quillen2','baues2','frieds2','serre2','deligne','beilins','bloch2','kato2','hodge2','griffit2','clemens2','voisin2','green2','taubes2','kronhei','mrowka','bismut2','getzler2','lenhard','pasc2','fermat4'],
+        }
+        // Add words of exact length
+        if (wordsByLen[len]) candidates.push(...wordsByLen[len])
+        // Also from commonPasswords
         for (const pw of commonPasswords) {
             if (pw.length === len) candidates.push(pw)
         }
-        // Add all numbers of this length
-        if (len <= 6) {
-            const min = Math.pow(10, len - 1)
+        // Add from extendedPasswords
+        for (const pw of extendedPasswords) {
+            if (pw.length === len) candidates.push(pw)
+        }
+        // Brute force numbers of this length (if feasible)
+        if (len <= 5) {
+            const min = len === 1 ? 0 : Math.pow(10, len - 1)
             const max = Math.pow(10, len) - 1
-            // Don't brute force too many — limit to 200
-            if (max - min <= 200) {
-                for (let i = min; i <= max; i++) candidates.push(String(i))
-            } else {
-                // Just try common patterns of this length
-                candidates.push(String(min), String(max), '0'.repeat(len), '9'.repeat(len))
-                candidates.push('1'.repeat(len), '123456'.substring(0, len))
-            }
+            for (let i = min; i <= max; i++) candidates.push(String(i))
+        } else if (len === 6) {
+            // 6 digits = 900k, too many. Try common 6-digit patterns
+            candidates.push('000000','111111','123456','654321','999999','000001','100000','999998')
+            for (let i = 0; i <= 999; i++) candidates.push(String(i).padStart(6, '0'))
+        } else if (len === 7) {
+            // Try common 7-digit numbers and padded 6-digit
+            for (let i = 0; i <= 999; i++) candidates.push(String(i).padStart(7, '0'))
+            for (let i = 1000000; i <= 1000999; i++) candidates.push(String(i))
         }
-        // Special: len 5 → try 5-digit numbers
-        if (len === 5) {
-            candidates.push('12345', '54321', '11111', '00000', '99999')
-        }
-        if (len === 6) {
-            candidates.push('123456', '654321', '111111', '000000', '999999')
-        }
-        if (len === 7) {
-            candidates.push('1234567', '7654321', '1111111', '0000000', '9999999')
-            // 7-char thematic words
-            candidates.push('bonfire', 'solaire', 'artoria', 'darkwra', 'priscil',
-                'machine', 'android', 'skynets', 'matrixx', 'templat',
-                'knight', 'warrior', 'dragons', 'kingdom', 'castle',
-                'shadowx', 'darknes', 'abyssss', 'voidddd', 'silentx',
-                'labyrin', 'minotau', 'theseus', 'ariadne', 'daedalu',
-                'everest', 'sagarma', 'chomolu', 'hillary', 'norgayx')
-        }
-        return [...new Set([...candidates, ...popCulture])]
+        return [...new Set(candidates)]
     }
 
     // "Remember to use X"
