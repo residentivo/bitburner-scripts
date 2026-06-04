@@ -679,12 +679,13 @@ function solveProblem(type, input) {
     for (let j = 1; j <= n; j++) {
       if ((j & (j - 1)) !== 0) dataBits += corrected[j - 1];
     }
-    return parseInt(dataBits, 2);
+    // Use BigInt for precision — data can exceed Number.MAX_SAFE_INTEGER
+    return BigInt('0b' + dataBits).toString();
   }
 
   // === HammingCodes: Integer to Encoded Binary ===
   if (type === "HammingCodes: Integer to Encoded Binary") {
-    let val = input;
+    let val = BigInt(input);
     let dataBin = val.toString(2);
     let m = dataBin.length;
     let r = 1;
