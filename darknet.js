@@ -144,17 +144,20 @@ function solvePassword(hint, hintData, hostname = '') {
         for (const c of hostClean.toLowerCase()) decoded += leetMap[c] || c
         if (decoded !== hostClean.toLowerCase()) hostCandidates.push(decoded)
 
-        // Emoji-letter decode: 🅱️→B, 🅰️→A, 🅾️→O, 🅿️→P, 🆎→AB
+        // Emoji-letter decode: 🅱→B, 🅰→A, 🅾→O, 🅿→P, 🆎→AB
         const emojiDecoded = hostname
-            .replace(/\u{1F17E}/gu, 'B')
-            .replace(/\u{1F130}/gu, 'A')
-            .replace(/\u{1F17D}/gu, 'O')
-            .replace(/\u{1F17F}/gu, 'P')
-            .replace(/\u{1F18E}/gu, 'AB')
+            .replace(/\u{1F171}/gu, 'B')  // 🅱
+            .replace(/\u{1F170}/gu, 'A')  // 🅰
+            .replace(/\u{1F17E}/gu, 'O')  // 🅾
+            .replace(/\u{1F17F}/gu, 'P')  // 🅿
+            .replace(/\u{1F18E}/gu, 'AB') // 🆎
         if (emojiDecoded !== hostname) {
             hostCandidates.push(emojiDecoded, emojiDecoded.toLowerCase())
             const emojiClean = emojiDecoded.replace(/[^a-zA-Z0-9]/g, '')
             if (emojiClean) hostCandidates.push(emojiClean, emojiClean.toLowerCase())
+            // Reversed emoji-decoded (🅱️uh%repyh → Buhrepyh → hyperhub reversed)
+            const emojiReverse = emojiClean.split('').reverse().join('')
+            if (emojiReverse) hostCandidates.push(emojiReverse, emojiReverse.toLowerCase())
             // Leet-decode the emoji-cleaned version too (e.g. B1tBurner → BitBurner)
             let emojiLeet = ''
             for (const c of emojiClean.toLowerCase()) emojiLeet += leetMap[c] || c
@@ -320,6 +323,78 @@ function solvePassword(hint, hintData, hostname = '') {
     // Anonymous / anonymou5
     if (hlow.includes('anonymou') || hlow.includes('an0nymou'))
         popCulture.push('anonymous', 'anonymou5', 'anon', 'legion', 'expectus', 'mask', 'v', 'vendetta', 'guyfawkes')
+    // New patterns from latest failures
+    // aevum (Latin for "age/eternity")
+    if (hlow.includes('aevum'))
+        popCulture.push('aevum', 'eternity', 'age', 'time', 'forever', 'infinite', 'aeon', 'eonic')
+    // omuretsu (Japanese/reversed tesumo?)
+    if (hlow.includes('omuretsu'))
+        popCulture.push('omuretsu', 'tesumo', 'sumo', 'muretso', 'japanese', 'sushi', 'ramen')
+    // Oriath (Path of Exile)
+    if (hlow.includes('oriath'))
+        popCulture.push('oriath', 'poE', 'pathofexile', 'exile', 'wraeclast', 'sarn', 'kitava', 'sin', 'innocence', 'theocracy')
+    // ishima (Ghost in the Shell / Japanese)
+    if (hlow.includes('ishima'))
+        popCulture.push('ishima', 'ghost', 'shell', 'motoko', 'kusanagi', 'tachikoma', 'section9', 'cyberbrain', 'android')
+    // the_void
+    if (hlow.includes('void') || hlow.includes('the_void'))
+        popCulture.push('void', 'the_void', 'null', 'empty', 'nothing', 'abyss', 'darkness', 'black', 'zero', 'nil')
+    // ranger
+    if (hlow.includes('ranger'))
+        popCulture.push('ranger', 'forest', 'patrol', 'scout', 'tracker', 'hunt', 'wild', 'nature', 'aragorn', 'strider')
+    // football
+    if (hlow.includes('football'))
+        popCulture.push('football', 'soccer', 'touchdown', 'goal', 'field', 'ball', 'fifa', 'nfl', 'gridiron', 'quarterback')
+    // laptop
+    if (hlow.includes('laptop'))
+        popCulture.push('laptop', 'notebook', 'portable', 'macbook', 'thinkpad', 'dell', 'hp', 'lenovo', 'computer', 'pc')
+    // crush_fitness_gym
+    if (hlow.includes('crush') && hlow.includes('gym'))
+        popCulture.push('crush', 'crushfitness', 'gym', 'fitness', 'workout', 'iron', 'pump', 'gain', 'swole')
+    // giga / citadel
+    if (hlow.includes('giga'))
+        popCulture.push('giga', 'gigabyte', 'giga1', 'gb', 'billion', '10^9', 'g')
+    // data / systems / apex / industries
+    if (hlow.includes('data') && hlow.includes('system'))
+        popCulture.push('datasystems', 'data', 'system', 'sys', 'database', 'db', 'storage', 'info')
+    if (hlow.includes('1ndu5tr1e5') || hlow.includes('industries'))
+        popCulture.push('industries', '1ndu5tr1e5', 'industry', 'factory', 'manufacture', 'production')
+    // EZ_BAKE_OVEN
+    if (hlow.includes('bake') || hlow.includes('oven'))
+        popCulture.push('bake', 'oven', 'ezbake', 'cake', 'bread', 'cookie', 'pastry', '350', '425', '375', '450')
+    // bachman
+    if (hlow.includes('bachman'))
+        popCulture.push('bachman', 'bach', 'music', 'composer', 'classical', 'organ', 'cantata', 'fugue')
+    // The_Depth5 / depth
+    if (hlow.includes('depth') || hlow.includes('depth5'))
+        popCulture.push('depth', 'depth5', 'deep', 'abyss', 'bottom', 'ocean', 'trench', '5', 'the_depth5')
+    // global_pharmaceuticals
+    if (hlow.includes('pharma'))
+        popCulture.push('pharma', 'pharmaceutical', 'drug', 'medicine', 'pill', 'vaccine', 'cure', 'rx')
+    // 7ian_di_hui / tian_di_hui (天地会 = Heaven and Earth Society)
+    if (hlow.includes('7ian') || hlow.includes('tian'))
+        popCulture.push('tiandihui', '7ian_di_hui', '天地会', 'heaven', 'earth', 'society', 'triad', 'secret', 'martial', 'kungfu')
+    // h4cker / hacker
+    if (hlow.includes('h4cker') || hlow.includes('hacker'))
+        popCulture.push('hacker', 'h4cker', 'crack', 'exploit', 'root', '0day', 'hack', 'breach', 'pentest')
+    // OrangeTV
+    if (hlow.includes('orange') || hlow.includes('orangetv'))
+        popCulture.push('orange', 'orangetv', 'tv', 'telecom', 'fruit', 'citrus', 'os', 'livetv')
+    // 5olution5 / solutions
+    if (hlow.includes('5olution') || hlow.includes('solution'))
+        popCulture.push('solutions', '5olution5', 'solve', 'answer', 'fix', 'resolve')
+    // r0gu3:ma7rix / rogue matrix
+    if (hlow.includes('r0gu3') || (hlow.includes('rogue') && hlow.includes('ma7rix')))
+        popCulture.push('roguematrix', 'r0gu3ma7rix', 'rogue', 'matrix', 'r0gu3', 'ma7rix', 'glitch', 'anomaly')
+    // bitc0in / bitcoin
+    if (hlow.includes('bitc0in') || hlow.includes('bitcoin') || hlow.includes('bi7coin'))
+        popCulture.push('bitcoin', 'bitc0in', 'bi7coin', 'btc', 'satoshi', 'nakamoto', 'blockchain', 'mining', 'miner', 'hash', 'wallet')
+    // ne7web / netweb with 🅱️
+    if (hlow.includes('ne7web') || hlow.includes('ne7we'))
+        popCulture.push('netweb', 'ne7web', 'network', 'web', 'internet', 'online', '7168')
+    // cryp7o@w3b / cryptoweb
+    if (hlow.includes('cryp7o') && hlow.includes('w3b'))
+        popCulture.push('cryptoweb', 'cryp7ow3b', 'crypto', 'web', 'encrypt', 'cipher', 'tls')
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     // But NOT "The default password is set" / "The password is set to default" — those fall through
