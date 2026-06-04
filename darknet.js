@@ -99,7 +99,22 @@ async function logFail(ns, server, reason, hint = '') {
 function solvePassword(hint, hintData, hostname = '') {
     if (!hint) return []
     const h = hint.toLowerCase()
-    const hostCandidates = hostname ? [hostname, hostname.toLowerCase(), hostname.replace(/[^a-zA-Z0-9]/g, '')] : []
+    const hostClean = hostname ? hostname.replace(/[^a-zA-Z0-9]/g, '') : ''
+    const hostCandidates = hostname ? [hostname, hostname.toLowerCase(), hostClean] : []
+
+    // Pop culture / themed passwords based on hostname hints
+    const popCulture = []
+    const hlow = (hostname || '').toLowerCase()
+    if (hlow.includes('anor') || hlow.includes('londo') || hlow.includes('lordran') || hlow.includes('souls') || hlow.includes('firelink'))
+        popCulture.push('solaire', 'darkwraith', 'hollow', 'gwyndolin', 'ornstein', 'smough', 'gwyn', 'nito', 'seath', 'kalameet', 'priscilla', 'artorias', 'manus', 'quelaag', 'chaos', 'fire', 'bonfire', 'estus', 'pyromancy', 'dark', 'sun', 'praise the sun', 'darksouls', 'lordran', 'anorlondo', 'ash', 'ember', 'kindle', 'humanity', 'hollowed')
+    if (hlow.includes('machine') || hlow.includes('church') || hlow.includes('god'))
+        popCulture.push('machine', 'god', 'deus', 'church', 'templar', 'cyber', 'android', 'synth', 'matrix', 'skynet', 'omnic', 'primordial', 'architect', 'builder', 'creator', 'maker')
+    if (hlow.includes('labyr') || hlow.includes('maze') || hlow.includes('l4byr'))
+        popCulture.push('minotaur', 'theseus', 'ariadne', 'thread', 'labyrinth', 'maze', 'daedalus', 'icarus', 'corridoor')
+    if (hlow.includes('everest') || hlow.includes('mountain') || hlow.includes('himalaya'))
+        popCulture.push('everest', 'sagarmatha', 'chomolungma', '8848', '29029')
+    if (hlow.includes('fitness') || hlow.includes('gym') || hlow.includes('snap'))
+        popCulture.push('fitness', 'gym', 'workout', 'lift', 'gain', 'protein', 'cardio', 'sweat', 'muscle', 'iron', 'pump', 'fit', 'strong', 'power', 'endurance')
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     const keyMatch = hint.match(/(?:key|secret|password|pin|it'?s set to)\s+(?:is\s+)?(\w+)/i)
@@ -131,11 +146,19 @@ function solvePassword(hint, hintData, hostname = '') {
     if (pinMatch && pinMatch[1]) {
         const pin = pinMatch[1]
         const candidates = [pin]
-        // "PIN uses 224" — try 224 and permutations
+        // "PIN uses 224" — try 224 and permutations, plus partial matches
         if (h.includes('use')) {
             candidates.push(...permutations(pin))
+            // Also try subsets and common combos with those digits
+            const digits = pin.split('')
+            // try each digit alone, pairs, etc
+            for (const d of digits) candidates.push(d)
+            // try pin with leading zeros
+            candidates.push('0' + pin, '00' + pin)
+            // try pin reversed
+            candidates.push(pin.split('').reverse().join(''))
         }
-        return [...new Set(candidates)]
+        return [...new Set([...candidates, ...hostCandidates, ...popCulture])]
     }
 
     // "The password is shuffled NNN" — all permutations
@@ -206,8 +229,15 @@ function solvePassword(hint, hintData, hostname = '') {
         }
         if (len === 7) {
             candidates.push('1234567', '7654321', '1111111', '0000000', '9999999')
+            // 7-char thematic words
+            candidates.push('bonfire', 'solaire', 'artoria', 'darkwra', 'priscil',
+                'machine', 'android', 'skynets', 'matrixx', 'templat',
+                'knight', 'warrior', 'dragons', 'kingdom', 'castle',
+                'shadowx', 'darknes', 'abyssss', 'voidddd', 'silentx',
+                'labyrin', 'minotau', 'theseus', 'ariadne', 'daedalu',
+                'everest', 'sagarma', 'chomolu', 'hillary', 'norgayx')
         }
-        return [...new Set(candidates)]
+        return [...new Set([...candidates, ...popCulture])]
     }
 
     // "Remember to use X"
@@ -321,8 +351,10 @@ function solvePassword(hint, hintData, hostname = '') {
             'silence', 'echo', 'lost', 'hidden', 'path', 'way', 'door', 'gate', 'portal',
             'candle', 'torch', 'light', 'key', 'north', 'south', 'east', 'west',
             'left', 'right', 'forward', 'back', 'turn', 'follow', 'trust', 'fear',
+            'daedalus', 'icarus', 'minos', 'crete', ' underworld', 'labyrinthine',
+            'corridoor', 'twist', 'spiral', 'winding', 'enigma', 'riddle', 'conundrum',
             '42', '0', '1', '13', '7', '666', '999', '314',
-            ...hostCandidates, ...extendedPasswords,
+            ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
 
     // "Only a true master may pass" / master riddle
@@ -350,16 +382,16 @@ function solvePassword(hint, hintData, hostname = '') {
     // "(I'm busy browsing social media at the cafe)" — social media / cafe riddle
     if (h.includes('social media') || h.includes('browsing') || h.includes('cafe') || h.includes('coffee'))
         return [...new Set([
-            'facebook', 'twitter', 'instagram', 'reddit', 'tiktok', 'youtube',
-            'social', 'media', 'browse', 'cafe', 'coffee', 'latte', 'espresso',
-            'wifi', 'password', 'freewifi', 'freewifi!', 'guestwifi',
-            'coffee1', 'cafe1', '1234', '12345',
-            ...hostCandidates, ...extendedPasswords,
+            'facebook', 'twitter', 'instagram', 'reddit', 'tiktok', 'youtube', 'myspace', 'tumblr', 'snapchat', 'pinterest', 'linkedin', 'slack', 'discord', 'whatsapp', 'telegram',
+            'social', 'media', 'browse', 'cafe', 'coffee', 'latte', 'espresso', 'cappuccino', 'mocha', 'americano', 'macchiato', 'ristretto', 'flatwhite',
+            'wifi', 'password', 'freewifi', 'freewifi!', 'guestwifi', 'cafewifi', 'netcafe',
+            'coffee1', 'cafe1', '1234', '12345', 'admin', 'open',
+            ...hostCandidates, ...popCulture, ...extendedPasswords,
         ])]
 
     // Mountain riddle
     if (h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
-        return [...new Set([...hostCandidates, ...mountainPasswords, ...extendedPasswords])]
+        return [...new Set([...hostCandidates, ...popCulture, ...mountainPasswords, ...extendedPasswords])]
 
     // Riddle fallback
     if (h.includes('riddle') || h.includes('true'))
@@ -380,7 +412,7 @@ function solvePassword(hint, hintData, hostname = '') {
 
     // Fallback: if we have a hint but no solver, try everything
     // This catches any unrecognized hints
-    return [...new Set([...hostCandidates, '', ...commonPasswords])]
+    return [...new Set([...hostCandidates, ...popCulture, '', ...commonPasswords])]
 }
 
 /** @param {NS} ns */
