@@ -658,6 +658,56 @@ function solveProblem(type, input) {
     return (n === 1 ? f - 1 : n).toString();
   }
 
+  // === HammingCodes: Encoded Binary to Integer ===
+  // Input: binary string encoded with Hamming error-correcting code
+  // Decode: detect single-bit error, correct it, extract data bits, convert to integer
+  if (type === "HammingCodes: Encoded Binary to Integer") {
+    let n = input.length;
+    let errorPos = 0;
+    for (let i = 1; i <= n; i <<= 1) {
+      let parity = 0;
+      for (let j = 1; j <= n; j++) {
+        if (j & i) parity ^= parseInt(input[j - 1]);
+      }
+      if (parity !== 0) errorPos |= i;
+    }
+    let corrected = input.split('');
+    if (errorPos > 0 && errorPos <= n) {
+      corrected[errorPos - 1] = corrected[errorPos - 1] === '0' ? '1' : '0';
+    }
+    let dataBits = '';
+    for (let j = 1; j <= n; j++) {
+      if ((j & (j - 1)) !== 0) dataBits += corrected[j - 1];
+    }
+    return parseInt(dataBits, 2);
+  }
+
+  // === HammingCodes: Integer to Encoded Binary ===
+  if (type === "HammingCodes: Integer to Encoded Binary") {
+    let val = input;
+    let dataBin = val.toString(2);
+    let m = dataBin.length;
+    let r = 1;
+    while (Math.pow(2, r) < m + r + 1) r++;
+    let n = m + r;
+    let encoded = new Array(n).fill('0');
+    let di = 0;
+    for (let j = 1; j <= n; j++) {
+      if ((j & (j - 1)) !== 0) {
+        encoded[j - 1] = di < m ? dataBin[di] : '0';
+        di++;
+      }
+    }
+    for (let i = 1; i <= n; i <<= 1) {
+      let parity = 0;
+      for (let j = 1; j <= n; j++) {
+        if (j & i) parity ^= parseInt(encoded[j - 1]);
+      }
+      encoded[i - 1] = parity.toString();
+    }
+    return encoded.join('');
+  }
+
   return null;
 }
 
