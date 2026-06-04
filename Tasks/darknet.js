@@ -72,7 +72,16 @@ function permutations(str) {
 }
 
 function log(ns, msg) {
-    ns.print(`[dnet] ${msg}`)
+    const line = `[dnet] ${msg}\n`
+    // Write to file on home instead of terminal
+    try {
+        const file = '/darknet-log.txt'
+        const existing = ns.read(file) || ''
+        // Keep last 200 lines max
+        const lines = (existing + line).split('\n')
+        const trimmed = lines.slice(-200).join('\n')
+        ns.write(file, trimmed, 'w')
+    } catch (e) { /* fallback to print */ ns.print(line.trim()) }
 }
 
 async function logFail(ns, server, reason, hint = '') {
@@ -451,6 +460,9 @@ function solvePassword(hint, hintData, hostname = '') {
 /** @param {NS} ns */
 export async function main(ns) {
     const host = ns.getHostname()
+    // Suppress noisy logs
+    ns.disableLog('scp')
+    ns.disableLog('exec')
 
     // Dedup: if another instance is already running, exit
     const myPid = ns.pid
