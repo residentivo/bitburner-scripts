@@ -451,23 +451,17 @@ function solvePassword(hint, hintData, hostname = '') {
 /** @param {NS} ns */
 export async function main(ns) {
     const host = ns.getHostname()
-    log(ns, `START on ${host} (loop mode)`)
 
     // Dedup: if another instance is already running, exit
     const myPid = ns.pid
     const others = ns.ps(host).filter(p => p.filename === SCRIPT_NAME && p.pid !== myPid)
-    if (others.length > 0) {
-        log(ns, `another instance already running (pid ${others[0].pid}), exiting`)
-        return
-    }
+    if (others.length > 0) return
 
     while (true) {
         // Step 0: Free RAM (only if blocked > 0)
         try {
             const blocked = await ns.dnet.getBlockedRam(host)
-            if (blocked > 0) {
-                await ns.dnet.memoryReallocation()
-            }
+            if (blocked > 0) await ns.dnet.memoryReallocation()
         } catch (e) { /* ignore */ }
 
         // Step 1: Probe
@@ -475,7 +469,6 @@ export async function main(ns) {
         try {
             peers = await ns.dnet.probe()
         } catch (e) {
-            log(ns, `probe error: ${e}`)
             await ns.asleep(1000)
             continue
         }
@@ -485,9 +478,6 @@ export async function main(ns) {
             continue
         }
 
-        let spawned = 0
-        let fails = 0
-
         for (const neighbor of peers) {
             if (neighbor === 'home' || neighbor === host) continue
 
@@ -495,37 +485,24 @@ export async function main(ns) {
             let details
             try {
                 details = await ns.dnet.getServerDetails(neighbor)
-            } catch (e) {
-                fails++
-                continue
-            }
+            } catch (e) { continue }
 
-            if (!details.isOnline || !details.isConnectedToCurrentServer) {
-                await logFail(ns, neighbor, 'unreachable')
-                fails++
-                continue
-            }
+            if (!details.isOnline || !details.isConnectedToCurrentServer) continue
 
             // Step B: auth (skip if already authenticated)
-            if (details.hasSession) {
-                // already authenticated, skip auth
-            } else {
+            if (!details.hasSession) {
                 const hint = details.passwordHint || ''
                 const data = details.data || ''
                 const candidates = solvePassword(hint, data, neighbor)
 
-                if (candidates.length === 0) {
-                    await logFail(ns, neighbor, 'hint-unsolved', hint)
-                    fails++
-                    continue
-                }
+                if (candidates.length === 0) continue
 
                 let authed = false
                 for (const pw of candidates) {
                     try {
                         const r = await ns.dnet.authenticate(neighbor, pw)
                         if (r.success) {
-                            log(ns, `${neighbor} auth OK '${pw}'`)
+                            log(ns, `${neighbor} OK '${pw}'`)
                             authed = true
                             break
                         }
@@ -533,23 +510,15 @@ export async function main(ns) {
                 }
 
                 if (!authed) {
-                    // Try heartbleed for more info
+                    // Heartbleed for debug info
                     try {
                         const logs = await ns.dnet.heartbleed(neighbor)
                         if (logs && logs.length > 0) {
-                            log(ns, `${neighbor} heartbleed: ${JSON.stringify(logs).substring(0, 200)}`)
-                            // Try to extract password hints from logs
-                            for (const l of (Array.isArray(logs) ? logs : [logs])) {
-                                const lstr = String(l)
-                                // If log contains a password-like string, try it next cycle
-                                const pwHint = lstr.match(/password[:\s]+(\S+)/i)
-                                if (pwHint) log(ns, `${neighbor} hint from log: ${pwHint[1]}`)
-                            }
+                            log(ns, `${neighbor} BLEED: ${JSON.stringify(logs).substring(0, 300)}`)
                         }
-                    } catch (e) { /* heartbleed not available */ }
-                    log(ns, `${neighbor} AUTH FAILED`)
+                    } catch (e) { /* not available */ }
+                    log(ns, `${neighbor} FAIL '${hint}'`)
                     await logFail(ns, neighbor, 'auth-failed', hint)
-                    fails++
                     continue
                 }
             }
@@ -559,22 +528,13 @@ export async function main(ns) {
                 await ns.scp(SCRIPT_NAME, neighbor)
                 await ns.scp('darknet-ram.js', neighbor)
                 await ns.scp(EXTRACTOR, neighbor)
-            } catch (e) {
-                fails++
-                continue
-            }
+            } catch (e) { continue }
 
-            // Step D: exec darknet.js on neighbor (propagate) — check if already running
+            // Step D: exec darknet.js on neighbor — check if already running
             const neighborProcs = ns.ps(neighbor)
             const alreadyRunning = neighborProcs.some(p => p.filename === SCRIPT_NAME)
             if (!alreadyRunning) {
-                try {
-                    const pid = ns.exec(SCRIPT_NAME, neighbor, 1)
-                    if (pid) {
-                        spawned++
-                        log(ns, `${neighbor} darknet pid=${pid} (propagating)`)
-                    }
-                } catch (e) { /* ignore */ }
+                try { ns.exec(SCRIPT_NAME, neighbor, 1) } catch (e) { /* ignore */ }
             }
         }
 
@@ -582,14 +542,8 @@ export async function main(ns) {
         const localProcs = ns.ps(host)
         const extractorRunning = localProcs.some(p => p.filename === EXTRACTOR)
         if (!extractorRunning) {
-            try {
-                const pid = ns.exec(EXTRACTOR, host, 1)
-                if (pid) log(ns, `local extractor pid=${pid}`)
-            } catch (e) { /* ignore */ }
+            try { ns.exec(EXTRACTOR, host, 1) } catch (e) { /* ignore */ }
         }
-
-        if (spawned > 0 || fails > 0)
-            log(ns, `cycle: ${spawned} spawned, ${fails} failed, ${peers.length} peers`)
 
         await ns.asleep(1000)
     }
