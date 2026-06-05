@@ -636,28 +636,25 @@ function solveProblem(type, input) {
   }
 
   // === HammingCodes: Encoded Binary to Integer ===
-  // Input: binary string encoded with Hamming error-correcting code
-  // Decode: detect single-bit error, correct it, extract data bits, convert to integer
+  // Uses 0-based syndrome approach (same as solver-mini.js) — handles SECDED codes correctly
   if (type === "HammingCodes: Encoded Binary to Integer") {
-    let n = input.length;
-    let errorPos = 0;
-    for (let i = 1; i <= n; i <<= 1) {
-      let parity = 0;
-      for (let j = 1; j <= n; j++) {
-        if (j & i) parity ^= parseInt(input[j - 1]);
-      }
-      if (parity !== 0) errorPos |= i;
+    let enc = input.split('').map(v => parseInt(v));
+    let n = enc.length;
+    let m = 0;
+    while (Math.pow(2, m) < m + n + 1) m++;
+    let pn = 0;
+    for (let i = 0; i < n; i++) {
+      let expected = 0;
+      for (let j = 0; j < m; j++)
+        if (i & (1 << j)) expected ^= enc[Math.pow(2, j)];
+      if (enc[i] !== expected) pn ^= i;
     }
-    let corrected = input.split('');
-    if (errorPos > 0 && errorPos <= n) {
-      corrected[errorPos - 1] = corrected[errorPos - 1] === '0' ? '1' : '0';
-    }
-    let dataBits = '';
-    for (let j = 1; j <= n; j++) {
-      if ((j & (j - 1)) !== 0) dataBits += corrected[j - 1];
-    }
-    // Must return Number — contract rejects BigInt/strings for large values
-    return parseInt(dataBits, 2);
+    if (pn !== 0 && pn < n) enc[pn] = 1 - enc[pn];
+    let dataBits = [];
+    for (let i = 1; i < n; i++)
+      if ((i & (i - 1)) !== 0) dataBits.push(enc[i]);
+    dataBits.reverse();
+    return parseInt(dataBits.join(''), 2);
   }
 
   // === HammingCodes: Integer to Encoded Binary ===

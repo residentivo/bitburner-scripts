@@ -19,7 +19,8 @@ export async function main(ns) {
     const dictSourceFiles = await getActiveSourceFiles(ns, false); // Find out what source files the user has unlocked
     let playerInfo = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt');
     let inBladeburner = playerInfo.inBladeburner;
-    const bitNode = playerInfo.bitNodeN;
+    // v3: bitNodeN removed from getPlayer — use ns.getResetInfo().currentNode
+    const bitNode = (typeof ns.getResetInfo === 'function') ? ns.getResetInfo().currentNode : playerInfo.bitNodeN;
     let stkSymbols = null;
     if (!options['hide-stocks'] && playerInfo.hasTixApiAccess) // Auto-disabled if we do not have the TSK API
         stkSymbols = await getNsDataThroughFile(ns, `ns.stock.getSymbols()`, '/Temp/stock-symbols.txt');
@@ -38,12 +39,12 @@ export async function main(ns) {
                 try { playerInfo = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt'); }
                 catch { await ns.asleep(2000); continue; }
             }
-            const bitNode = (playerInfo && playerInfo.bitNodeN !== undefined) ? playerInfo.bitNodeN : '?';
-            const sfLevel = dictSourceFiles[bitNode] || 0;
+            const bn = (typeof ns.getResetInfo === 'function') ? ns.getResetInfo().currentNode : (playerInfo && playerInfo.bitNodeN !== undefined ? playerInfo.bitNodeN : '?');
+            const sfLevel = dictSourceFiles[bn] || 0;
             // Show what bitNode we're currently playing
-            addHud("BitNode", bitNode + "." + (1 + sfLevel), "Detected as being one more than your current owned SF level.");
+            addHud("BitNode", bn + "." + (1 + sfLevel), "Detected as being one more than your current owned SF level.");
 
-            if (9 in dictSourceFiles || 9 == bitNode) { // Section not relevant if you don't have access to hacknet servers
+            if (9 in dictSourceFiles || 9 == bn) { // Section not relevant if you don't have access to hacknet servers
                 const hashes = await getNsDataThroughFile(ns, '[ns.hacknet.numHashes(), ns.hacknet.hashCapacity()]', '/Temp/hash-stats.txt')
                 if (hashes[1] > 0) {
                     addHud("Hashes", `${formatNumberShort(hashes[0], 3, 1)}/${formatNumberShort(hashes[1], 3, 1)}`, 'Current Hashes / Current Hash Capacity');
@@ -70,7 +71,7 @@ export async function main(ns) {
                 addHud("Reserve", formatNumberShort(reserve, 3, 2), "Most scripts will leave this much money unspent. Remove with `run reserve.js 0`");
 
             let gangInfo = false;
-            if (2 in dictSourceFiles || 2 == bitNode) { // Gang income is only relevant once gangs are unlocked
+            if (2 in dictSourceFiles || 2 == bn) { // Gang income is only relevant once gangs are unlocked
                 gangInfo = await getNsDataThroughFile(ns, 'ns.gang.inGang() ? ns.gang.getGangInformation() : false', '/Temp/gang-stats.txt');
                 if (gangInfo !== false) {
                     // Add Gang Income
@@ -84,7 +85,7 @@ export async function main(ns) {
             if (karma <= -9 // Don't spoiler Karma if they haven't started doing crime yet
                 && !gangInfo) { // If in a gang, you know you have oodles of bad Karma. Save some space
                 let karmaShown = formatNumberShort(karma, 3, 2);
-                if (2 in dictSourceFiles && 2 != bitNode && !gangInfo) karmaShown += '/54k'; // Display karma needed to unlock gangs ouside of BN2
+                if (2 in dictSourceFiles && 2 != bn && !gangInfo) karmaShown += '/54k'; // Display karma needed to unlock gangs ouside of BN2
                 addHud("Karma", karmaShown, "After Completing BN2, you need -54,000 Karma in other BNs to start a gang. You also need a tiny amount to join some factions. The most is -90 for 'The Syndicate'");
             }
 
@@ -94,7 +95,7 @@ export async function main(ns) {
                 addHud("Kills", formatSixSigFigs(numPeopleKilled), "Count of successful Homicides. Note: The most kills you need is 30 for 'Speakers for the Dead'");
             }
 
-            if (7 in dictSourceFiles || 7 == bitNode) { // Bladeburner API unlocked
+            if (7 in dictSourceFiles || 7 == bn) { // Bladeburner API unlocked
                 inBladeburner = inBladeburner || playerInfo.inBladeburner || // Avoid RAM dodge call if we have this info already
                     (playerInfo = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt')).inBladeburner;
                 if (inBladeburner) {
