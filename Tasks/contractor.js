@@ -231,29 +231,6 @@ function solveProblem(type, input) {
     return null;
   }
 
-  // === HammingCodes: Encoded Binary to Integer ===
-  if (type === "HammingCodes: Encoded Binary to Integer") {
-    let enc = input.split("").map(v => parseInt(v));
-    let n2 = enc.length;
-    // Detect and correct single-bit error using syndrome
-    let pn = 0;
-    for (let i = 0; i < n2; i++) {
-      if (enc[i]) pn ^= i;
-    }
-    if (pn !== 0 && pn < n2) enc[pn] = 1 - enc[pn];
-    // Extract data bits (non-power-of-2 positions)
-    let dataBits = [];
-    for (let i = 1; i < n2; i++)
-      if ((i & (i - 1)) !== 0) dataBits.push(enc[i]);
-    dataBits.reverse();
-    // Use BigInt for large numbers to avoid overflow
-    let result = 0n;
-    for (let i = 0; i < dataBits.length; i++) {
-      if (dataBits[i]) result += 1n << BigInt(dataBits.length - 1 - i);
-    }
-    return result <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(result) : result;
-  }
-
   // === Unique Paths in a Grid I ===
   if (type === "Unique Paths in a Grid I") {
     let n = input[0], m = input[1];
@@ -679,8 +656,8 @@ function solveProblem(type, input) {
     for (let j = 1; j <= n; j++) {
       if ((j & (j - 1)) !== 0) dataBits += corrected[j - 1];
     }
-    // Use BigInt for precision — data can exceed Number.MAX_SAFE_INTEGER
-    return BigInt('0b' + dataBits).toString();
+    // Must return Number — contract rejects BigInt/strings for large values
+    return parseInt(dataBits, 2);
   }
 
   // === HammingCodes: Integer to Encoded Binary ===

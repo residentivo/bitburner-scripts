@@ -72,40 +72,11 @@ function permutations(str) {
 }
 
 async function log(ns, msg) {
-    const line = `[dnet] ${msg}\n`
-    const file = '/darknet-log.txt'
-    try {
-        // Pull latest log from home first
-        try { await ns.scp(file, ns.getHostname(), 'home') } catch (e) { /* ok */ }
-        let existing = ns.read(file) || ''
-        // Keep last 200 lines
-        const lines = (existing + line).split('\n')
-        const trimmed = lines.slice(-200).join('\n')
-        ns.write(file, trimmed, 'w')
-        // Push back to home
-        try { await ns.scp(file, 'home') } catch (e) { /* ok */ }
-    } catch (e) { /* fallback */ ns.print(line.trim()) }
+    ns.print(`[dnet] ${msg}`)
 }
 
 async function logFail(ns, server, reason, hint = '') {
-    const key = `${server}|${reason}|`
-    const line = `${key}${hint}\n`
-    const file = '/darknet-failures.txt'
-    try {
-        let existing = ns.read(file) || ''
-        try {
-            await ns.scp(file, ns.getHostname(), 'home')
-            existing = ns.read(file) || existing
-        } catch (e) { /* home not reachable yet */ }
-
-        if (!existing.includes(key)) {
-            const merged = existing + line
-            await ns.write(file, merged, 'w')
-            try {
-                await ns.scp(file, 'home')
-            } catch (e) { /* ignore */ }
-        }
-    } catch (e) { /* ignore */ }
+    ns.print(`[dnet-FAIL] ${server} | ${reason} | ${hint}`)
 }
 
 function solvePassword(hint, hintData, hostname = '') {

@@ -80,46 +80,11 @@ function permutations(str) {
 }
 
 async function log(ns, msg) {
-    const line = `[dnet] ${msg}\n`
-    const file = '/darknet-log.txt'
-    try {
-        // Pull latest log from home first
-        try { await ns.scp(file, ns.getHostname(), 'home') } catch (e) { /* ok */ }
-        let existing = ns.read(file) || ''
-        // Keep last 50 lines per host (less spam)
-        const lines = (existing + line).split('\n')
-        const trimmed = lines.slice(-50).join('\n')
-        ns.write(file, trimmed, 'w')
-        // Push back to home
-        try { await ns.scp(file, 'home') } catch (e) { /* ok */ }
-    } catch (e) { /* fallback */ ns.print(line.trim()) }
+    ns.print(`[dnet] ${msg}`)
 }
 
 async function logFail(ns, server, reason, hint = '') {
-    const key = `${server}|${reason}|${hint}`
-    const file = '/darknet-failures.txt'
-    try {
-        // Pull latest from home, merge, deduplicate, write back
-        let existing = ns.read(file) || ''
-        try {
-            await ns.scp(file, ns.getHostname(), 'home')
-            existing = ns.read(file) || existing
-        } catch (e) { /* home not reachable yet */ }
-
-        // Deduplicate: keep only unique keys
-        const seen = new Set()
-        const lines = existing.split('\n').filter(l => l.trim())
-        const deduped = []
-        for (const l of lines) {
-            if (!seen.has(l)) { seen.add(l); deduped.push(l) }
-        }
-        // Add new entry if not seen
-        if (!seen.has(key)) deduped.push(key)
-
-        const output = deduped.join('\n') + '\n'
-        await ns.write(file, output, 'w')
-        try { await ns.scp(file, 'home') } catch (e) { /* ignore */ }
-    } catch (e) { /* ignore */ }
+    ns.print(`[dnet-FAIL] ${server} | ${reason} | ${hint}`)
 }
 
 // Generate ALL plausible password variants from a hostname
