@@ -329,24 +329,21 @@ async function mainLoop(ns) {
         return;
     }
     const success = await getBBInfo(ns, `startAction(ns.args[0], ns.args[1])`, bestActionType, bestActionName);
-    const expectedDuration = success ? await getBBInfo(ns, `getActionTime(ns.args[0], ns.args[1])`, bestActionType, bestActionName) : 0;
     if (!success) {
-        // Log extra debug info on failure
-        const allOpNames = await getBBInfo(ns, 'getOperationNames()');
-        const allContractNames = await getBBInfo(ns, 'getContractNames()');
-        const allGeneralNames = await getBBInfo(ns, 'getGeneralActionNames()');
-        log(ns, `DEBUG: Available Operations: ${JSON.stringify(allOpNames)}`);
-        log(ns, `DEBUG: Available Contracts: ${JSON.stringify(allContractNames)}`);
-        log(ns, `DEBUG: Available General: ${JSON.stringify(allGeneralNames)}`);
-        log(ns, `DEBUG: operationNames.includes("${bestActionName}") = ${operationNames.includes(bestActionName)}`);
-        log(ns, `DEBUG: contractNames.includes("${bestActionName}") = ${contractNames.includes(bestActionName)}`);
-        log(ns, `DEBUG: generalActionNames.includes("${bestActionName}") = ${generalActionNames.includes(bestActionName)}`);
+        // startAction can fail if rank is insufficient (e.g. Assassination requires high rank)
+        // or if the action count is 0 but we thought there were some.
+        // Decrement the effective count so we don't keep trying this action.
+        log(ns, `WARNING: startAction failed for ${bestActionType} "${bestActionName}" — likely insufficient rank or no remaining actions. Skipping.`);
+        if (bestActionType === "Operations" && operationCounts[bestActionName] !== undefined) operationCounts[bestActionName] = 0;
+        else if (bestActionType === "Contracts" && contractCounts[bestActionName] !== undefined) contractCounts[bestActionName] = 0;
+        currentTaskEndTime = 0;
+        return;
     }
-    log(ns, (!success ? `ERROR: Failed to switch to Bladeburner ${bestActionType} "${bestActionName}"` :
-        `INFO: Switched to Bladeburner ${bestActionType} "${bestActionName}" (${reason}). ETA: ${formatDuration(expectedDuration)}`),
-        !success, success ? (options['toast-operations'] ? 'info' : undefined) : 'error');
+    const expectedDuration = await getBBInfo(ns, `getActionTime(ns.args[0], ns.args[1])`, bestActionType, bestActionName);
+    log(ns, `INFO: Switched to Bladeburner ${bestActionType} "${bestActionName}" (${reason}). ETA: ${formatDuration(expectedDuration)}`,
+        false, options['toast-operations'] ? 'info' : undefined);
     // Ensure we perform this new action at least once before interrupting it
-    currentTaskEndTime = !success ? 0 : Date.now() + expectedDuration + 200; // Pad this a little to ensure we don't interrupt it.
+    currentTaskEndTime = Date.now() + expectedDuration + 200; // Pad this a little to ensure we don't interrupt it.
 }
 
 /** @param {NS} ns 
