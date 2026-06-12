@@ -124,6 +124,9 @@ async function gatherBladeburnerInfo(ns) {
     inFaction = player.factions.includes("Bladeburners"); // Whether we've joined the Bladeburner faction yet
 }
 
+// Actions skipped due to startAction failure (e.g. insufficient rank) — Map<actionName, retryAfterTimestampMs>
+let skipsUntil = {};
+
 // Helpers to determine the the dict keys with the lowest/highest value (returns an array [key, minValue] for destructuring)
 const getMinKeyValue = (dict, filteredKeys = null) => (filteredKeys || Object.keys(dict)).reduce(([k, min], key) =>
     dict[key] < min ? [key, dict[key]] : [k, min], [null, Number.MAX_VALUE]);
@@ -142,6 +145,11 @@ async function mainLoop(ns) {
     // See if we are able to do bladeburner work
     if (!(await canDoBladeburnerWork(ns))) return;
 
+    // Clear expired skips
+    for (const [action, until] of Object.entries(skipsUntil)) {
+        if (Date.now() >= until) delete skipsUntil[action];
+    }
+
     // NEXT STEP: Gather data needed to determine what and where to work
     // If any blackops have been completed, remove them from the list of remaining blackops
     const blackOpsToBeDone = await getBBDictByActionType(ns, 'getActionCountRemaining', "Black Operations", remainingBlackOpsNames);
@@ -152,9 +160,12 @@ async function mainLoop(ns) {
     const contractCounts = await getBBDictByActionType(ns, 'getActionCountRemaining', "Contracts", contractNames);
     const operationCounts = await getBBDictByActionType(ns, 'getActionCountRemaining', "Operations", operationNames);
     // Define a helper that gets the count for an action based only on the name (type is auto-determined)
-    const getCount = actionName => contractNames.includes(actionName) ? contractCounts[actionName] :
-        operationNames.includes(actionName) ? operationCounts[actionName] :
-            generalActionNames.includes(actionName) ? Number.POSITIVE_INFINITY : remainingBlackOpsNames.includes(actionName) ? 1 : 0;
+    const getCount = actionName => {
+        if (skipsUntil[actionName] && Date.now() < skipsUntil[actionName]) return 0;
+        return contractNames.includes(actionName) ? contractCounts[actionName] :
+            operationNames.includes(actionName) ? operationCounts[actionName] :
+                generalActionNames.includes(actionName) ? Number.POSITIVE_INFINITY : remainingBlackOpsNames.includes(actionName) ? 1 : 0;
+    }
     // Create some quick-reference collections of action names that are limited in count and/or reserved for special purpose
     const limitedActions = [nextBlackOp].concat(operationNames).concat(contractNames);
     const reservedOperations = ["Raid", "Stealth Retirement Operation", nextBlackOp];
@@ -331,11 +342,9 @@ async function mainLoop(ns) {
     const success = await getBBInfo(ns, `startAction(ns.args[0], ns.args[1])`, bestActionType, bestActionName);
     if (!success) {
         // startAction can fail if rank is insufficient (e.g. Assassination requires high rank)
-        // or if the action count is 0 but we thought there were some.
-        // Decrement the effective count so we don't keep trying this action.
-        log(ns, `WARNING: startAction failed for ${bestActionType} "${bestActionName}" — likely insufficient rank or no remaining actions. Skipping.`);
-        if (bestActionType === "Operations" && operationCounts[bestActionName] !== undefined) operationCounts[bestActionName] = 0;
-        else if (bestActionType === "Contracts" && contractCounts[bestActionName] !== undefined) contractCounts[bestActionName] = 0;
+        // Don't permanently disable — retry after 60 seconds in case rank increases
+        skipsUntil[bestActionName] = Date.now() + 60000;
+        log(ns, `WARNING: startAction failed for ${bestActionType} "${bestActionName}" — skipping for 60s (may need higher rank)`);
         currentTaskEndTime = 0;
         return;
     }
