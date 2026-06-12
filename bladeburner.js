@@ -321,8 +321,27 @@ async function mainLoop(ns) {
     // Change actions if we're not currently doing the desired action
     const bestActionType = nextBlackOp == bestActionName ? "Black Operations" : contractNames.includes(bestActionName) ? "Contracts" :
         operationNames.includes(bestActionName) ? "Operations" : "General";
+    // Safety check: verify the action is still available before trying to start it
+    const remaining = getCount(bestActionName);
+    if (remaining <= 0 && bestActionType !== "General") {
+        log(ns, `WARNING: Skipping ${bestActionType} "${bestActionName}" — no actions remaining (count=${remaining}). Will pick next action.`);
+        currentTaskEndTime = 0;
+        return;
+    }
     const success = await getBBInfo(ns, `startAction(ns.args[0], ns.args[1])`, bestActionType, bestActionName);
-    const expectedDuration = await getBBInfo(ns, `getActionTime(ns.args[0], ns.args[1])`, bestActionType, bestActionName);
+    const expectedDuration = success ? await getBBInfo(ns, `getActionTime(ns.args[0], ns.args[1])`, bestActionType, bestActionName) : 0;
+    if (!success) {
+        // Log extra debug info on failure
+        const allOpNames = await getBBInfo(ns, 'getOperationNames()');
+        const allContractNames = await getBBInfo(ns, 'getContractNames()');
+        const allGeneralNames = await getBBInfo(ns, 'getGeneralActionNames()');
+        log(ns, `DEBUG: Available Operations: ${JSON.stringify(allOpNames)}`);
+        log(ns, `DEBUG: Available Contracts: ${JSON.stringify(allContractNames)}`);
+        log(ns, `DEBUG: Available General: ${JSON.stringify(allGeneralNames)}`);
+        log(ns, `DEBUG: operationNames.includes("${bestActionName}") = ${operationNames.includes(bestActionName)}`);
+        log(ns, `DEBUG: contractNames.includes("${bestActionName}") = ${contractNames.includes(bestActionName)}`);
+        log(ns, `DEBUG: generalActionNames.includes("${bestActionName}") = ${generalActionNames.includes(bestActionName)}`);
+    }
     log(ns, (!success ? `ERROR: Failed to switch to Bladeburner ${bestActionType} "${bestActionName}"` :
         `INFO: Switched to Bladeburner ${bestActionType} "${bestActionName}" (${reason}). ETA: ${formatDuration(expectedDuration)}`),
         !success, success ? (options['toast-operations'] ? 'info' : undefined) : 'error');
