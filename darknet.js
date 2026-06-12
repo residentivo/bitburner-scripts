@@ -663,14 +663,16 @@ function solvePassword(hint, hintData, hostname = '') {
         return [...new Set([latin, '0', '1', ...hostVariants, ...commonPasswords])]
     }
 
-    // "The password is not set" / "no password" — try empty FIRST, then hostname
-    if (h.includes('not set') && !h.includes('default')) {
-        return [...new Set([
-            '',  // empty is the most likely
-            ...hostVariants, ...popCulture,
-            'password', 'admin', '123456', 'default', 'null', 'none',
-            ...commonPasswords,
-        ])]
+    // "The password is not set" / "no password" / "I didn't set a password" — try empty FIRST, then hostname
+    if (h.includes('not set') || h.includes("didn't set a") || h.includes("did not set") || h.includes("never set")) {
+        if (!h.includes('default')) {
+            return [...new Set([
+                '',  // empty is the most likely
+                ...hostVariants, ...popCulture,
+                'password', 'admin', '123456', 'default', 'null', 'none',
+                ...commonPasswords,
+            ])]
+        }
     }
 
     // Default / factory / never changed / didn't set / "the password is the default password"
@@ -1042,17 +1044,17 @@ export async function main(ns) {
                 const data = details.data || ''
                 const candidates = solvePassword(hint, data, neighbor)
 
-                if (candidates.length === 0) continue
-
                 let authed = false
-                for (const pw of candidates) {
-                    try {
-                        const r = await ns.dnet.authenticate(neighbor, pw)
-                        if (r.success) {
-                            authed = true
-                            break
-                        }
-                    } catch (e) { /* try next */ }
+                if (candidates.length > 0) {
+                    for (const pw of candidates) {
+                        try {
+                            const r = await ns.dnet.authenticate(neighbor, pw)
+                            if (r.success) {
+                                authed = true
+                                break
+                            }
+                        } catch (e) { /* try next */ }
+                    }
                 }
 
                 if (!authed) {
@@ -1065,22 +1067,29 @@ export async function main(ns) {
                     } catch (e) { /* not available */ }
                     log(ns, `${neighbor} FAIL '${hint}' data='${data}'`)
                     await logFail(ns, neighbor, 'auth-failed', hint)
-                    continue
+                    // Don't continue — still try to scp+exec so neighbor can help propagate
                 }
             }
 
-            // Step C: scp scripts to neighbor
+            // Step C: scp scripts to neighbor (even if auth failed — file propagation helps)
             try {
                 await ns.scp(SCRIPT_NAME, neighbor)
                 await ns.scp('darknet-ram.js', neighbor)
                 await ns.scp(EXTRACTOR, neighbor)
-            } catch (e) { continue }
+            } catch (e) { /* scp may fail if not auth'ed, ignore */ }
 
             // Step D: exec darknet.js on neighbor — check if already running
-            const neighborProcs = ns.ps(neighbor)
-            const alreadyRunning = neighborProcs.some(p => p.filename === SCRIPT_NAME)
-            if (!alreadyRunning) {
-                try { ns.exec(SCRIPT_NAME, neighbor, 1) } catch (e) { /* ignore */ }
+            // Only exec if we have an auth session (required for exec on remote)
+            if (details.hasSession) {
+                try {
+                    const neighborProcs = ns.ps(neighbor)
+                    const alreadyRunning = neighborProcs.some(p => p.filename === SCRIPT_NAME)
+                    if (!alreadyRunning) {
+                        // Try to exec with available RAM
+                        const maxThreads = Math.max(1, Math.floor((ns.getServerMaxRam(neighbor) - ns.getServerUsedRam(neighbor)) / ns.getScriptRam(SCRIPT_NAME, host)))
+                        ns.exec(SCRIPT_NAME, neighbor, Math.min(maxThreads, 1))
+                    }
+                } catch (e) { /* ignore */ }
             }
         }
 
