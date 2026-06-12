@@ -267,8 +267,9 @@ function solvePassword(hint, hintData, hostname = '') {
         popCulture.push('crack', 'cracker', 'cracking', 'hashcat', 'john', 'brute', 'rainbow', 'crack_networks', 'crackcorp', '0day')
     if (hlow.includes('hospital') || hlow.includes('matrix'))
         popCulture.push('hospital', 'matrix', 'hospitalmatrix', 'surgeon', 'nurse', 'doctor', 'patient', 'med', 'health', 'cure')
-    if (hlow.includes('zenith') || hlow.includes('zeni7h'))
-        popCulture.push('zenith', 'zeni7h', 'peak', 'summit', 'top', 'apex', 'pinnacle', 'crest', 'crown')
+    // zenith / zero_day themed
+    if (hlow.includes('zenith') || hlow.includes('zeni7h') || hlow.includes('z3ro') || hlow.includes('zero'))
+        popCulture.push('zenith', 'zeni7h', 'peak', 'summit', 'top', 'apex', 'pinnacle', 'crest', 'crown', 'zero', 'z3ro', '0day', 'zeroday', 'spanky')
     if (hlow.includes('hydro') || hlow.includes('water'))
         popCulture.push('hydro', 'water', 'aqua', 'fluid', 'dam', 'river', 'stream', 'ocean', 'wave', 'current')
     if (hlow.includes('anor') || hlow.includes('londo'))
@@ -662,14 +663,25 @@ function solvePassword(hint, hintData, hostname = '') {
         return [...new Set([latin, '0', '1', ...hostVariants, ...commonPasswords])]
     }
 
+    // "The password is not set" / "no password" — try empty FIRST, then hostname
+    if (h.includes('not set') && !h.includes('default')) {
+        return [...new Set([
+            '',  // empty is the most likely
+            ...hostVariants, ...popCulture,
+            'password', 'admin', '123456', 'default', 'null', 'none',
+            ...commonPasswords,
+        ])]
+    }
+
     // Default / factory / never changed / didn't set / "the password is the default password"
     if (h.includes('default') || h.includes('factory') || h.includes('never changed') ||
         h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
-        h.includes('still') || h.includes('original') || h.includes('no password') ||
-        h.includes('not set'))
+        h.includes('still') || h.includes('original') || h.includes('no password'))
         return [...new Set([
-            ...hostVariants, ...popCulture,
-            '', 'password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest',
+            'default',  // try "default" literally FIRST
+            ...hostVariants,  // hostname as password is very common for "default" servers
+            ...popCulture,
+            '', 'password', 'admin', '123456', 'letmein', 'qwerty', 'guest',
             'root', 'toor', 'daemon', 'sys', 'adm', 'bin', 'superuser', 'operator',
             'server', 'system', 'changeit', 'changeme', 'mysql', 'postgres', 'oracle',
             'cisco', 'public', 'private', 'blank', 'none', 'null',
@@ -777,10 +789,16 @@ function solvePassword(hint, hintData, hostname = '') {
         const divBy = parseInt(divMatch[1])
         const candidates = [...hostVariants]
         if (divBy === 1) {
-            // Every number is divisible by 1 — brute force 0-9999
-            for (let i = 0; i <= 9999; i++) candidates.push(String(i))
-            // Plus common longer numbers
-            candidates.push('12345', '54321', '123456', '654321', '1234567', '7777777')
+            // Every number is divisible by 1 — brute force 0-99999
+            for (let i = 0; i <= 99999; i++) candidates.push(String(i))
+            // Plus common longer numbers and repeated digits
+            candidates.push('12345', '54321', '123456', '654321', '1234567', '7777777',
+                '11111', '22222', '33333', '44444', '55555', '66666', '77777', '88888', '99999',
+                '100000', '100001', '123123', '112233', '123321',
+                '10101', '12300', '45600', '78900', '99990',
+                '46660', '46661', '46662', '46663', '46664', '46665', '46666', '46667', '46668', '46669',
+                '50000', '60000', '70000', '80000', '90000',
+            )
         } else {
             for (let i = 0; i <= 1000; i++) candidates.push(String(divBy * i))
         }
@@ -838,6 +856,7 @@ function solvePassword(hint, hintData, hostname = '') {
     // Dog's name / pet name / "my first dog's name"
     if (h.includes("dog") || h.includes("pet") || h.includes("puppy") || h.includes("hound") || h.includes("fur") || h.includes("first dog"))
         return [...new Set([
+            'spanky',  // most common "the dog's name" answer in Bitburner
             'rex', 'rover', 'fido', 'buster', 'max', 'buddy', 'charlie', 'jack', 'cooper',
             'rocky', 'toby', 'duke', 'zeus', 'bear', 'tiger', 'shadow', 'bandit', 'sparky',
             'barney', 'winston', 'ginger', 'daisy', 'molly', 'lady', 'sasha', 'lola',
@@ -877,7 +896,9 @@ function solvePassword(hint, hintData, hostname = '') {
     // "Only a true master may pass" / master riddle
     if (h.includes('master') || h.includes('true master') || h.includes('may pass'))
         return [...new Set([
-            'master', 'MASTER', 'Master', 'truth', 'TRUTH', 'Truth',
+            'master', 'MASTER', 'Master',
+            'phantom', 'PHANTOM', 'Phantom',  // net;gl0bal_pharmaceu71cal5 → "phantom" is in hostname
+            'truth', 'TRUTH', 'Truth',
             'wise', 'Wise', 'WISE', 'sage', 'Sage', 'SAGE',
             'king', 'Knight', 'warrior', 'hero', 'champion',
             'gandalf', 'merlin', 'yoda', 'dumbledore', 'raistlin',
@@ -892,13 +913,16 @@ function solvePassword(hint, hintData, hostname = '') {
             'neon', 'inc', 'neoninc', 'ne0n',
             '42', '0', '1', '7', '3', '13', '69', '777', '1337',
             'blade', 'cyber', 'hacker', 'crack', 'hack', 'root',
+            'global', 'pharmaceutical', 'pharma',
             ...hostVariants, ...popCulture, ...extendedPasswords,
         ])]
 
     // "you are one who's'nt authorized" / "not authorized" riddle
     if (h.includes('authorized') || h.includes("who's") || h.includes("who is not") || h.includes("whont"))
         return [...new Set([
-            'authorized', 'unauthorized', 'yes', 'no', 'maybe', 'please', 'letmein',
+            'unauthorized',  // most likely — "who's'nt authorized" → unauthorized
+            'authorized',
+            'yes', 'no', 'maybe', 'please', 'letmein',
             'access', 'granted', 'denied', 'permit', 'allow', 'accept', 'approve',
             'user', 'admin', 'root', 'sudo', 'su', 'login', 'auth', 'token',
             // "who's'nt" = who won't → negation riddle, password might be the opposite
@@ -925,6 +949,8 @@ function solvePassword(hint, hintData, hostname = '') {
     // Mountain riddle
     if (h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
         return [...new Set([
+            '8848',  // Everest height in meters — most common answer
+            'everest',
             ...hostVariants, ...popCulture, ...mountainPasswords, ...extendedPasswords,
             // Also try reversed hostname (gro;rekcah = hacker)
             ...hostVariants.filter(c => c.length > 2).map(c => c.split('').reverse().join('')),
