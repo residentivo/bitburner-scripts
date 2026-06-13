@@ -451,7 +451,7 @@ export async function crimeForKillsKarmaStats(ns, reqKills, reqKarma, reqStats, 
     const bestCrimesByDifficulty = ["heist", "assassinate", "homicide", "mug"]; // Will change crimes as our success rate improves
     const chanceThresholds = [0.75, 0.9, 0.5, 0]; // Will change crimes once we reach this probability of success for better all-round gains
     doFastCrimesOnly = doFastCrimesOnly || fastCrimesOnly;
-    if (!crimeCommand) crimeCommand = async crime => await getNsDataThroughFile(ns, `ns.commitCrime('${crime}')`, '/Temp/crime-time.txt');
+    if (!crimeCommand) crimeCommand = async crime => await getNsDataThroughFile(ns, `ns.singularity.commitCrime('${crime}')`, '/Temp/crime-time.txt');
     let player = await getPlayerInfo(ns);
     let strRequirements = [];
     let forever = reqKills >= Number.MAX_SAFE_INTEGER || reqKarma >= Number.MAX_SAFE_INTEGER || reqStats >= Number.MAX_SAFE_INTEGER;
@@ -461,7 +461,7 @@ export async function crimeForKillsKarmaStats(ns, reqKills, reqKarma, reqStats, 
     let crime, lastCrime, lastStatusUpdateTime;
     while (forever || player.strength < reqStats || player.defense < reqStats || player.dexterity < reqStats || player.agility < reqStats || player.numPeopleKilled < reqKills || -ns.heart.break() < reqKarma) {
         if (!forever && breakToMainLoop()) return ns.print('INFO: Interrupting crime to check on high-level priorities.');
-        let crimeChances = await getNsDataThroughFile(ns, `Object.fromEntries(${JSON.stringify(bestCrimesByDifficulty)}.map(c => [c, ns.getCrimeChance(c)]))`, '/Temp/crime-chances.txt');
+        let crimeChances = await getNsDataThroughFile(ns, `Object.fromEntries(${JSON.stringify(bestCrimesByDifficulty)}.map(c => [c, ns.singularity.getCrimeChance(c)]))`, '/Temp/crime-chances.txt');
         let needStats = player.strength < reqStats || player.defense < reqStats || player.dexterity < reqStats || player.agility < reqStats;
         let karma = -ns.heart.break();
         crime = crimeCount < 10 ? (crimeChances["homicide"] > 0.75 ? "homicide" : "mug") : // Start with a few fast & easy crimes to boost stats if we're just starting
@@ -474,8 +474,12 @@ export async function crimeForKillsKarmaStats(ns, reqKills, reqKarma, reqStats, 
         }
         // ns.ui.openTail(); // Disabled: causes enum dump spam in v3 (re-enabled per user request - daemon.js only)
         await ns.sleep(await crimeCommand(crime));
-        while ((player = (await getPlayerInfo(ns))).crimeType == `commit ${crime}` || player.crimeType == crime) // If we woke up too early, wait a little longer for the crime to finish
+        // Wait for crime to finish - v3: use getCurrentWork instead of player.crimeType
+        let currentWork = await getNsDataThroughFile(ns, 'ns.singularity.getCurrentWork()', '/Temp/current-work.txt');
+        while (currentWork && currentWork.type === 'CRIME' && currentWork.crimeType === crime) {
             await ns.sleep(10);
+            currentWork = await getNsDataThroughFile(ns, 'ns.singularity.getCurrentWork()', '/Temp/current-work.txt');
+        }
         crimeCount++;
     }
     ns.print(`Done committing crimes. Reached ${strRequirements.map(r => r()).join(', ')}`);
@@ -580,7 +584,7 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
     }
 
     if ((await getPlayerInfo(ns)).workRepGained > 0) // If we're currently doing faction work, stop to collect reputation and find out how much is remaining
-        await getNsDataThroughFile(ns, `ns.stopAction()`, '/Temp/stop-action.txt');
+        await getNsDataThroughFile(ns, `ns.singularity.stopAction()`, '/Temp/stop-action.txt');
     let currentReputation = await getFactionReputation(ns, factionName);
     // If the best faction aug is within 10% of our current rep, grind all the way to it so we can get it immediately, regardless of our current rep target
     if (forceBestAug || highestRepAug <= 1.1 * Math.max(currentReputation, factionRepRequired)) {
@@ -645,7 +649,7 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
         while (workRepGained === (await getPlayerInfo(ns)).workRepGained && (Date.now() - lastActionRestart < 200)) await ns.sleep(10);
         // If we explicitly stop working, we immediately get our updated faction rep, otherwise it lags by 1 loop (until after next time we call workForFaction)
         if (currentReputation + (await getPlayerInfo(ns)).workRepGained >= factionRepRequired)
-            await getNsDataThroughFile(ns, `ns.stopAction()`, '/Temp/stop-action.txt'); // We're close - stop working so our current rep is accurate when we check the while loop condition
+            await getNsDataThroughFile(ns, `ns.singularity.stopAction()`, '/Temp/stop-action.txt'); // We're close - stop working so our current rep is accurate when we check the while loop condition
     }
     if (currentReputation >= factionRepRequired)
         ns.print(`Attained ${Math.round(currentReputation).toLocaleString()} rep with "${factionName}" (needed ${factionRepRequired.toLocaleString()}).`);
