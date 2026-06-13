@@ -46,9 +46,9 @@ export async function main(ns) {
         const minSec = ns.getServerMinSecurityLevel(s);
         const curSec = ns.getServerSecurityLevel(s);
         const ram = ns.getServerMaxRam(s);
-
-        const files = ns.ls(s).filter(f => HACK_TOOLS.includes(f));
-        const hasAllTools = HACK_TOOLS.every(t => files.includes(t));
+        // Check which hack tools are present on the target server
+        const files = HACK_TOOLS.filter(t => ns.fileExists(t, s));
+        const hasAllTools = HACK_TOOLS.every(t => ns.fileExists(t, s));
         const hasAnyTool = files.length > 0;
 
         let status;
