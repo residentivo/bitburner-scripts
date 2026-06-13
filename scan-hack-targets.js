@@ -103,7 +103,7 @@ export async function main(ns) {
 
         for (const r of group) {
             ns.tprint(
-                `${r.name.padEnd(25)} ${String(r.reqHack).padStart(7)} ${r.canHack.padStart(7)} ${r.rooted.padStart(7)} ${ns.formatNumber(r.maxMoney).padStart(12)} ${ns.formatNumber(r.curMoney).padStart(12)} ${r.minSec.padStart(7)} ${r.curSec.padStart(7)} ${ns.formatRam(r.ram).padStart(8)} ${String(r.files).padStart(5)} ${r.hasAllTools.padStart(8)}`
+                `${r.name.padEnd(25)} ${String(r.reqHack).padStart(7)} ${r.canHack.padStart(7)} ${r.rooted.padStart(7)} ${ns.format.number(r.maxMoney).padStart(12)} ${ns.format.number(r.curMoney).padStart(12)} ${r.minSec.padStart(7)} ${r.curSec.padStart(7)} ${ns.format.ram(r.ram).padStart(8)} ${String(r.files).padStart(5)} ${r.hasAllTools.padStart(8)}`
             );
         }
     }
@@ -148,7 +148,7 @@ export async function main(ns) {
             const hasGrow = ns.fileExists('/Remote/grow-target.js', s) ? '✓' : '✗';
             const hasHack = ns.fileExists('/Remote/hack-target.js', s) ? '✓' : '✗';
             ns.tprint(
-                `${s.padEnd(20)} ${ns.formatRam(maxR).padStart(8)} ${ns.formatRam(usedR).padStart(8)} ${ns.formatRam(freeR).padStart(8)} ${rooted.padStart(7)} ${hasWeak.padStart(5)} ${hasGrow.padStart(5)} ${hasHack.padStart(5)}`
+                `${s.padEnd(20)} ${ns.format.ram(maxR).padStart(8)} ${ns.format.ram(usedR).padStart(8)} ${ns.format.ram(freeR).padStart(8)} ${rooted.padStart(7)} ${hasWeak.padStart(5)} ${hasGrow.padStart(5)} ${hasHack.padStart(5)}`
             );
         }
     }
@@ -158,9 +158,9 @@ export async function main(ns) {
     ns.tprint('--- HOME SERVER ---');
     const homeMax = ns.getServerMaxRam(home);
     const homeUsed = ns.getServerUsedRam(home);
-    ns.tprint(`  Max RAM:  ${ns.formatRam(homeMax)}`);
-    ns.tprint(`  Used RAM: ${ns.formatRam(homeUsed)}`);
-    ns.tprint(`  Free RAM: ${ns.formatRam(homeMax - homeUsed)}`);
+    ns.tprint(`  Max RAM:  ${ns.format.ram(homeMax)}`);
+    ns.tprint(`  Used RAM: ${ns.format.ram(homeUsed)}`);
+    ns.tprint(`  Free RAM: ${ns.format.ram(homeMax - homeUsed)}`);
     ns.tprint(`  Scripts on home:`);
     for (const f of HACK_TOOLS) {
         const exists = ns.fileExists(f, home) ? '✓' : '✗';
