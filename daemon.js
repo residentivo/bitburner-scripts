@@ -1312,15 +1312,21 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         if (targetServer.name != daemonHost && !doesFileExist(tool.name, targetServer.name)) {
             let missing_scripts = [tool.name];
             if (!doesFileExist(getFilePath('helpers.js'), targetServer.name))
-                missing_scripts.push(getFilePath('helpers.js')); // Some tools require helpers.js. Best to copy it around.
+                missing_scripts.push(getFilePath('helpers.js'));
             if (verbose)
                 log(`Copying ${tool.name} from ${daemonHost} to ${targetServer.name} so that it can be executed remotely.`);
-            await getNsDataThroughFile(ns, `await ns.scp(${JSON.stringify(missing_scripts)}, '${targetServer.name}', '${daemonHost}')`, '/Temp/copy-scripts.txt')
-            await ns.asleep(5); // Workaround for Bitburner bug https://github.com/danielyxie/bitburner/issues/1714 - newly created/copied files sometimes need a bit more time, even if awaited
+            // Use direct ns.scp instead of getNsDataThroughFile — scp doesn't work reliably inside temp scripts
+            let scp_ok = false;
+            try {
+                scp_ok = await ns.scp(missing_scripts, targetServer.name, daemonHost);
+            } catch (e) {
+                log(`ERROR: ns.scp failed: ${String(e)}`, false, 'error');
+            }
+            await ns.asleep(5);
             just_copied = true;
             // Verify the copy worked
             if (!doesFileExist(tool.name, targetServer.name)) {
-                log(`ERROR: SCP failed - ${tool.name} not found on ${targetServer.name} after copy`, false, 'error');
+                log(`ERROR: SCP failed - ${tool.name} not found on ${targetServer.name} after copy (scp returned ${scp_ok})`, false, 'error');
                 continue; // Try next server
             }
         }
