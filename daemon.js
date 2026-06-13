@@ -1315,7 +1315,7 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
                 missing_scripts.push(getFilePath('helpers.js'));
             if (verbose)
                 log(`Copying ${tool.name} from ${daemonHost} to ${targetServer.name} so that it can be executed remotely.`);
-            // Use direct ns.scp instead of getNsDataThroughFile — scp doesn't work reliably inside temp scripts
+            // Use direct ns.scp — works from home to any connected server
             let scp_ok = false;
             try {
                 scp_ok = await ns.scp(missing_scripts, targetServer.name, daemonHost);
