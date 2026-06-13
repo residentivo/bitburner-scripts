@@ -129,7 +129,9 @@ async function initialize(ns) {
 
     // Hack: Default aug budget is cut by 1/100 in a few situations (TODO: Add more, like when gang income is severely nerfed)
     const playerData = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt');
-    if (!playerData.has4SDataTixApi || playerData.bitNodeN === 8) {
+    // v3: bitNodeN removed from getPlayer — use ns.getResetInfo().currentNode
+    const currentBitNode = (typeof ns.getResetInfo === 'function') ? ns.getResetInfo().currentNode : playerData.bitNodeN;
+    if (!playerData.has4SDataTixApi || currentBitNode === 8) {
         defaultMaxSpendPerTickPermanentEquipment /= 100;
         defaultMaxSpendPerTickTransientEquipment /= 100;;
     }

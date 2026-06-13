@@ -324,7 +324,12 @@ export async function getActiveSourceFiles_Custom(ns, fnGetNsDataThroughFile, in
     }
     // If the user is currently in a given bitnode, they will have its features unlocked
     if (includeLevelsFromCurrentBitnode) {
-        const bitNodeN = (await fnGetNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt')).bitNodeN;
+        // v3: bitNodeN removed from getPlayer — use ns.getResetInfo().currentNode
+        let bitNodeN;
+        try {
+            bitNodeN = (typeof ns.getResetInfo === 'function') ? ns.getResetInfo().currentNode :
+                (await fnGetNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt')).bitNodeN;
+        } catch { bitNodeN = 1; }
         dictSourceFiles[bitNodeN] = Math.max(3, dictSourceFiles[bitNodeN] || 0);
     }
     return dictSourceFiles;

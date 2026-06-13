@@ -245,7 +245,7 @@ export async function main(ns) {
             name: "work-for-factions.js", args: ['--fast-crimes-only', '--no-coding-contracts'],  // Singularity script to manage how we use our "focus" work.
             shouldRun: () => 4 in dictSourceFiles && (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4])) // Higher SF4 levels result in lower RAM requirements
         },
-        { name: "bladeburner.js", tail: openTailWindows, shouldRun: () => 7 in dictSourceFiles && playerStats.bitNodeN != 8 }, // Script to create manage bladeburner for us
+        { name: "bladeburner.js", tail: openTailWindows, shouldRun: () => 7 in dictSourceFiles && (ns.getResetInfo?.()?.currentNode ?? playerStats.bitNodeN) != 8 }, // Script to create manage bladeburner for us
         { name: "darknet.js", tail: openTailWindows, shouldRun: () => addedServerNames.includes("darkweb") }, // Script to explore and exploit the darknet
     ];
     asynchronousHelpers.forEach(helper => helper.name = getFilePath(helper.name));
@@ -254,7 +254,7 @@ export async function main(ns) {
     // These scripts are spawned periodically (at some interval) to do their checks, with an optional condition that limits when they should be spawned
     let shouldUpgradeHacknet = () => !shouldReserveMoney() && (whichServerIsRunning(ns, "hacknet-upgrade-manager.js", false) === null);
     // In BN8 (stocks-only bn) and others with hack income disabled, don't waste money on improving hacking infrastructure unless we have plenty of money to spare
-    let shouldImproveHacking = () => bitnodeMults.ScriptHackMoneyGain != 0 && playerStats.bitNodeN != 8 || ns.getServerMoneyAvailable("home") > 1e12;
+    let shouldImproveHacking = () => bitnodeMults.ScriptHackMoneyGain != 0 && (ns.getResetInfo?.()?.currentNode ?? playerStats.bitNodeN) != 8 || ns.getServerMoneyAvailable("home") > 1e12;
     // Note: Periodic script are generally run every 30 seconds, but intervals are spaced out to ensure they aren't all bursting into temporary RAM at the same time.
     periodicScripts = [
         // Periodically launch darknet on darkweb (copies scripts + spawns if not running)
@@ -428,7 +428,9 @@ async function tryRunTool(ns, tool) {
         if (verbose) log(`Ran tool: ${tool.name} ` + (args.length > 0 ? `with args ${JSON.stringify(args)} ` : '') + (runningOnServer ? `on server ${runningOnServer}.` : 'but it shut down right away.'));
         if (tool.tail === true && runningOnServer) {
             log(`Tailing Tool: ${tool.name} on server ${runningOnServer}` + (args.length > 0 ? ` with args ${JSON.stringify(args)}` : ''));
-            try { ns.tail(tool.name, runningOnServer, ...args); } catch (e) { /* tail API may not be available */ }
+            try { ns.ui.openTail(tool.name, runningOnServer, ...args); } catch (e) {
+                try { ns.ui.openTail(); } catch (e2) { /* tail API may not be available */ }
+            }
             tool.tail = false; // Avoid popping open additional tail windows in the future
         }
         return true;
@@ -1121,7 +1123,7 @@ function getFlagsArgs(toolName, target, allowLooping = true) {
         args.push(stockMode && (toolName == "hack" && shouldManipulateHack[target] || toolName == "grow" && shouldManipulateGrow[target]) ? 1 : 0);
     if (["hack", "weak"].includes(toolName))
         args.push(options['silent-misfires'] || // Optional arg to disable toast warnings about a failed hack if hacking money gain is disabled
-            (toolName == "hack" && (bitnodeMults.ScriptHackMoneyGain == 0 || playerStats.bitNodeN == 8)) ? 1 : 0); // Disable automatically in BN8 (hack income disabled)
+            (toolName == "hack" && (bitnodeMults.ScriptHackMoneyGain == 0 || (ns.getResetInfo?.()?.currentNode ?? playerStats.bitNodeN) == 8)) ? 1 : 0); // Disable automatically in BN8 (hack income disabled)
     args.push(allowLooping && loopingMode ? 1 : 0); // Argument to indicate whether the cycle should loop perpetually
     return args;
 }

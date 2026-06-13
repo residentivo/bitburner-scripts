@@ -47,13 +47,15 @@ export async function main(ns) {
     disableLogs(ns, ['asleep'])
     options = ns.flags(argsSchema);
     player = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt');
+    // v3: bitNodeN removed from getPlayer — use ns.getResetInfo().currentNode
+    const currentBitNode = (typeof ns.getResetInfo === 'function') ? ns.getResetInfo().currentNode : player.bitNodeN;
     // Ensure we have access to bladeburner
     ownedSourceFiles = await getActiveSourceFiles(ns);
-    //if (!(6 in ownedSourceFiles) && player.bitNodeN != 7) // NOTE: Despite the SF6 description, it seems you don't need SF6
+    //if (!(6 in ownedSourceFiles) && currentBitNode != 7) // NOTE: Despite the SF6 description, it seems you don't need SF6
     //    return log(ns, "ERROR: You have no yet unlocked bladeburner outside of BNs 6 & 7 (need SF6)", true, 'error');
     if (!(7 in ownedSourceFiles))
         return log(ns, "ERROR: You have no yet unlocked the bladeburner API (need SF7)", true, 'error');
-    if (player.bitNodeN == 8)
+    if (currentBitNode == 8)
         return log(ns, "ERROR: Bladeburner is completely disabled in Bitnode 8 :`(\nHappy stonking", true, 'error');
     // Ensure we've joined bladeburners before proceeding further
     await beingInBladeburner(ns);
