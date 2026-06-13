@@ -487,6 +487,11 @@ async function doTargetingLoop(ns) {
             if (stockMode) await updateStockPositions(ns); // In stock market manipulation mode, get our current position in all stocks
             sortServerList("targeting"); // Update the order in which we ought to target servers
 
+            // Copy hack scripts to all rooted, hackable servers that don't have them yet
+            if (loops % 10 == 0) { // Every 10 loops to avoid excessive overhead
+                await deployHackScripts(ns);
+            }
+
             if (loops % 60 == 0) { // For more expensive updates, only do these every so often
                 // If we have not yet launched all helpers (e.g. awaiting more home ram, or TIX API to be purchased) see if any are now ready to be run
                 if (!allHelpersRunning) allHelpersRunning = await runStartupScripts(ns);
@@ -1783,4 +1788,49 @@ function getNumPortCrackers() {
         if (doesFileExist(crack, 'home'))
             ownedCracks.push(crack);
     return ownedCracks.length;
+}
+
+/**
+ * Deploy hack scripts (weak/grow/hack-target.js) to all rooted, hackable servers
+ * that don't already have them. Runs periodically to ensure propagation.
+ * @param {NS} ns
+ */
+async function deployHackScripts(ns) {
+    const hackTools = ['/Remote/weak-target.js', '/Remote/grow-target.js', '/Remote/hack-target.js'];
+    const myHack = playerHackSkill();
+    let copied = 0, skipped = 0, failed = 0;
+
+    sortServerList("targeting");
+    for (const server of serverListByTargetOrder) {
+        if (server.name === "home") continue;
+        if (!server.hasRoot()) continue;
+        if (!server.canHack()) continue;
+        if (server.totalRam() < 2) continue;
+
+        // Check if all tools already present
+        const hasAll = hackTools.every(t => doesFileExist(t, server.name));
+        if (hasAll) { skipped++; continue; }
+
+        // Copy missing tools
+        const missing = hackTools.filter(t => !doesFileExist(t, server.name));
+        try {
+            const ok = await ns.scp(missing, server.name, "home");
+            if (ok) {
+                copied++;
+                if (verbose) log(`Deployed ${missing.length} scripts to ${server.name}`);
+            } else {
+                failed++;
+            }
+        } catch (e) {
+            failed++;
+            if (verbose) log(`ERROR deploying to ${server.name}: ${String(e)}`);
+        }
+
+        // Small delay to avoid overwhelming the game
+        await ns.asleep(10);
+    }
+
+    if (copied > 0 || failed > 0) {
+        log(`Deploy scripts: ${copied} servers updated, ${skipped} already had them, ${failed} failed`);
+    }
 }
