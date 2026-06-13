@@ -276,7 +276,7 @@ export async function main(ns) {
         // Host manager
         { interval: 32000, name: "host-manager.js", requiredServer: "home", args: () => ['--reserve-percent', Math.min(0.9, 0.1 * Object.values(dictSourceFiles).reduce((t, v) => t + v, 0)), '--utilization-trigger', '0'], shouldRun: () => { if (shouldReserveMoney() || !shouldImproveHacking()) return false; let utilization = getTotalNetworkUtilization(); return utilization >= maxUtilization || utilization > 0.80 && maxTargets < 20 || utilization > 0.50 && maxTargets < 5; } },
         // Backdoor all servers
-        { interval: 33000, name: "/Tasks/backdoor-all-servers.js", requiredServer: "home", shouldRun: () => 4 in dictSourceFiles },
+        { interval: 33000, name: "/Tasks/backdoor-all-servers.js", requiredServer: "home", shouldRun: () => 4 in dictSourceFiles, tail: true },
     ];
     periodicScripts.forEach(tool => tool.name = getFilePath(tool.name));
     hackTools = [
@@ -414,7 +414,7 @@ async function tryRunTool(ns, tool) {
         log(`ERROR: Tool ${tool.name} was not found on ${daemonHost}`, true, 'error');
         return false;
     }
-    let runningOnServer = whichServerIsRunning(ns, tool.name);
+    let runningOnServer = whichServerIsRunning(ns, tool.name, false);
     if (runningOnServer != null) {
         if (verbose) log(`INFO: Tool ${tool.name} is already running on server ${runningOnServer}.`);
         return true;
