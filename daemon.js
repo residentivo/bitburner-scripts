@@ -428,7 +428,7 @@ async function tryRunTool(ns, tool) {
         if (verbose) log(`Ran tool: ${tool.name} ` + (args.length > 0 ? `with args ${JSON.stringify(args)} ` : '') + (runningOnServer ? `on server ${runningOnServer}.` : 'but it shut down right away.'));
         if (tool.tail === true && runningOnServer) {
             log(`Tailing Tool: ${tool.name} on server ${runningOnServer}` + (args.length > 0 ? ` with args ${JSON.stringify(args)}` : ''));
-            ns.ui.openTail(tool.name, runningOnServer, ...args);
+            try { ns.tail(tool.name, runningOnServer, ...args); } catch (e) { /* tail API may not be available */ }
             tool.tail = false; // Avoid popping open additional tail windows in the future
         }
         return true;

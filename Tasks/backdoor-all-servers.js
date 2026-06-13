@@ -6,6 +6,7 @@ let spawnDelay = 50; // Delay to allow time for `installBackdoor` to start runni
  * Scan all servers, backdoor anything that can be backdoored, and leave a file to indicate it's been done
  * Requires: SF-4.1 **/
 export let main = async ns => {
+    ns.tprint('BACKDOOR: Starting backdoor scan...');
     // Check if singularity (SF4) is available — backdoor requires it
     if (!ns.singularity || typeof ns.singularity.installBackdoor !== 'function') {
         ns.tprint('SKIP: Singularity API (SF4) not available in this bitnode. Cannot backdoor.');
