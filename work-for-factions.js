@@ -659,18 +659,20 @@ export async function workForSingleFaction(ns, factionName, forceUnlockDonations
 /** @param {NS} ns 
  * Try all work types and see what gives the best rep gain with this faction! */
 async function detectBestFactionWork(ns, factionName, focusAtWork) {
-    let bestWork, bestRepRate = 0;
+    let bestWork = "hacking"; // Default fallback
+    let bestRepRate = 0;
     for (const work of ["security", "field", "hacking"]) {
-        if (!await getNsDataThroughFile(ns, `ns.singularity.workForFaction('${factionName}', '${work}',  ${focusAtWork})`, '/Temp/work-for-faction.txt')) {
-            //ns.print(`"${factionName}" work ${work} not supported.`);
+        // Try starting work to measure rep rate, then stop immediately
+        if (!await getNsDataThroughFile(ns, `ns.singularity.workForFaction('${factionName}', '${work}', ${focusAtWork})`, '/Temp/work-for-faction.txt')) {
             continue; // This type of faction work must not be supported
         }
         const currentRepGainRate = (await getPlayerInfo(ns)).workRepGainRate;
-        //ns.print(`"${factionName}" work ${work} provides ${formatNumberShort(currentRepGainRate)} rep rate`);
         if (currentRepGainRate > bestRepRate) {
             bestRepRate = currentRepGainRate;
             bestWork = work;
         }
+        // Stop work so we can try the next type
+        await getNsDataThroughFile(ns, `ns.singularity.stopAction()`, '/Temp/stop-action.txt');
     }
     return bestWork;
 }
