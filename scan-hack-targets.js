@@ -1,14 +1,15 @@
 /**
  * scan-hack-targets.js — Diagnóstico: lista servers hackeáveis e status de scripts
  * Uso: run scan-hack-targets.js
+ * Output: /Temp/scan-hack-targets.txt (sobrescrito a cada run)
  */
 
 const HACK_TOOLS = ['/Remote/weak-target.js', '/Remote/grow-target.js', '/Remote/hack-target.js'];
+const OUT_FILE = '/Temp/scan-hack-targets.txt';
 
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog('ALL');
-    ns.clearLog();
 
     const home = 'home';
     const myHack = ns.getHackingLevel();
@@ -46,12 +47,10 @@ export async function main(ns) {
         const curSec = ns.getServerSecurityLevel(s);
         const ram = ns.getServerMaxRam(s);
 
-        // Check which hack tools are present
         const files = ns.ls(s).filter(f => HACK_TOOLS.includes(f));
         const hasAllTools = HACK_TOOLS.every(t => files.includes(t));
         const hasAnyTool = files.length > 0;
 
-        // Status
         let status;
         if (!rooted) status = 'NO-ROOT';
         else if (!canHack) status = 'LOW-HACK';
@@ -62,25 +61,26 @@ export async function main(ns) {
         rows.push({
             name: s,
             reqHack,
-            myHack,
-            canHack: canHack ? '✓' : '✗',
-            rooted: rooted ? '✓' : '✗',
+            canHack: canHack ? 'Y' : 'N',
+            rooted: rooted ? 'Y' : 'N',
             maxMoney,
             curMoney,
             minSec: minSec.toFixed(1),
             curSec: curSec.toFixed(1),
             ram,
             files: files.length,
-            hasAllTools: hasAllTools ? '✓' : '✗',
+            hasAllTools: hasAllTools ? 'Y' : 'N',
             status,
         });
     }
 
-    // Print header
-    ns.ui.openTail();
-    ns.printf('='.repeat(140));
-    ns.printf(`SCAN HACK TARGETS | Hack Level: ${myHack} | Total servers: ${targets.length}`);
-    ns.printf('='.repeat(140));
+    // Build output
+    const out = [];
+    const line = (s) => out.push(s);
+
+    line('================================================================================');
+    line(`SCAN HACK TARGETS | Hack Level: ${myHack} | Total servers: ${targets.length} | ${new Date().toISOString()}`);
+    line('================================================================================');
 
     // Group by status
     const groups = {};
@@ -95,16 +95,14 @@ export async function main(ns) {
         const group = groups[status];
         if (!group || group.length === 0) continue;
 
-        ns.printf('');
-        ns.printf(`--- ${status} (${group.length} servers) ---`);
-        ns.printf(
-            `${'Server'.padEnd(25)} ${'ReqHack'.padStart(7)} ${'CanHack'.padStart(7)} ${'Rooted'.padStart(7)} ${'MaxMoney'.padStart(12)} ${'CurMoney'.padStart(12)} ${'MinSec'.padStart(7)} ${'CurSec'.padStart(7)} ${'RAM'.padStart(8)} ${'Files'.padStart(5)} ${'AllTools'.padStart(8)}`
-        );
-        ns.printf('-'.repeat(120));
+        line('');
+        line(`--- ${status} (${group.length} servers) ---`);
+        line(`${'Server'.padEnd(28)} ${'ReqHack'.padStart(7)} ${'Hack'.padStart(4)} ${'Root'.padStart(4)} ${'MaxMoney'.padStart(12)} ${'CurMoney'.padStart(12)} ${'MinSec'.padStart(7)} ${'CurSec'.padStart(7)} ${'RAM'.padStart(8)} ${'Files'.padStart(5)} ${'All'.padStart(3)}`);
+        line('-'.repeat(110));
 
         for (const r of group) {
-            ns.printf(
-                `${r.name.padEnd(25)} ${String(r.reqHack).padStart(7)} ${r.canHack.padStart(7)} ${r.rooted.padStart(7)} ${ns.format.number(r.maxMoney).padStart(12)} ${ns.format.number(r.curMoney).padStart(12)} ${r.minSec.padStart(7)} ${r.curSec.padStart(7)} ${ns.format.ram(r.ram).padStart(8)} ${String(r.files).padStart(5)} ${r.hasAllTools.padStart(8)}`
+            line(
+                `${r.name.padEnd(28)} ${String(r.reqHack).padStart(7)} ${r.canHack.padStart(4)} ${r.rooted.padStart(4)} ${ns.format.number(r.maxMoney).padStart(12)} ${ns.format.number(r.curMoney).padStart(12)} ${r.minSec.padStart(7)} ${r.curSec.padStart(7)} ${ns.format.ram(r.ram).padStart(8)} ${String(r.files).padStart(5)} ${r.hasAllTools.padStart(3)}`
             );
         }
     }
@@ -115,56 +113,56 @@ export async function main(ns) {
     const partial = (groups['PARTIAL'] || []).length;
     const lowHack = (groups['LOW-HACK'] || []).length;
     const noRoot = (groups['NO-ROOT'] || []).length;
-    const hackable = rows.filter(r => r.rooted === '✓' && r.canHack === '✓').length;
+    const hackable = rows.filter(r => r.rooted === 'Y' && r.canHack === 'Y').length;
 
-    ns.printf('');
-    ns.printf('='.repeat(140));
-    ns.printf(`SUMMARY:`);
-    ns.printf(`  Total servers:      ${targets.length}`);
-    ns.printf(`  Hackable (rooted+level): ${hackable}`);
-    ns.printf(`  READY (all tools):  ${ready}`);
-    ns.printf(`  NO-SCRIPTS (need copy): ${noScripts}`);
-    ns.printf(`  PARTIAL (some files): ${partial}`);
-    ns.printf(`  LOW-HACK (need level): ${lowHack}`);
-    ns.printf(`  NO-ROOT (need crack):  ${noRoot}`);
-    ns.printf('='.repeat(140));
+    line('');
+    line('================================================================================');
+    line('SUMMARY:');
+    line(`  Total servers:           ${targets.length}`);
+    line(`  Hackable (rooted+level): ${hackable}`);
+    line(`  READY (all tools):       ${ready}`);
+    line(`  NO-SCRIPTS (need copy):  ${noScripts}`);
+    line(`  PARTIAL (some files):    ${partial}`);
+    line(`  LOW-HACK (need level):   ${lowHack}`);
+    line(`  NO-ROOT (need crack):    ${noRoot}`);
+    line('================================================================================');
 
-    // Also check daemon servers
-    ns.printf('');
-    ns.printf('--- DAEMON SERVERS (purchased) ---');
+    // Daemon servers
+    line('');
+    line('--- DAEMON SERVERS (purchased) ---');
     const daemons = [...allServers].filter(s => s.startsWith('daemon')).sort();
     if (daemons.length === 0) {
-        ns.printf('  (none found)');
+        line('  (none found)');
     } else {
-        ns.printf(
-            `${'Server'.padEnd(20)} ${'MaxRam'.padStart(8)} ${'UsedRam'.padStart(8)} ${'FreeRam'.padStart(8)} ${'Rooted'.padStart(7)} ${'Weak'.padStart(5)} ${'Grow'.padStart(5)} ${'Hack'.padStart(5)}`
-        );
-        ns.printf('-'.repeat(70));
+        line(`${'Server'.padEnd(20)} ${'MaxRam'.padStart(8)} ${'UsedRam'.padStart(8)} ${'FreeRam'.padStart(8)} ${'Root'.padStart(4)} ${'Weak'.padStart(5)} ${'Grow'.padStart(5)} ${'Hack'.padStart(5)}`);
+        line('-'.repeat(65));
         for (const s of daemons) {
             const maxR = ns.getServerMaxRam(s);
             const usedR = ns.getServerUsedRam(s);
             const freeR = maxR - usedR;
-            const rooted = ns.hasRootAccess(s) ? '✓' : '✗';
-            const hasWeak = ns.fileExists('/Remote/weak-target.js', s) ? '✓' : '✗';
-            const hasGrow = ns.fileExists('/Remote/grow-target.js', s) ? '✓' : '✗';
-            const hasHack = ns.fileExists('/Remote/hack-target.js', s) ? '✓' : '✗';
-            ns.printf(
-                `${s.padEnd(20)} ${ns.format.ram(maxR).padStart(8)} ${ns.format.ram(usedR).padStart(8)} ${ns.format.ram(freeR).padStart(8)} ${rooted.padStart(7)} ${hasWeak.padStart(5)} ${hasGrow.padStart(5)} ${hasHack.padStart(5)}`
-            );
+            const rooted = ns.hasRootAccess(s) ? 'Y' : 'N';
+            const w = ns.fileExists('/Remote/weak-target.js', s) ? 'Y' : 'N';
+            const g = ns.fileExists('/Remote/grow-target.js', s) ? 'Y' : 'N';
+            const h = ns.fileExists('/Remote/hack-target.js', s) ? 'Y' : 'N';
+            line(`${s.padEnd(20)} ${ns.format.ram(maxR).padStart(8)} ${ns.format.ram(usedR).padStart(8)} ${ns.format.ram(freeR).padStart(8)} ${rooted.padStart(4)} ${w.padStart(5)} ${g.padStart(5)} ${h.padStart(5)}`);
         }
     }
 
-    // Check home
-    ns.printf('');
-    ns.printf('--- HOME SERVER ---');
+    // Home
+    line('');
+    line('--- HOME SERVER ---');
     const homeMax = ns.getServerMaxRam(home);
     const homeUsed = ns.getServerUsedRam(home);
-    ns.printf(`  Max RAM:  ${ns.format.ram(homeMax)}`);
-    ns.printf(`  Used RAM: ${ns.format.ram(homeUsed)}`);
-    ns.printf(`  Free RAM: ${ns.format.ram(homeMax - homeUsed)}`);
-    ns.printf(`  Scripts on home:`);
+    line(`  Max RAM:  ${ns.format.ram(homeMax)}`);
+    line(`  Used RAM: ${ns.format.ram(homeUsed)}`);
+    line(`  Free RAM: ${ns.format.ram(homeMax - homeUsed)}`);
+    line('  Scripts on home:');
     for (const f of HACK_TOOLS) {
-        const exists = ns.fileExists(f, home) ? '✓' : '✗';
-        ns.printf(`    ${exists} ${f}`);
+        line(`    ${ns.fileExists(f, home) ? 'Y' : 'N'} ${f}`);
     }
+    line('================================================================================');
+
+    // Write file
+    ns.write(OUT_FILE, out.join('\n'), 'w');
+    ns.tprint(`Wrote report to ${OUT_FILE} — open with: cat ${OUT_FILE}`);
 }
