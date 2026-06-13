@@ -423,11 +423,8 @@ async function tryRunTool(ns, tool) {
     const runResult = await arbitraryExecution(ns, tool, 1, args, tool.requiredServer || "home"); // TODO: Allow actually requiring a server
     if (runResult) {
         runningOnServer = whichServerIsRunning(ns, tool.name, false);
-        log(`DAEMON-RAN: ${tool.name} on ${runningOnServer || 'unknown'} (RAM: ${formatRam(tool.cost)})`,
-            false, (tool.tail === true && runningOnServer) ? 'success' : undefined);
         if (verbose) log(`Ran tool: ${tool.name} ` + (args.length > 0 ? `with args ${JSON.stringify(args)} ` : '') + (runningOnServer ? `on server ${runningOnServer}.` : 'but it shut down right away.'));
         if (tool.tail === true && runningOnServer) {
-            log(`Tailing Tool: ${tool.name} on server ${runningOnServer}` + (args.length > 0 ? ` with args ${JSON.stringify(args)}` : ''));
             try { ns.ui.openTail(tool.name, runningOnServer, ...args); } catch (e) {
                 try { ns.ui.openTail(); } catch (e2) { /* tail API may not be available */ }
             }
