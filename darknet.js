@@ -678,10 +678,17 @@ function solvePassword(hint, hintData, hostname = '') {
     // Default / factory / never changed / didn't set / "the password is the default password"
     if (h.includes('default') || h.includes('factory') || h.includes('never changed') ||
         h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
-        h.includes('still') || h.includes('original') || h.includes('no password'))
+        h.includes('still') || h.includes('original') || h.includes('no password')) {
+        // Build hostname-specific defaults: lowercase, no special chars, etc.
+        const hClean = hostname.toLowerCase().replace(/[^a-z0-9]/g, '')
+        const hParts = hostname.split(/[^a-zA-Z0-9]+/).filter(Boolean)
         return [...new Set([
             'default',  // try "default" literally FIRST
             '',         // empty string second
+            hostname,   // exact hostname
+            hostname.toLowerCase(),
+            hClean,     // cleaned hostname (no special chars)
+            ...hParts,  // individual parts of hostname
             ...hostVariants,  // hostname as password is very common for "default" servers
             ...popCulture,
             'password', 'admin', '123456', 'letmein', 'qwerty', 'guest',
@@ -710,6 +717,7 @@ function solvePassword(hint, hintData, hostname = '') {
             // Factory literal
             'factory', 'factory1', 'factoryreset', 'settings', 'default1',
         ])]
+    }
 
     // Buffer length: "Warning: password buffer is N bytes"
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
@@ -1062,15 +1070,50 @@ export async function main(ns) {
                 }
 
                 if (!authed) {
-                    // Heartbleed for debug info
+                    // Heartbleed for debug info AND password extraction
+                    let bleedPasswords = []
                     try {
                         const logs = await ns.dnet.heartbleed(neighbor)
                         if (logs && logs.length > 0) {
                             log(ns, `${neighbor} BLEED: ${JSON.stringify(logs).substring(0, 300)}`)
+                            // Extract potential passwords from heartbleed logs
+                            for (const entry of logs) {
+                                const s = String(entry)
+                                // Look for patterns like "password: X", "passwd=X", "pw: X", etc.
+                                const pwPatterns = [
+                                    /password\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                    /passwd\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                    /pass\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                    /pw\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                    /secret\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                    /key\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                    /login\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                    /admin\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                ]
+                                for (const pat of pwPatterns) {
+                                    const m = s.match(pat)
+                                    if (m && m[1]) bleedPasswords.push(m[1])
+                                }
+                                // Also try the whole entry as password if it looks like one (short, no spaces)
+                                if (s.length <= 30 && !s.includes(' ') && /^\w+$/.test(s)) {
+                                    bleedPasswords.push(s)
+                                }
+                            }
                         }
                     } catch (e) { /* not available */ }
-                    log(ns, `${neighbor} FAIL '${hint}' data='${data}'`)
-                    await logFail(ns, neighbor, 'auth-failed', hint)
+                    // Try heartbleed-extracted passwords first
+                    if (bleedPasswords.length > 0) {
+                        for (const pw of [...new Set(bleedPasswords)]) {
+                            try {
+                                const r = await ns.dnet.authenticate(neighbor, pw)
+                                if (r.success) { authed = true; break }
+                            } catch (e) { /* try next */ }
+                        }
+                    }
+                    if (!authed) {
+                        log(ns, `${neighbor} FAIL '${hint}' data='${data}'`)
+                        await logFail(ns, neighbor, 'auth-failed', hint)
+                    }
                     // Don't continue — still try to scp+exec so neighbor can help propagate
                 }
             }
