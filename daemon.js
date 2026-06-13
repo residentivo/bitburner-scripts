@@ -1284,7 +1284,6 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
 
     let remainingThreads = threads;
     let splitThreads = false;
-    if (verbose) log(`DEBUG arbitraryExecution: tool=${tool.name}, threads=${threads}, servers=${rootedServersByFreeRam.map(s=>s.name+':'+s.ramAvailable().toFixed(1)+'GB').join(', ')}`);
     for (var i = 0; i < rootedServersByFreeRam.length && remainingThreads > 0; i++) {
         var targetServer = rootedServersByFreeRam[i];
         var maxThreadsHere = Math.min(remainingThreads, computeMaxThreads(targetServer));
@@ -1315,7 +1314,7 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
             if (!doesFileExist(getFilePath('helpers.js'), targetServer.name))
                 missing_scripts.push(getFilePath('helpers.js')); // Some tools require helpers.js. Best to copy it around.
             if (verbose)
-                log(`DEBUG Copying ${tool.name} from ${daemonHost} to ${targetServer.name} (missing_scripts: ${missing_scripts.join(', ')})`);
+                log(`Copying ${tool.name} from ${daemonHost} to ${targetServer.name} so that it can be executed remotely.`);
             await getNsDataThroughFile(ns, `await ns.scp(${JSON.stringify(missing_scripts)}, '${targetServer.name}', '${daemonHost}')`, '/Temp/copy-scripts.txt')
             await ns.asleep(5); // Workaround for Bitburner bug https://github.com/danielyxie/bitburner/issues/1714 - newly created/copied files sometimes need a bit more time, even if awaited
             just_copied = true;
@@ -1325,13 +1324,11 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
                 continue; // Try next server
             }
         }
-        if (verbose) log(`DEBUG exec: ${tool.name} on ${targetServer.name} threads=${maxThreadsHere}`);
         let pid = await exec(ns, tool.name, targetServer.name, maxThreadsHere, ...(args || []));
         if (pid == 0) {
             log(`ERROR: Failed to exec ${tool.name} on server ${targetServer.name} with ${maxThreadsHere} threads`, false, 'error');
             return false;
         }
-        if (verbose) log(`DEBUG exec OK: ${tool.name} pid=${pid} on ${targetServer.name}`);
         // Decrement the threads that have been successfully scheduled
         remainingThreads -= maxThreadsHere;
         if (remainingThreads > 0) {
@@ -1360,7 +1357,6 @@ async function prepServer(ns, currentTarget) {
     var growThreadsScheduled = 0;
     var weakenForGrowthThreadsNeeded = 0;
     var weakenTool = getTool("weak");
-    if (verbose) log(`DEBUG prepServer: ${currentTarget.name} money=${currentTarget.getMoney().toFixed(0)}/${currentTarget.getMaxMoney().toFixed(0)} sec=${currentTarget.getSecurity().toFixed(1)}/${currentTarget.getMinSecurity().toFixed(1)}`);
     // Schedule grow, if needed
     if (currentTarget.getMoney() < currentTarget.getMaxMoney() && !stockFocus /* Prep should only weaken in stock-focus mode */) {
         var growTool = getTool("grow");
