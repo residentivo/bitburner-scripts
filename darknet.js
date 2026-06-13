@@ -681,9 +681,10 @@ function solvePassword(hint, hintData, hostname = '') {
         h.includes('still') || h.includes('original') || h.includes('no password'))
         return [...new Set([
             'default',  // try "default" literally FIRST
+            '',         // empty string second
             ...hostVariants,  // hostname as password is very common for "default" servers
             ...popCulture,
-            '', 'password', 'admin', '123456', 'letmein', 'qwerty', 'guest',
+            'password', 'admin', '123456', 'letmein', 'qwerty', 'guest',
             'root', 'toor', 'daemon', 'sys', 'adm', 'bin', 'superuser', 'operator',
             'server', 'system', 'changeit', 'changeme', 'mysql', 'postgres', 'oracle',
             'cisco', 'public', 'private', 'blank', 'none', 'null',
@@ -692,6 +693,9 @@ function solvePassword(hint, hintData, hostname = '') {
             '0000', '1111', '1234', '4321', '7777', '9999',
             'password1', 'password123', 'admin1', 'admin1234', 'root1', 'test1',
             'welcome', 'hello', 'master', 'super', 'god', 'love', 'code',
+            // Vendor-specific defaults
+            'changeme1', 'default1', 'default123', 'password1', 'administrator',
+            'test123', 'guest123', 'root1234', 'toor123',
             // Common device/service defaults
             'ubnt', 'zyxel', 'netgear', 'dlink', 'tplink', 'linksys', 'asus',
             'arris', 'motorola', 'huawei', 'technicolor', 'sagemcom',
