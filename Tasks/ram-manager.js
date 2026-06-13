@@ -21,15 +21,32 @@ export async function main(ns) {
     let spendable = Math.min(money - reserve, money * options.budget);
     // Quickly buy as many upgrades as we can within the budget
     do {
-        let cost = ns.getUpgradeHomeRamCost();
         let currentRam = ns.getServerMaxRam("home");
-        if (cost >= Number.MAX_VALUE || currentRam == max_ram)
+        if (currentRam >= max_ram)
             return ns.print(`We're at max home RAM (${formatRam(currentRam)})`);
         const nextRam = currentRam * 2;
         const upgradeDesc = `home RAM from ${formatRam(currentRam)} to ${formatRam(nextRam)}`;
+        // v3: ns.getUpgradeHomeRamCost() removed, use ns.singularity.getUpgradeHomeRamCost() or just try
+        let cost;
+        try {
+            cost = ns.singularity.getUpgradeHomeRamCost();
+        } catch (e) {
+            // Fallback: estimate cost (exponential scaling)
+            cost = currentRam * 1000; // rough estimate
+        }
+        if (cost >= Number.MAX_VALUE)
+            return ns.print(`We're at max home RAM (${formatRam(currentRam)})`);
         if (spendable < cost)
             return ns.print(`Money we're allowed to spend (${formatMoney(spendable)}) is less than the cost (${formatMoney(cost)}) to upgrade ${upgradeDesc}`);
-        if (!ns.upgradeHomeRam())
+        // v3: ns.upgradeHomeRam() moved to ns.singularity.upgradeHomeRam()
+        let success;
+        try {
+            success = ns.singularity.upgradeHomeRam();
+        } catch (e) {
+            // Fallback: try old API
+            try { success = ns.upgradeHomeRam(); } catch (e2) { success = false; }
+        }
+        if (!success)
             return announce(ns, `ERROR: Failed to upgrade ${upgradeDesc} thinking we could afford it ` +
                 `(cost: ${formatMoney(cost)} cash: ${formatMoney(money)} budget: ${formatMoney(spendable)})`, 'error');
         // Otherwise, we've successfully upgraded home ram.
