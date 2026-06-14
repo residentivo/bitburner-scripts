@@ -406,11 +406,13 @@ let launchSummaryTail = async ns => {
 }
 
 // Ram-dodging helpers that spawn temporary scripts to buy/sell rather than pay 2.5GB ram per variant
-let buyStockWrapper = async (ns, sym, numShares) => await transactStock(ns, sym, numShares, 'buy'); // ns.stock.buy(sym, numShares);
-let buyShortWrapper = async (ns, sym, numShares) => await transactStock(ns, sym, numShares, 'short'); // ns.stock.short(sym, numShares);
-let sellStockWrapper = async (ns, sym, numShares) => await transactStock(ns, sym, numShares, 'sell'); // ns.stock.sell(sym, numShares);
-let sellShortWrapper = async (ns, sym, numShares) => await transactStock(ns, sym, numShares, 'sellShort'); // ns.stock.sellShort(sym, numShares);
-let transactStock = async (ns, sym, numShares, action) => await getNsDataThroughFile(ns, `ns.stock.${action}('${sym}', ${numShares})`, '/Temp/transact-stock.txt'); // ns.stock.sellShort(sym, numShares);
+// v3: ns.stock.buy → ns.stock.buyStock, ns.stock.sell → ns.stock.sellStock, ns.stock.short → ns.stock.buyShort
+const stockApiName = action => action === 'buy' ? 'buyStock' : action === 'sell' ? 'sellStock' : action === 'short' ? 'buyShort' : action;
+let buyStockWrapper = async (ns, sym, numShares) => await transactStock(ns, sym, numShares, 'buy');
+let buyShortWrapper = async (ns, sym, numShares) => await transactStock(ns, sym, numShares, 'short');
+let sellStockWrapper = async (ns, sym, numShares) => await transactStock(ns, sym, numShares, 'sell');
+let sellShortWrapper = async (ns, sym, numShares) => await transactStock(ns, sym, numShares, 'sellShort');
+let transactStock = async (ns, sym, numShares, action) => await getNsDataThroughFile(ns, `ns.stock.${stockApiName(action)}('${sym}', ${numShares})`, '/Temp/transact-stock.txt');
 
 /** @param {NS} ns 
  * Automatically buys either a short or long position depending on the outlook of the stock. */
