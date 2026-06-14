@@ -99,7 +99,7 @@ export async function main(ns) {
             }
 
             if (7 in dictSourceFiles || 7 == bn) { // Bladeburner API unlocked
-                inBladeburner = inBladeburner || ns.bladeburner?.inBladeburner?.() ||
+                inBladeburner = inBladeburner || ns.bladeburner?.inBladeburner?.() || false;
                 if (inBladeburner) {
                     const bbRank = await getNsDataThroughFile(ns, 'ns.bladeburner.getRank()', '/Temp/bladeburner-rank.txt');
                     const bbSP = await getNsDataThroughFile(ns, 'ns.bladeburner.getSkillPoints()', '/Temp/bladeburner-skill-points.txt');
