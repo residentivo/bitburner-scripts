@@ -542,6 +542,8 @@ async function getPlayerInfo(ns) {
         player.charisma = player.charisma || player.skills.charisma || 0;
         player.intelligence = player.intelligence || player.skills.intelligence || 0;
     }
+    // v3: inBladeburner removed from Player — use ns.bladeburner.inBladeburner()
+    try { player.inBladeburner = player.inBladeburner || ns.bladeburner?.inBladeburner?.() || false; } catch {}
     return player;
     // return await getNsDataThroughFile(ns, `ns.getPlayerInfo()`, '/Temp/player-info.txt');
 }

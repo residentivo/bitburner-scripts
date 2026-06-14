@@ -88,7 +88,8 @@ export async function main(ns) {
     lastTick = 0, totalProfit = 0, lastLog = "", marketCycleDetected = false, detectedCycleTick = 0, inversionAgreementThreshold = 6;
     let myStocks = [], allStocks = [];
 
-    if (!ns.getPlayer().hasTixApiAccess) // You cannot use the stockmaster until you have API access
+    // v3: hasTixApiAccess removed from Player — use ns.stock.hasTixApiAccess()
+    if (!ns.stock?.hasTixApiAccess?.())
         return log(ns, "ERROR: You have to buy stock market access and API access before you can run this script!", true);
 
     if (options.l || options.liquidate) // If given the "liquidate" command, try to kill the version of ourself trading in stocks
@@ -133,8 +134,11 @@ export async function main(ns) {
 
     while (true) {
         const playerStats = ns.getPlayer();
-        const pre4s = !playerStats.has4SDataTixApi;
-        const holdings = await refresh(ns, playerStats.has4SDataTixApi, allStocks, myStocks); // Returns total stock value
+        // v3: has4SDataTixApi/has4SData removed from Player — use ns.stock API
+        const has4sApi = ns.stock?.has4SDataTixApi?.() ?? playerStats.has4SDataTixApi ?? false;
+        const has4sData = ns.stock?.has4SData?.() ?? playerStats.has4SData ?? false;
+        const pre4s = !has4sApi;
+        const holdings = await refresh(ns, has4sApi, allStocks, myStocks); // Returns total stock value
         const corpus = holdings + playerStats.money; // Corpus means total stocks + cash
         const maxHoldings = (1 - fracH) * corpus; // The largest value of stock we could hold without violiating fracH (Fraction to keep as cash)
         if (pre4s && !mock && await tryGet4SApi(ns, playerStats, bitnodeMults, corpus * (options['buy-4s-budget'] - fracH), allStockSymbols))
@@ -516,16 +520,19 @@ async function liquidate(ns, allStockSymbols) {
 /** @param {NS} ns **/
 /** @param {Player} playerStats **/
 async function tryGet4SApi(ns, playerStats, bitnodeMults, budget, allStockSymbols) {
-    if (playerStats.has4SDataTixApi) return false; // Only return true if we just bought it
+    // v3: has4SDataTixApi/has4SData removed from Player — use ns.stock API
+    const has4sApi = ns.stock?.has4SDataTixApi?.() ?? playerStats.has4SDataTixApi ?? false;
+    if (has4sApi) return false; // Only return true if we just bought it
     const cost4sData = bitnodeMults.FourSigmaMarketDataCost * 5000000000;
     const cost4sApi = bitnodeMults.FourSigmaMarketDataApiCost * 25000000000;
-    const totalCost = (playerStats.has4SData ? 0 : cost4sData) + cost4sApi;
+    const has4sData = ns.stock?.has4SData?.() ?? playerStats.has4SData ?? false;
+    const totalCost = (has4sData ? 0 : cost4sData) + cost4sApi;
     // Liquidate shares if it would allow us to afford 4S API data
     if (totalCost > budget) /* Need to reserve some money to invest */
         return false;
     if (playerStats.money < totalCost)
         await liquidate(ns, allStockSymbols);
-    if (!playerStats.has4SData) {
+    if (!has4sData) {
         if (await getNsDataThroughFile(ns, 'ns.stock.purchase4SMarketData()', '/Temp/purchase-4s.txt'))
             log(ns, `Purchased 4SMarketData for ${formatMoney(cost4sData)}!`, true, 'success');
         else

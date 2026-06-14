@@ -18,11 +18,14 @@ export async function main(ns) {
     const hook1 = doc.getElementById('overview-extra-hook-1');
     const dictSourceFiles = await getActiveSourceFiles(ns, false); // Find out what source files the user has unlocked
     let playerInfo = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt');
-    let inBladeburner = playerInfo.inBladeburner;
+    // v3: inBladeburner/hasTixApiAccess removed from Player — use dedicated APIs
+    let inBladeburner = false;
+    try { inBladeburner = ns.bladeburner?.inBladeburner?.() ?? playerInfo.inBladeburner ?? false; } catch {}
+    const hasTixApiAccess = ns.stock?.hasTixApiAccess?.() ?? playerInfo.hasTixApiAccess ?? false;
     // v3: bitNodeN removed from getPlayer — use ns.getResetInfo().currentNode
     const bitNode = (typeof ns.getResetInfo === 'function') ? ns.getResetInfo().currentNode : playerInfo.bitNodeN;
     let stkSymbols = null;
-    if (!options['hide-stocks'] && playerInfo.hasTixApiAccess) // Auto-disabled if we do not have the TSK API
+    if (!options['hide-stocks'] && hasTixApiAccess) // Auto-disabled if we do not have the TSK API
         stkSymbols = await getNsDataThroughFile(ns, `ns.stock.getSymbols()`, '/Temp/stock-symbols.txt');
     disableLogs(ns, ['sleep']);
 
@@ -96,8 +99,7 @@ export async function main(ns) {
             }
 
             if (7 in dictSourceFiles || 7 == bn) { // Bladeburner API unlocked
-                inBladeburner = inBladeburner || playerInfo.inBladeburner || // Avoid RAM dodge call if we have this info already
-                    (playerInfo = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt')).inBladeburner;
+                inBladeburner = inBladeburner || ns.bladeburner?.inBladeburner?.() ||
                 if (inBladeburner) {
                     const bbRank = await getNsDataThroughFile(ns, 'ns.bladeburner.getRank()', '/Temp/bladeburner-rank.txt');
                     const bbSP = await getNsDataThroughFile(ns, 'ns.bladeburner.getSkillPoints()', '/Temp/bladeburner-skill-points.txt');

@@ -131,7 +131,9 @@ async function initialize(ns) {
     const playerData = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt');
     // v3: bitNodeN removed from getPlayer — use ns.getResetInfo().currentNode
     const currentBitNode = (typeof ns.getResetInfo === 'function') ? ns.getResetInfo().currentNode : playerData.bitNodeN;
-    if (!playerData.has4SDataTixApi || currentBitNode === 8) {
+    // v3: has4SDataTixApi removed from Player — use ns.stock.has4SDataTixApi()
+    const has4sApi = ns.stock?.has4SDataTixApi?.() ?? playerData.has4SDataTixApi ?? false;
+    if (!has4sApi || currentBitNode === 8) {
         defaultMaxSpendPerTickPermanentEquipment /= 100;
         defaultMaxSpendPerTickTransientEquipment /= 100;;
     }

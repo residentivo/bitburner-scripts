@@ -47,6 +47,11 @@ export async function main(ns) {
             let cash = ns.getServerMoneyAvailable("home") - (options['reserve'] != null ? options['reserve'] : Number(ns.read("reserve.txt") || 0));
             let budget = cash * options['aug-budget'];
             let playerInfo = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt')
+            // v3: isWorking/workType/currentWorkFactionName/companyName removed from Player
+            let currentWork = null;
+            try { currentWork = ns.singularity?.getCurrentWork?.(); } catch {}
+            const isWorkingForFaction = currentWork?.type === "Working for Faction";
+            const isWorkingForCompany = currentWork?.type === "Working for Company";
             let allSleeveStats = await getNsDataThroughFile(ns, `[...Array(${numSleeves}).keys()].map(i => ns.sleeve.getSleeve(i))`, '/Temp/sleeve-stats.txt');
             for (let i = 0; i < numSleeves; i++) {
                 let sleeveStats = allSleeveStats[i];
@@ -90,14 +95,14 @@ export async function main(ns) {
                     designatedTask = "recover from shock";
                     command = `ns.sleeve.setToShockRecovery(${i})`;
                 } // If player is currently working for faction or company rep, sleeves 0 can help him out (Note: Only one sleeve can work for a faction)
-                else if (i == 0 && !options['disable-follow-player'] && playerInfo.isWorking && playerInfo.workType == "Working for Faction") {
+                else if (i == 0 && !options['disable-follow-player'] && isWorkingForFaction) {
                     // TODO: We should be able to borrow logic from work-for-factions.js to have more sleeves work for useful factions / companies
-                    const work = works[workByFaction[playerInfo.currentWorkFactionName] || 0];
-                    designatedTask = `work for faction '${playerInfo.currentWorkFactionName}' (${work})`;
-                    command = `ns.sleeve.setToFactionWork(${i}, '${playerInfo.currentWorkFactionName}', '${work}')`; // TODO: Auto-determine the most productive faction work to do?
-                } else if (i == 0 && !options['disable-follow-player'] && playerInfo.isWorking && playerInfo.workType == "Working for Company") { // If player is currently working for a company rep, sleeves 0 shall help him out (only one sleeve can work for a company)
-                    designatedTask = `work for company '${playerInfo.companyName}'`;
-                    command = `ns.sleeve.setToCompanyWork(${i}, '${playerInfo.companyName}')`;
+                    const work = works[workByFaction[currentWork?.factionName || playerInfo.currentWorkFactionName] || 0];
+                    designatedTask = `work for faction '${currentWork?.factionName || playerInfo.currentWorkFactionName}' (${work})`;
+                    command = `ns.sleeve.setToFactionWork(${i}, '${currentWork?.factionName || playerInfo.currentWorkFactionName}', '${work}')`; // TODO: Auto-determine the most productive faction work to do?
+                } else if (i == 0 && !options['disable-follow-player'] && isWorkingForCompany) { // If player is currently working for a company rep, sleeves 0 shall help him out (only one sleeve can work for a company)
+                    designatedTask = `work for company '${currentWork?.companyName || playerInfo.companyName}'`;
+                    command = `ns.sleeve.setToCompanyWork(${i}, '${currentWork?.companyName || playerInfo.companyName}')`;
                 }  // Do crime for Karma. Homicide has the rate gain, if we can manage a decent success rate.
                 else {
                     var crime = options.crime || (await calculateCrimeChance(ns, sleeveStats, "homicide")) >= options['homicide-chance-threshold'] ? 'homicide' : 'mug';
@@ -118,7 +123,7 @@ export async function main(ns) {
                         // If working for a faction, it's possible he current work isn't supported, so try the next one.
                         if (designatedTask.startsWith('work for faction')) {
                             log(ns, `WARN: Failed to ${strAction} - work type may not be supported.`, false, 'warning');
-                            workByFaction[playerInfo.currentWorkFactionName] = (workByFaction[playerInfo.currentWorkFactionName] || 0) + 1;
+                            workByFaction[currentWork?.factionName || playerInfo.currentWorkFactionName] = (workByFaction[currentWork?.factionName || playerInfo.currentWorkFactionName] || 0) + 1;
                         } else
                             log(ns, `ERROR: Failed to ${strAction}`, true, 'error');
                     }

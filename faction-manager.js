@@ -107,7 +107,9 @@ export async function main(ns) {
     // v3: bitNodeN removed from getPlayer — use ns.getResetInfo().currentNode
     const currentBitNode = (typeof ns.getResetInfo === 'function') ? ns.getResetInfo().currentNode : playerData.bitNodeN;
     startingPlayerMoney = playerData.money;
-    if (options['ignore-stocks'] || !playerData.hasTixApiAccess) {
+    // v3: hasTixApiAccess removed from Player — use ns.stock.hasTixApiAccess()
+    const hasTixApiAccess = ns.stock?.hasTixApiAccess?.() ?? playerData.hasTixApiAccess ?? false;
+    if (options['ignore-stocks'] || !hasTixApiAccess) {
         stockValue = 0
     } else { // Break this into two requests since there's lot's of RAM involved.
         const stkSymbols = await getNsDataThroughFile(ns, `ns.stock.getSymbols()`, '/Temp/stock-symbols.txt');

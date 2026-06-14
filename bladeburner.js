@@ -49,6 +49,18 @@ export async function main(ns) {
     player = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt');
     // v3: bitNodeN removed from getPlayer — use ns.getResetInfo().currentNode
     const currentBitNode = (typeof ns.getResetInfo === 'function') ? ns.getResetInfo().currentNode : player.bitNodeN;
+    // v3: skills moved to player.skills.* — normalize top-level for backward compat
+    if (player.skills) {
+        player.hacking = player.hacking || player.skills.hacking || 0;
+        player.strength = player.strength || player.skills.strength || 0;
+        player.defense = player.defense || player.skills.defense || 0;
+        player.dexterity = player.dexterity || player.skills.dexterity || 0;
+        player.agility = player.agility || player.skills.agility || 0;
+        player.charisma = player.charisma || player.skills.charisma || 0;
+        player.intelligence = player.intelligence || player.skills.intelligence || 0;
+    }
+    // v3: inBladeburner removed from Player — use ns.bladeburner.inBladeburner()
+    try { player.inBladeburner = player.inBladeburner || ns.bladeburner?.inBladeburner?.() || false; } catch {}
     // Ensure we have access to bladeburner
     ownedSourceFiles = await getActiveSourceFiles(ns);
     //if (!(6 in ownedSourceFiles) && currentBitNode != 7) // NOTE: Despite the SF6 description, it seems you don't need SF6
@@ -436,6 +448,14 @@ async function beingInBladeburner(ns) {
             } else
                 log(ns, 'WARNING: Failed to joined Bladeburner despite physical stats. Will try again...', false, 'warning');
             player = await getNsDataThroughFile(ns, 'ns.getPlayer()', '/Temp/player-info.txt');
+            // v3: normalize skills and inBladeburner
+            if (player.skills) {
+                player.strength = player.strength || player.skills.strength || 0;
+                player.defense = player.defense || player.skills.defense || 0;
+                player.dexterity = player.dexterity || player.skills.dexterity || 0;
+                player.agility = player.agility || player.skills.agility || 0;
+            }
+            try { player.inBladeburner = player.inBladeburner || ns.bladeburner?.inBladeburner?.() || false; } catch {}
         }
         catch (error) { log(ns, `WARNING: Caught an error while waiting to join bladeburner, but will keep going:\n${String(error)}`, true, 'error'); }
         await ns.asleep(5000);
