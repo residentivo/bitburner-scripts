@@ -95,7 +95,14 @@ let allTargetsPrepped = false;
 // Replacements / wrappers for various NS calls to let us keep track of them in one place and consolidate where possible
 let log = (...args) => logHelper(_ns, ...args);
 
-async function updatePlayerStats() { return playerStats = await getNsDataThroughFile(_ns, `ns.getPlayer()`, '/Temp/player-info.txt'); }
+async function updatePlayerStats() {
+    playerStats = await getNsDataThroughFile(_ns, `ns.getPlayer()`, '/Temp/player-info.txt');
+    if (!playerStats || !playerStats.hacking) {
+        log(`WARNING: playerStats invalid (hack=${playerStats?.hacking}), using ns.getPlayer() directly`);
+        playerStats = _ns.getPlayer();
+    }
+    return playerStats;
+}
 
 function playerHackSkill() { return playerStats.hacking; }
 
@@ -1834,6 +1841,6 @@ async function deployHackScripts(ns) {
         await ns.asleep(10);
     }
 
-    log(`Deploy: ${copied} copied, ${skipped} skipped, ${failed} failed | filters: -root=${noRoot} -hack=${noHack} -ram=${noRam}`);
+    log(`Deploy: ${copied} copied, ${skipped} skipped, ${failed} failed | filters: -root=${noRoot} -hack=${noHack} -ram=${noRam} | myHack=${myHack}`);
     if (details.length > 0) log('Deploy details:\n' + details.join('\n'));
 }
