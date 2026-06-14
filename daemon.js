@@ -1853,6 +1853,6 @@ async function deployHackScripts(ns) {
         await ns.asleep(10);
     }
 
-    log(`Deploy: ${copied} copied, ${skipped} skipped, ${failed} failed | filters: -root=${noRoot} -hack=${noHack} -ram=${noRam} | myHack=${myHack}`);
+    // log(`Deploy: ${copied} copied, ${skipped} skipped, ${failed} failed | filters: -root=${noRoot} -hack=${noHack} -ram=${noRam} | myHack=${myHack}`);
     if (details.length > 0) log('Deploy details:\n' + details.join('\n'));
 }
