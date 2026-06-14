@@ -685,7 +685,7 @@ async function doTargetingLoop(ns) {
             let currentWork = null;
             try { currentWork = _ns.singularity.getCurrentWork(); } catch {}
             const isWorkingOnFaction = currentWork && currentWork.type == "Working for Faction";
-            if (failed.length <= 0 && utilizationPercent < maxShareUtilization &&
+            if (failed.length <= 0 && utilizationPercent < options['share-max-utilization'] &&
                 isWorkingOnFaction &&
                 (Date.now() - lastShareTime) > options['share-cooldown'] &&
                 !options['no-share'] && (options['share'] || network.totalMaxRam > 1024))
@@ -695,7 +695,7 @@ async function doTargetingLoop(ns) {
                 if (xpOnly) maxThreads -= Math.floor(getServerByName('home').ramAvailable() / shareTool.cost); // Reserve home ram entirely for XP cycles when in xpOnly mode
                 network = getNetworkStats(); // Update network stats since they may have changed after scheduling xp cycles above
                 utilizationPercent = network.totalUsedRam / network.totalMaxRam;
-                let shareThreads = Math.floor(maxThreads * (maxShareUtilization - utilizationPercent) / (1 - utilizationPercent)); // Ensure we don't take utilization above (1-maxShareUtilization)%
+                let shareThreads = Math.floor(maxThreads * (options['share-max-utilization'] - utilizationPercent) / (1 - utilizationPercent)); // Ensure we don't take utilization above (1-maxShareUtilization)%
                 if (shareThreads > 0) {
                     if (verbose) log(`Creating ${shareThreads.toLocaleString()} share threads to improve faction rep gain rates. Using ${formatRam(shareThreads * 4)} of ${formatRam(network.totalMaxRam)} ` +
                         `(${(400 * shareThreads / network.totalMaxRam).toFixed(1)}%) of all RAM). Final utilization will be ${(100 * (4 * shareThreads + network.totalUsedRam) / network.totalMaxRam).toFixed(1)}%`);
@@ -879,7 +879,9 @@ function buildServerObject(ns, node) {
                         hackDifficulty: this.getMinSecurity(),
                         requiredHackingSkill: this.requiredHackLevel
                     }
-                    return ns.formulas.hacking.hackPercent(server, playerStats); // hackAnalyzePercent(this.name) / 100;
+                    // v3: formulas API may fail if playerStats structure changed; fall back to manual calc
+                    const pStats = playerStats?.skills ? playerStats : { hacking: playerStats?.hacking || 0, ...playerStats };
+                    return _ns.formulas.hacking.hackPercent(server, pStats);
                 } catch {
                     hasFormulas = false;
                 }
