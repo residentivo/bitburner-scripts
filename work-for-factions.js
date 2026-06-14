@@ -531,7 +531,18 @@ export async function tryJoinFaction(ns, factionName) {
 
 /** @param {NS} ns */
 async function getPlayerInfo(ns) {
-    return ns.getPlayer(); // Note: Decided that we call this frequently enough it is not worth ram-dodging
+    const player = ns.getPlayer();
+    // v3: skills moved to player.skills.* — normalize top-level properties for backward compat
+    if (player.skills) {
+        player.hacking = player.hacking || player.skills.hacking || 0;
+        player.strength = player.strength || player.skills.strength || 0;
+        player.defense = player.defense || player.skills.defense || 0;
+        player.dexterity = player.dexterity || player.skills.dexterity || 0;
+        player.agility = player.agility || player.skills.agility || 0;
+        player.charisma = player.charisma || player.skills.charisma || 0;
+        player.intelligence = player.intelligence || player.skills.intelligence || 0;
+    }
+    return player;
     // return await getNsDataThroughFile(ns, `ns.getPlayerInfo()`, '/Temp/player-info.txt');
 }
 

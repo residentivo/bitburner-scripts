@@ -97,16 +97,19 @@ let log = (...args) => logHelper(_ns, ...args);
 
 async function updatePlayerStats() {
     playerStats = await getNsDataThroughFile(_ns, `ns.getPlayer()`, '/Temp/player-info.txt');
-    if (!playerStats || !playerStats.hacking) {
-        log(`WARNING: playerStats invalid (hack=${playerStats?.hacking}), using ns.getPlayer() directly`);
+    // v3: skills moved to player.skills.* (no longer top-level player.hacking)
+    const playerHack = playerStats?.skills?.hacking || playerStats?.hacking || 0;
+    if (!playerHack || playerHack < 1) {
+        log(`WARNING: playerStats.hacking=${playerHack} (falsy/zero), using ns.getPlayer() directly`);
         playerStats = _ns.getPlayer();
+        log(`Direct ns.getPlayer() skills.hacking=${playerStats?.skills?.hacking} hacking=${playerStats?.hacking}`);
     }
     return playerStats;
 }
 
-function playerHackSkill() { return playerStats.hacking; }
+function playerHackSkill() { return (playerStats?.skills?.hacking || playerStats?.hacking || 0); }
 
-function getPlayerHackingGrowMulti() { return playerStats.hacking_grow_mult };
+function getPlayerHackingGrowMulti() { return (playerStats?.mults?.hacking_grow || playerStats?.hacking_grow_mult || 1); }
 //let playerMoney = () => playerStats.money;
 function doesFileExist(filename, hostname = undefined) { return _ns.fileExists(filename, hostname); }
 
@@ -124,7 +127,7 @@ function shouldReserveMoney() {
     if (!doesFileExist("SQLInject.exe", "home")) {
         if (playerMoney > 20000000)
             return true; // Start saving at 200m of the 250m required for SQLInject
-    } else if (!playerStats.has4SDataTixApi) {
+    } else if (!_ns.stock?.has4SDataTixApi?.()) {
         if (playerMoney >= (bitnodeMults.FourSigmaMarketDataApiCost * 25000000000) / 2)
             return true; // Start saving if we're half-way to buying 4S market access  
     }
@@ -222,7 +225,8 @@ export async function main(ns) {
     if (hackOnly) log('-h - Hack-Only mode activated!');
     if (xpOnly) log('-x - Hack XP Grinding mode activated!');
     if (stockMode) log('-s - Stock market manipulation mode activated!');
-    if (stockMode && !playerStats.hasTixApiAccess) log("WARNING: Ran with '--stock-manipulation' flag, but this will have no effect until you buy access to the stock market API then restart or manually run stockmaster.js");
+    if (stockMode && !_ns.stock?.hasTixApiAccess?.())
+        log("WARNING: Ran with '--stock-manipulation' flag, but this will have no effect until you buy access to the stock market API then restart or manually run stockmaster.js");
     if (stockFocus) log('--stock-manipulation-focus - Stock market manipulation is the main priority');
     if (useHacknetNodes) log('-n - Using hacknet nodes to run scripts!');
     if (verbose) log('-v - Verbose logging activated!');
@@ -243,7 +247,7 @@ export async function main(ns) {
     const openTailWindows = !options['no-tail-windows'];
     asynchronousHelpers = [
         { name: "stats.js", shouldRun: () => ns.getServerMaxRam("home") >= 64 /* Don't waste precious RAM */ }, // Adds stats not usually in the HUD
-        { name: "stockmaster.js", args: openTailWindows ? ["--show-market-summary"] : [], tail: openTailWindows, shouldRun: () => playerStats.hasTixApiAccess }, // Start our stockmaster if we have the required stockmarket access
+        { name: "stockmaster.js", args: openTailWindows ? ["--show-market-summary"] : [], tail: openTailWindows, shouldRun: () => _ns.stock?.hasTixApiAccess?.() }, // Start our stockmaster if we have the required stockmarket access
         { name: "hacknet-upgrade-manager.js", args: ["-c", "--max-payoff-time", "1h"] }, // Kickstart hash income by buying everything with up to 1h payoff time immediately
         { name: "spend-hacknet-hashes.js", args: [], shouldRun: () => 9 in dictSourceFiles }, // Always have this running to make sure hashes aren't wasted
         { name: "sleeve.js", tail: openTailWindows, shouldRun: () => 10 in dictSourceFiles }, // Script to create manage our sleeves for us
@@ -302,7 +306,7 @@ export async function main(ns) {
     await establishMultipliers(ns); // figure out the various bitnode and player multipliers
     maxTargets = stockFocus ? Object.keys(serverStockSymbols).length : options['initial-max-targets']; // Ensure we immediately attempt to target all servers that represent stocks if in stock-focus mode
 
-    if (playerHackSkill() < 500 && playerStats.playtimeSinceLastAug < 600000)
+    if (playerHackSkill() < 500 && (playerStats.lastNodeReset || playerStats.playtimeSinceLastAug || 0) < 600000)
         await kickstartHackXp(ns); // If we ascended less than 10 minutes ago, start with some study to quickly restore hack XP
 
     allHelpersRunning = hackOnly ? true : await runStartupScripts(ns); // Start helper scripts
@@ -677,11 +681,14 @@ async function doTargetingLoop(ns) {
             }
 
             // Use any unspent RAM on share if we are currently working for a faction
-            const maxShareUtilization = options['share-max-utilization']
-            if (failed.length <= 0 && utilizationPercent < maxShareUtilization && // Only share RAM if we have succeeded in all hack cycle scheduling and have RAM to space
-                playerStats.isWorking && playerStats.workType == "Working for Faction" && // No point in sharing RAM if we aren't currently working for a faction.
-                (Date.now() - lastShareTime) > options['share-cooldown'] && // Respect the share rate-limit if configured to leave gaps for scheduling
-                !options['no-share'] && (options['share'] || network.totalMaxRam > 1024)) // If not explicitly enabled or disabled, auto-enable share at 1TB of network RAM
+            // v3: isWorking/workType removed from Player — use ns.singularity.getCurrentWork() instead
+            let currentWork = null;
+            try { currentWork = _ns.singularity.getCurrentWork(); } catch {}
+            const isWorkingOnFaction = currentWork && currentWork.type == "Working for Faction";
+            if (failed.length <= 0 && utilizationPercent < maxShareUtilization &&
+                isWorkingOnFaction &&
+                (Date.now() - lastShareTime) > options['share-cooldown'] &&
+                !options['no-share'] && (options['share'] || network.totalMaxRam > 1024))
             {
                 let shareTool = getTool("share");
                 let maxThreads = shareTool.getMaxThreads(); // This many threads would use up 100% of the (1-utilizationPercent)% RAM remaining

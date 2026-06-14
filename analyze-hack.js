@@ -37,6 +37,19 @@ export async function main(ns) {
     }
 
     var player = ns.getPlayer();
+    // v3: skills moved to player.skills.* — normalize for backward compat with formulas API
+    if (player.skills) {
+        player.hacking = player.hacking || player.skills.hacking || 0;
+        player.strength = player.strength || player.skills.strength || 0;
+        player.defense = player.defense || player.skills.defense || 0;
+        player.dexterity = player.dexterity || player.skills.dexterity || 0;
+        player.agility = player.agility || player.skills.agility || 0;
+        player.charisma = player.charisma || player.skills.charisma || 0;
+        player.intelligence = player.intelligence || player.skills.intelligence || 0;
+    }
+    if (player.mults) {
+        player.hacking_grow_mult = player.hacking_grow_mult || player.mults.hacking_grow || 1;
+    }
     //ns.print(JSON.stringify(player));
 
     if (flags['at-hack-level']) player.hacking = flags['at-hack-level'];
