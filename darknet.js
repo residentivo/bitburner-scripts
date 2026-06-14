@@ -1111,7 +1111,8 @@ export async function main(ns) {
                         }
                     }
                     if (!authed) {
-                        log(ns, `${neighbor} FAIL '${hint}' data='${data}'`)
+                        // Silently skip servers we can't authenticate
+                        // log(ns, `${neighbor} FAIL '${hint}' data='${data}'`)
                         await logFail(ns, neighbor, 'auth-failed', hint)
                     }
                     // Don't continue — still try to scp+exec so neighbor can help propagate
