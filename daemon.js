@@ -488,7 +488,7 @@ async function doTargetingLoop(ns) {
             sortServerList("targeting"); // Update the order in which we ought to target servers
 
             // Copy hack scripts to all rooted, hackable servers that don't have them yet
-            if (loops % 10 == 0) { // Every 10 loops to avoid excessive overhead
+            if (loops % 1 == 0) { // Every loop to ensure scripts get deployed quickly
                 await deployHackScripts(ns);
             }
 
@@ -1798,14 +1798,15 @@ function getNumPortCrackers() {
 async function deployHackScripts(ns) {
     const hackTools = ['/Remote/weak-target.js', '/Remote/grow-target.js', '/Remote/hack-target.js'];
     const myHack = playerHackSkill();
-    let copied = 0, skipped = 0, failed = 0;
+    let copied = 0, skipped = 0, failed = 0, noRoot = 0, noHack = 0, noRam = 0;
+    const details = [];
 
     sortServerList("targeting");
     for (const server of serverListByTargetOrder) {
         if (server.name === "home") continue;
-        if (!server.hasRoot()) continue;
-        if (!server.canHack()) continue;
-        if (server.totalRam() < 2) continue;
+        if (!server.hasRoot()) { noRoot++; continue; }
+        if (!server.canHack()) { noHack++; continue; }
+        if (server.totalRam() < 2) { noRam++; continue; }
 
         // Check if all tools already present
         const hasAll = hackTools.every(t => doesFileExist(t, server.name));
@@ -1817,12 +1818,15 @@ async function deployHackScripts(ns) {
             const ok = await ns.scp(missing, server.name, "home");
             if (ok) {
                 copied++;
+                details.push(`  OK: ${server.name} (${missing.length} scripts)`);
                 if (verbose) log(`Deployed ${missing.length} scripts to ${server.name}`);
             } else {
                 failed++;
+                details.push(`  FAIL: ${server.name} (scp returned false)`);
             }
         } catch (e) {
             failed++;
+            details.push(`  ERROR: ${server.name}: ${String(e).substring(0, 80)}`);
             if (verbose) log(`ERROR deploying to ${server.name}: ${String(e)}`);
         }
 
@@ -1830,7 +1834,6 @@ async function deployHackScripts(ns) {
         await ns.asleep(10);
     }
 
-    if (copied > 0 || failed > 0) {
-        log(`Deploy scripts: ${copied} servers updated, ${skipped} already had them, ${failed} failed`);
-    }
+    log(`Deploy: ${copied} copied, ${skipped} skipped, ${failed} failed | filters: -root=${noRoot} -hack=${noHack} -ram=${noRam}`);
+    if (details.length > 0) log('Deploy details:\n' + details.join('\n'));
 }
