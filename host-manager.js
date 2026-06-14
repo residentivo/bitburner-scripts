@@ -152,19 +152,19 @@ async function tryToBuyBestServerPossible(ns) {
     // Determine the most ram we can buy with this money
     let exponentLevel = 1;
     for (; exponentLevel < maxPurchasableServerRamExponent; exponentLevel++)
-        if (ns.getPurchasedServerCost(Math.pow(2, exponentLevel + 1)) > spendableMoney)
+        if (ns.cloud?.getServerCost(Math.pow(2, exponentLevel + 1)) > spendableMoney)
             break;
 
     let maxRamPossibleToBuy = Math.pow(2, exponentLevel);
 
     // Abort if it would put us below our reserve (shouldn't happen, since we calculated how much to buy based on reserve amount)
-    let cost = ns.getPurchasedServerCost(maxRamPossibleToBuy);
+    let cost = ns.cloud?.getServerCost(maxRamPossibleToBuy);
     if (spendableMoney < cost)
         return setStatus(ns, prefix + 'spendableMoney (' + formatMoney(spendableMoney) + ') is less than the cost (' + formatMoney(cost) + ')');
 
     if (exponentLevel < minRamExponent)
         return setStatus(ns, `${prefix}The highest ram exponent we can afford (2^${exponentLevel} for ${formatMoney(cost)}) on our budget of ${formatMoney(spendableMoney)} ` +
-            `is less than the minimum ram exponent (2^${minRamExponent} for ${formatMoney(ns.getPurchasedServerCost(Math.pow(2, minRamExponent)))})'`);
+            `is less than the minimum ram exponent (2^${minRamExponent} for ${formatMoney(ns.cloud?.getServerCost(Math.pow(2, minRamExponent)))})'`);
 
     // Under some conditions, we consider the new server "not worthwhile". but only if it isn't the biggest possible server we can buy
     if (exponentLevel < maxPurchasableServerRamExponent - 1) { // -1 To give a buffer if we don't have SF5, because several bitnodes lower the max exponent by 1
@@ -224,7 +224,7 @@ async function tryToBuyBestServerPossible(ns) {
         }
     }
 
-    let purchasedServer = await getNsDataThroughFile(ns, `ns.purchaseServer('${purchasedServerName}', ${maxRamPossibleToBuy})`, '/Temp/purchase-server.txt');
+    let purchasedServer = await getNsDataThroughFile(ns, `ns.cloud.purchaseServer('${purchasedServerName}', ${maxRamPossibleToBuy})`, '/Temp/purchase-server.txt');
     if (!purchasedServer)
         setStatus(ns, prefix + `Could not purchase a server with ${formatRam(maxRamPossibleToBuy)} RAM for ${formatMoney(cost)} ` +
             `with a budget of ${formatMoney(spendableMoney)}. This is either a bug, or we in a SF.9`);
