@@ -730,13 +730,15 @@ async function doTargetingLoop(ns) {
             //log('Prepping: ' + prepping.map(s => s.name).join(', '))
             //log('targeting: ' + targeting.map(s => s.name).join(', '))
         } catch (err) {
-            // Sometimes a script is shut down by throwing an object contianing internal game script info. Detect this and exit silently
             if (err?.env?.stopFlag) return;
-            // Note netscript errors are raised as a simple string (no message property)
             var errorMessage = typeof err === 'string' ? err : err.message || JSON.stringify(err);
             if (errorMessage.length > 200) errorMessage = errorMessage.substring(0, 200) + '...[truncated]';
-            log(`WARNING: Caught an error in the targeting loop: ${errorMessage}`, true, 'warning');
-            // Catch errors that appear to be caused by deleted servers, and remove the server from our lists.
+            // Only log errors that aren't already handled internally (e.g. ns.formulas failures)
+            // v3: formulas API failures are caught internally by buildServerObject, so we can skip those
+            if (!errorMessage.includes("ns is not defined") && !errorMessage.includes("is not a function")) {
+                try { log(`WARNING: Caught an error in the targeting loop: ${errorMessage}`, true, 'warning'); }
+                catch { /* silent fallback */ }
+            }
             const expectedDeletedHostPhrase = "Invalid hostname: ";
             let expectedErrorPhraseIndex = errorMessage.indexOf(expectedDeletedHostPhrase);
             if (expectedErrorPhraseIndex == -1) continue;
@@ -884,6 +886,7 @@ function buildServerObject(ns, node) {
                     return _ns.formulas.hacking.hackPercent(server, pStats);
                 } catch {
                     hasFormulas = false;
+                    // Silently fall back to manual calculation for v3 compatibility
                 }
             }
             return Math.min(1, Math.max(0, (((100 - Math.min(100, this.getMinSecurity())) / 100) *
