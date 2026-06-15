@@ -1301,10 +1301,10 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         return Math.floor((ramAvailable / tool.cost)/*.toPrecision(14)*/);
     };
 
-    // Distribute threads across servers: cap home to force spreading to other servers
-    // Home gets at most this fraction of the total threads, so remote servers are utilized
-    const HOME_THREAD_RATIO = 0.25; // home gets at most 25% of total threads per call
-    const homeMaxThreads = Math.max(500, Math.floor(threads * HOME_THREAD_RATIO));
+    // Distribute threads across servers: cap home RAM usage to force spreading
+    // Home can use at most this much RAM for threads, leaving room for aux scripts
+    const HOME_MAX_RAM_GB = 2000; // home uses at most 2 TB for hack/grow/weak threads
+    const homeMaxThreads = Math.max(200, Math.floor(HOME_MAX_RAM_GB / tool.cost));
 
     let remainingThreads = threads;
     let splitThreads = false;
