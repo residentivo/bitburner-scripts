@@ -636,51 +636,67 @@ function solveProblem(type, input) {
   }
 
   // === HammingCodes: Encoded Binary to Integer ===
-  // Uses 0-based syndrome approach (same as solver-mini.js) — handles SECDED codes correctly
+  // SECDED: 0-based syndrome — bit[0] = overall even parity, bits[2^k] = parity checks
   if (type === "HammingCodes: Encoded Binary to Integer") {
     let enc = input.split('').map(v => parseInt(v));
     let n = enc.length;
-    let m = 0;
-    while (Math.pow(2, m) < m + n + 1) m++;
-    let pn = 0;
-    for (let i = 0; i < n; i++) {
-      let expected = 0;
-      for (let j = 0; j < m; j++)
-        if (i & (1 << j)) expected ^= enc[Math.pow(2, j)];
-      if (enc[i] !== expected) pn ^= i;
+    // Compute syndrome: XOR of all indices (excluding bit 0) where bit is 1
+    let syndrome = 0;
+    let overallParity = 0;
+    for (let i = 1; i < n; i++) {
+      if (enc[i]) {
+        syndrome ^= i;
+        overallParity ^= 1;
+      }
     }
-    if (pn !== 0 && pn < n) enc[pn] = 1 - enc[pn];
+    // bit[0] should make total parity even
+    overallParity ^= enc[0];
+    // If syndrome != 0 and overall parity is wrong → single error, correct it
+    if (syndrome !== 0 && overallParity !== 0 && syndrome < n) {
+      enc[syndrome] ^= 1;
+    }
+    // Extract data bits: non-power-of-2 positions (excluding bit 0)
     let dataBits = [];
     for (let i = 1; i < n; i++)
       if ((i & (i - 1)) !== 0) dataBits.push(enc[i]);
+    // dataBits are in MSB-first order positions but collected LSB-first from index 1..n-1
+    // Reverse to get MSB-first binary string
     dataBits.reverse();
+    if (dataBits.length === 0) return 0;
     return parseInt(dataBits.join(''), 2);
   }
 
   // === HammingCodes: Integer to Encoded Binary ===
+  // SECDED: bit[0] = overall even parity, bits[2^k] = parity checks (0-indexed)
   if (type === "HammingCodes: Integer to Encoded Binary") {
     let val = BigInt(input);
     let dataBin = val.toString(2);
     let m = dataBin.length;
     let r = 1;
     while (Math.pow(2, r) < m + r + 1) r++;
-    let n = m + r;
-    let encoded = new Array(n).fill('0');
+    let n = m + r + 1; // +1 for overall parity bit at index 0
+    let enc = new Array(n).fill(0);
+    // Place data bits at non-power-of-2 positions (0-indexed, skipping bit 0)
     let di = 0;
-    for (let j = 1; j <= n; j++) {
-      if ((j & (j - 1)) !== 0) {
-        encoded[j - 1] = di < m ? dataBin[di] : '0';
+    for (let i = 1; i < n; i++) {
+      if ((i & (i - 1)) !== 0) { // not a power of 2
+        enc[i] = di < m ? parseInt(dataBin[di]) : 0;
         di++;
       }
     }
-    for (let i = 1; i <= n; i <<= 1) {
+    // Compute parity bits at power-of-2 positions (1, 2, 4, 8, ...)
+    for (let p = 1; p < n; p <<= 1) {
       let parity = 0;
-      for (let j = 1; j <= n; j++) {
-        if (j & i) parity ^= parseInt(encoded[j - 1]);
+      for (let i = 1; i < n; i++) {
+        if (i & p) parity ^= enc[i];
       }
-      encoded[i - 1] = parity.toString();
+      enc[p] = parity;
     }
-    return encoded.join('');
+    // Compute overall even parity bit at index 0
+    let total = 0;
+    for (let i = 1; i < n; i++) total ^= enc[i];
+    enc[0] = total; // makes total parity even
+    return enc.join('');
   }
 
   return null;
