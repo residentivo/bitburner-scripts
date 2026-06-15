@@ -292,7 +292,7 @@ export async function main(ns) {
     periodicScripts.forEach(tool => tool.name = getFilePath(tool.name));
     hackTools = [
         { name: "/Remote/weak-target.js", shortName: "weak", threadSpreadingAllowed: true },
-        { name: "/Remote/grow-target.js", shortName: "grow" },
+        { name: "/Remote/grow-target.js", shortName: "grow", threadSpreadingAllowed: true },
         { name: "/Remote/hack-target.js", shortName: "hack" },
         { name: "/Remote/manualhack-target.js", shortName: "manualhack" },
         { name: "/Remote/share.js", shortName: "share", threadSpreadingAllowed: true },
