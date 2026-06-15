@@ -1264,6 +1264,12 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
     var preferredServerOrder = serverListByMaxRam.filter(server => server.hasRoot() && server.totalRam() > 1.6 || server.name == "home");
     if (useSmallestServerPossible) // Fill up small servers before utilizing larger ones (can be laggy)
         preferredServerOrder.reverse();
+
+    // DEBUG: log which servers are available and their free ram
+    const serverInfo = rootedServersByFreeRam.map(s => `${s.name}(${s.ramAvailable().toFixed(0)}GB free)`).join(', ');
+    log(`DEBUG arbitraryExecution: ${tool.shortName} ${threads} threads | servers: ${serverInfo}`);
+
+    var home = preferredServerOrder.splice(preferredServerOrder.findIndex(i => i.name == "home"), 1)[0];
     // IDEA: "home" is more effective at grow() and weaken() than other nodes (has multiple cores) (TODO: By how much?)
     //       so if this is one of those tools, put it at the front of the list of preferred candidates, otherwise keep home ram free if possible
     //       TODO: This effort is wasted unless we also scale down the number of threads "needed" when running on home. We will overshoot grow/weaken
@@ -1355,6 +1361,8 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
             log(`ERROR: Failed to exec ${tool.name} on server ${targetServer.name} with ${maxThreadsHere} threads`, false, 'error');
             return false;
         }
+        // DEBUG: log where threads were spawned
+        log(`DEBUG exec: ${tool.name} ${maxThreadsHere} threads on ${targetServer.name} (pid ${pid})`);
         // Decrement the threads that have been successfully scheduled
         remainingThreads -= maxThreadsHere;
         if (remainingThreads > 0) {
@@ -1368,6 +1376,11 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         log(`ERROR: Ran out of RAM to run ${tool.name} ${splitThreads ? '' : `on ${targetServer?.name} `}- ${threads - remainingThreads} of ${threads} threads were spawned.`, false, 'error');
     if (splitThreads && !tool.isThreadSpreadingAllowed)
         return false;
+    // DEBUG: log distribution result
+    if (verbose || threads > 100) {
+        const spawned = threads - remainingThreads;
+        log(`DEBUG arbitraryExecution result: ${tool.shortName} ${spawned}/${threads} threads spawned, remaining=${remainingThreads}`);
+    }
     return remainingThreads == 0;
 }
 
