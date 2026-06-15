@@ -1265,20 +1265,10 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
     if (useSmallestServerPossible) // Fill up small servers before utilizing larger ones (can be laggy)
         preferredServerOrder.reverse();
 
-    // DEBUG: log which servers are available and their free ram
-    const serverInfo = rootedServersByFreeRam.map(s => `${s.name}(${s.ramAvailable().toFixed(0)}GB free)`).join(', ');
-    log(`DEBUG arbitraryExecution: ${tool.shortName} ${threads} threads | servers: ${serverInfo}`);
-
     var home = preferredServerOrder.splice(preferredServerOrder.findIndex(i => i.name == "home"), 1)[0];
-    // IDEA: "home" is more effective at grow() and weaken() than other nodes (has multiple cores) (TODO: By how much?)
-    //       so if this is one of those tools, put it at the front of the list of preferred candidates, otherwise keep home ram free if possible
-    //       TODO: This effort is wasted unless we also scale down the number of threads "needed" when running on home. We will overshoot grow/weaken
-    //             Disable this for now, and enable it once we have solved for reducing grow/weak threads
-    var home = preferredServerOrder.splice(preferredServerOrder.findIndex(i => i.name == "home"), 1)[0];
-    if (tool.shortName == "grow" || tool.shortName == "weak" || preferredServerName == "home")
-        preferredServerOrder.unshift(home); // Send to front
-    else
-        preferredServerOrder.push(home); // Otherwise, send it to the back (reserve home for scripts that benefit from cores) and use only if there's no room on any other server.
+    // Home is always placed at the BACK as a fallback — we want to utilize remote servers first
+    // The HOME_THREAD_CAP above ensures home doesn't absorb all threads
+    preferredServerOrder.push(home);
     // Push all hacknet servers to the end of the preferred list, since they will lose productivity if used
     var anyHacknetNodes = [];
     let hnNodeIndex;
@@ -1302,7 +1292,7 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         if (tool.cost == 0) return 1;
         let ramAvailable = server.ramAvailable();
         // It's a hack, but we know that "home"'s reported ram available is lowered to leave room for "preferred" jobs, 
-        // so if this is a preferred job, ignore what the server object says and get it from the source
+        // so if this is a preferred job, ignore what the server says and get it from the source
         if (server.name == "home" && preferredServerName == "home")
             ramAvailable = ns.getServerMaxRam("home") - ns.getServerUsedRam("home");
         // Note: To be conservative, we allow double imprecision to cause this floor() to return one less than should be possible,
@@ -1310,11 +1300,19 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         return Math.floor((ramAvailable / tool.cost)/*.toPrecision(14)*/);
     };
 
+    // Distribute threads across servers: cap home to force spreading to other servers
+    // Home gets at most this many threads per call, so remote servers are utilized
+    const HOME_THREAD_CAP = 500; // max threads home can take per arbitraryExecution call
+
     let remainingThreads = threads;
     let splitThreads = false;
     for (var i = 0; i < rootedServersByFreeRam.length && remainingThreads > 0; i++) {
         var targetServer = rootedServersByFreeRam[i];
         var maxThreadsHere = Math.min(remainingThreads, computeMaxThreads(targetServer));
+        // Cap home threads to force distribution to other servers
+        if (targetServer.name == "home" && maxThreadsHere > HOME_THREAD_CAP) {
+            maxThreadsHere = Math.min(maxThreadsHere, HOME_THREAD_CAP);
+        }
         if (maxThreadsHere <= 0)
             continue; //break; HACK: We don't break here because there are cases when sort order can change (e.g. we've reserved home RAM)
 
@@ -1361,8 +1359,6 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
             log(`ERROR: Failed to exec ${tool.name} on server ${targetServer.name} with ${maxThreadsHere} threads`, false, 'error');
             return false;
         }
-        // DEBUG: log where threads were spawned
-        log(`DEBUG exec: ${tool.name} ${maxThreadsHere} threads on ${targetServer.name} (pid ${pid})`);
         // Decrement the threads that have been successfully scheduled
         remainingThreads -= maxThreadsHere;
         if (remainingThreads > 0) {
@@ -1376,11 +1372,6 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         log(`ERROR: Ran out of RAM to run ${tool.name} ${splitThreads ? '' : `on ${targetServer?.name} `}- ${threads - remainingThreads} of ${threads} threads were spawned.`, false, 'error');
     if (splitThreads && !tool.isThreadSpreadingAllowed)
         return false;
-    // DEBUG: log distribution result
-    if (verbose || threads > 100) {
-        const spawned = threads - remainingThreads;
-        log(`DEBUG arbitraryExecution result: ${tool.shortName} ${spawned}/${threads} threads spawned, remaining=${remainingThreads}`);
-    }
     return remainingThreads == 0;
 }
 
