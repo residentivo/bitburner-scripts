@@ -876,13 +876,12 @@ function buildServerObject(ns, node) {
         percentageStolenPerHackThread: function () {
             if (hasFormulas) {
                 try {
-                    let server = {
-                        hackDifficulty: this.getMinSecurity(),
-                        requiredHackingSkill: this.requiredHackLevel
-                    }
-                    // v3: formulas API may fail if playerStats structure changed; fall back to manual calc
+                    // v3 formulas.hacking.hackPercent requires a full server object
+                    const serverObj = _ns.getServer(this.name);
+                    serverObj.hackDifficulty = this.getMinSecurity();
+                    serverObj.requiredHackingSkill = this.requiredHackLevel;
                     const pStats = playerStats?.skills ? playerStats : { hacking: playerStats?.hacking || 0, ...playerStats };
-                    return _ns.formulas.hacking.hackPercent(server, pStats);
+                    return _ns.formulas.hacking.hackPercent(serverObj, pStats);
                 } catch {
                     hasFormulas = false;
                     // Silently fall back to manual calculation for v3 compatibility

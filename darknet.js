@@ -1111,9 +1111,9 @@ export async function main(ns) {
                         }
                     }
                     if (!authed) {
-                        // Silently skip servers we can't authenticate
-                        // log(ns, `${neighbor} FAIL '${hint}' data='${data}'`)
-                        await logFail(ns, neighbor, 'auth-failed', hint)
+                        // Log with candidate count and bleed info for debugging
+                        const bleedInfo = bleedPasswords.length > 0 ? ` | bleed: ${bleedPasswords.length} candidates` : ' | no bleed'
+                        await logFail(ns, neighbor, 'auth-failed', `${hint} | tried ${candidates.length}${bleedInfo}`)
                     }
                     // Don't continue — still try to scp+exec so neighbor can help propagate
                 }
