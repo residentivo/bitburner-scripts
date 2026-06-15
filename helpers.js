@@ -317,10 +317,10 @@ export async function getActiveSourceFiles_Custom(ns, fnGetNsDataThroughFile, in
     let tempFile = '/Temp/owned-source-files.txt';
     // Find out what source files the user has unlocked
     let dictSourceFiles;
-    try { await fnGetNsDataThroughFile(ns, `Object.fromEntries(ns.singularity.getOwnedSourceFiles().map(sf => [sf.n, sf.lvl]))`, tempFile); } catch { }
+    try { dictSourceFiles = await fnGetNsDataThroughFile(ns, `Object.fromEntries(ns.singularity.getOwnedSourceFiles().map(sf => [sf.n, sf.lvl]))`, tempFile); } catch (e) { log(ns, `WARN: getActiveSourceFiles failed: ${String(e)}`); }
     if (!dictSourceFiles) { // Bit of a hack, but if RAM is so low that this fails, we can fallback to using an older version of this file, and even assuming we have no source files.
         dictSourceFiles = ns.read(tempFile)
-        dictSourceFiles = dictSourceFiles ? JSON.parse(dictSourceFiles) : {};
+        dictSourceFiles = dictSourceFiles && dictSourceFiles !== "STALE" ? JSON.parse(dictSourceFiles) : {};
     }
     // If the user is currently in a given bitnode, they will have its features unlocked
     if (includeLevelsFromCurrentBitnode) {
