@@ -465,7 +465,6 @@ async function exec(ns, script, host, numThreads, ...args) {
     // Try to run the script with auto-retry if it fails to start
     const pid = await autoRetry(ns, async () => {
         const p = ns.exec(script, host, numThreads, ...args);
-        if (firstRun) await ns.asleep(5);
         return p;
     }, p => p !== 0, () => `Attempt to exec ${script} on ${host} returned no pid.\nYou may be too low on RAM, or the script may be invalid.`);
     return pid; // Caller is responsible for handling errors if final pid returned is 0 (indicating failure)
@@ -499,7 +498,7 @@ async function doTargetingLoop(ns) {
             sortServerList("targeting"); // Update the order in which we ought to target servers
 
             // Copy hack scripts to all rooted, hackable servers that don't have them yet
-            if (loops % 1 == 0) { // Every loop to ensure scripts get deployed quickly
+            if (loops % 5 == 0) { // Every 5 loops to reduce overhead; deployHackScripts now uses cache
                 await deployHackScripts(ns);
             }
 
@@ -1346,8 +1345,6 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
             } catch (e) {
                 log(`ERROR: ns.scp failed: ${String(e)}`, false, 'error');
             }
-            await ns.asleep(5);
-            just_copied = true;
             // Verify the copy worked
             if (!doesFileExist(tool.name, targetServer.name)) {
                 log(`ERROR: SCP failed - ${tool.name} not found on ${targetServer.name} after copy (scp returned ${scp_ok})`, false, 'error');
@@ -1383,47 +1380,53 @@ async function prepServer(ns, currentTarget) {
 
     var start = Date.now();
     var now = new Date(start.valueOf());
-    var prepSucceeding = true;
     var growThreadsScheduled = 0;
     var weakenForGrowthThreadsNeeded = 0;
     var weakenTool = getTool("weak");
-    // Schedule grow, if needed
-    if (currentTarget.getMoney() < currentTarget.getMaxMoney() && !stockFocus /* Prep should only weaken in stock-focus mode */) {
-        var growTool = getTool("grow");
+    var growTool = getTool("grow");
+
+    // Calculate grow threads needed
+    const needsGrow = currentTarget.getMoney() < currentTarget.getMaxMoney() && !stockFocus;
+    if (needsGrow) {
         var growThreadsAllowable = growTool.getMaxThreads();
         var growThreadsNeeded = currentTarget.getGrowThreadsNeeded();
         growThreadsScheduled = Math.min(growThreadsAllowable, growThreadsNeeded);
         weakenForGrowthThreadsNeeded = Math.ceil((growThreadsScheduled * growthThreadHardening / actualWeakenPotency()).toPrecision(14));
-        /* // Logic for "releasing" grow threads to make room for weaken threads? Doesn't seem necessary and also may be buggy
-        var growThreadThreshold = (growThreadsAllowable - growThreadsNeeded) * (growTool.cost / weakenTool.cost);
-        var growThreadsReleased = weakenTool.cost / growTool.cost * (weakenForGrowthThreadsNeeded + currentTarget.weakenThreadsNeeded());
-        if (growThreadThreshold >= growThreadsReleased) {
-            growThreadsReleased = 0;
-        }
-        growThreadsScheduled = Math.max(0, growThreadsScheduled - growThreadsReleased);
-        */
-        if (growThreadsScheduled > 0)
-            prepSucceeding = await arbitraryExecution(ns, growTool, growThreadsScheduled, [currentTarget.name, now.getTime(), now.getTime(), 0, "prep"]);
-        if (prepSucceeding == false)
-            log('Failed to schedule all ' + growThreadsScheduled + ' prep grow threads (' + currentTarget.name + ')');
     }
-    // Schedule weaken, if needed
+
+    // Calculate weaken threads needed
+    const needsWeaken = currentTarget.getSecurity() > currentTarget.getMinSecurity() || weakenForGrowthThreadsNeeded > 0;
     var weakenThreadsScheduled = 0;
-    if (prepSucceeding && (currentTarget.getSecurity() > currentTarget.getMinSecurity() || weakenForGrowthThreadsNeeded > 0)) {
+    if (needsWeaken) {
         var weakenThreadsNeeded = currentTarget.weakenThreadsNeeded() + weakenForGrowthThreadsNeeded;
         var weakenThreadsAllowable = weakenTool.getMaxThreads();
         weakenThreadsScheduled = Math.min(weakenThreadsAllowable, weakenThreadsNeeded);
-        if (weakenThreadsScheduled > 0)
-            prepSucceeding = await arbitraryExecution(ns, weakenTool, weakenThreadsScheduled, [currentTarget.name, now.getTime(), now.getTime(), 0, "prep"]);
-        if (prepSucceeding == false)
-            log('Failed to schedule all ' + weakenThreadsScheduled + ' prep weaken threads (' + currentTarget.name + ')');
     }
-    // Log a summary of what we did here today
-    if (verbose && prepSucceeding && (weakenThreadsScheduled > 0 || growThreadsScheduled > 0))
-        log(`Prepping with ${weakenThreadsScheduled} weaken, ${growThreadsScheduled} grow threads (${weakenThreadsNeeded || 0} / ${growThreadsNeeded || 0} needed)` +
-            ' ETA ' + Math.floor((currentTarget.timeToWeaken() + queueDelay) / 1000) + 's (' + currentTarget.name + ')' +
-            ' Took: ' + (Date.now() - start) + 'ms');
-    return prepSucceeding;
+
+    // Schedule grow and weaken in parallel
+    const promises = [];
+    if (growThreadsScheduled > 0) {
+        promises.push(arbitraryExecution(ns, growTool, growThreadsScheduled, [currentTarget.name, now.getTime(), now.getTime(), 0, "prep"]));
+    }
+    if (weakenThreadsScheduled > 0) {
+        promises.push(arbitraryExecution(ns, weakenTool, weakenThreadsScheduled, [currentTarget.name, now.getTime(), now.getTime(), 0, "prep"]));
+    }
+
+    if (promises.length > 0) {
+        const results = await Promise.all(promises);
+        const prepSucceeding = results.every(r => r);
+        if (!prepSucceeding) {
+            if (growThreadsScheduled > 0) log('Failed to schedule all ' + growThreadsScheduled + ' prep grow threads (' + currentTarget.name + ')');
+            if (weakenThreadsScheduled > 0) log('Failed to schedule all ' + weakenThreadsScheduled + ' prep weaken threads (' + currentTarget.name + ')');
+        }
+        // Log a summary of what we did here today
+        if (verbose && prepSucceeding && (weakenThreadsScheduled > 0 || growThreadsScheduled > 0))
+            log(`Prepping with ${weakenThreadsScheduled} weaken, ${growThreadsScheduled} grow threads (${weakenThreadsNeeded || 0} / ${growThreadsNeeded || 0} needed)` +
+                ' ETA ' + Math.floor((currentTarget.timeToWeaken() + queueDelay) / 1000) + 's (' + currentTarget.name + ')' +
+                ' Took: ' + (Date.now() - start) + 'ms');
+        return prepSucceeding;
+    }
+    return true;
 }
 
 function getXPFarmTarget(all = false) {
@@ -1814,45 +1817,58 @@ function getNumPortCrackers() {
  * that don't already have them. Runs periodically to ensure propagation.
  * @param {NS} ns
  */
+// Track servers that already have all hack scripts to skip re-checking every loop
+let deployedServersCache = new Set();
+
 async function deployHackScripts(ns) {
     const hackTools = ['/Remote/weak-target.js', '/Remote/grow-target.js', '/Remote/hack-target.js'];
-    const myHack = playerHackSkill();
     let copied = 0, skipped = 0, failed = 0, noRoot = 0, noHack = 0, noRam = 0;
-    const details = [];
 
-    sortServerList("targeting");
+    // Build list of candidate servers (rooted, hackable, has RAM, not home, not already cached)
+    const candidates = [];
     for (const server of serverListByTargetOrder) {
         if (server.name === "home") continue;
         if (!server.hasRoot()) { noRoot++; continue; }
         if (!server.canHack()) { noHack++; continue; }
         if (server.totalRam() < 2) { noRam++; continue; }
+        if (deployedServersCache.has(server.name)) { skipped++; continue; }
+        candidates.push(server);
+    }
 
-        // Check if all tools already present
-        const hasAll = hackTools.every(t => doesFileExist(t, server.name));
-        if (hasAll) { skipped++; continue; }
+    if (candidates.length === 0) return;
 
-        // Copy missing tools
+    // Batch check which candidates are missing which tools using a single temp script
+    // For small candidate lists, check individually to avoid temp script overhead
+    const toDeploy = [];
+    for (const server of candidates) {
         const missing = hackTools.filter(t => !doesFileExist(t, server.name));
+        if (missing.length === 0) {
+            deployedServersCache.add(server.name);
+            skipped++;
+        } else {
+            toDeploy.push({ server, missing });
+        }
+    }
+
+    if (toDeploy.length === 0) return;
+
+    // Deploy missing scripts in parallel batches to minimize round-trips
+    // Group by which tools are missing to batch ns.scp calls
+    const deployPromises = toDeploy.map(async ({ server, missing }) => {
         try {
             const ok = await ns.scp(missing, server.name, "home");
             if (ok) {
+                deployedServersCache.add(server.name);
                 copied++;
-                details.push(`  OK: ${server.name} (${missing.length} scripts)`);
                 if (verbose) log(`Deployed ${missing.length} scripts to ${server.name}`);
             } else {
                 failed++;
-                details.push(`  FAIL: ${server.name} (scp returned false)`);
             }
         } catch (e) {
             failed++;
-            details.push(`  ERROR: ${server.name}: ${String(e).substring(0, 80)}`);
-            if (verbose) log(`ERROR deploying to ${server.name}: ${String(e)}`);
+            if (verbose) log(`ERROR deploying to ${server.name}: ${String(e).substring(0, 80)}`);
         }
+    });
 
-        // Small delay to avoid overwhelming the game
-        await ns.asleep(10);
-    }
-
-    // log(`Deploy: ${copied} copied, ${skipped} skipped, ${failed} failed | filters: -root=${noRoot} -hack=${noHack} -ram=${noRam} | myHack=${myHack}`);
-    if (details.length > 0) log('Deploy details:\n' + details.join('\n'));
+    await Promise.all(deployPromises);
 }
