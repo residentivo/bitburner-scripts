@@ -1309,13 +1309,8 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
 
     let remainingThreads = threads;
     let splitThreads = false;
-    // Two-pass distribution: first pass uses remote servers, second pass uses home
-    // This ensures remote servers get threads before home absorbs everything
-    for (var pass = 0; pass < 2 && remainingThreads > 0; pass++) {
     for (var i = 0; i < rootedServersByFreeRam.length && remainingThreads > 0; i++) {
         var targetServer = rootedServersByFreeRam[i];
-        // First pass: skip home to force remote distribution
-        if (pass == 0 && targetServer.name == "home") continue;
         var maxThreadsHere = Math.min(remainingThreads, computeMaxThreads(targetServer));
         if (maxThreadsHere <= 0)
             continue;
@@ -1369,7 +1364,6 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
             splitThreads = true;
         }
     }
-    } // end pass loop
     // The run failed if there were threads left to schedule after we exhausted our pool of servers
     if (remainingThreads > 0 && threads < Number.MAX_SAFE_INTEGER)
         log(`ERROR: Ran out of RAM to run ${tool.name} ${splitThreads ? '' : `on ${targetServer?.name} `}- ${threads - remainingThreads} of ${threads} threads were spawned.`, false, 'error');
