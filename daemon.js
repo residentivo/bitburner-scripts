@@ -1307,22 +1307,18 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         return Math.floor((ramAvailable / tool.cost)/*.toPrecision(14)*/);
     };
 
-    // Distribute threads across servers: cap home RAM usage to force spreading
-    // Home can use at most this much RAM for threads, leaving room for aux scripts
-    const HOME_MAX_RAM_GB = 2000; // home uses at most 2 TB for hack/grow/weak threads
-    const homeMaxThreads = Math.max(200, Math.floor(HOME_MAX_RAM_GB / tool.cost));
-
     let remainingThreads = threads;
     let splitThreads = false;
+    // Two-pass distribution: first pass uses remote servers, second pass uses home
+    // This ensures remote servers get threads before home absorbs everything
+    for (var pass = 0; pass < 2 && remainingThreads > 0; pass++) {
     for (var i = 0; i < rootedServersByFreeRam.length && remainingThreads > 0; i++) {
         var targetServer = rootedServersByFreeRam[i];
+        // First pass: skip home to force remote distribution
+        if (pass == 0 && targetServer.name == "home") continue;
         var maxThreadsHere = Math.min(remainingThreads, computeMaxThreads(targetServer));
-        // Cap home threads to force distribution to other servers
-        if (targetServer.name == "home" && maxThreadsHere > homeMaxThreads) {
-            maxThreadsHere = Math.min(maxThreadsHere, homeMaxThreads);
-        }
         if (maxThreadsHere <= 0)
-            continue; //break; HACK: We don't break here because there are cases when sort order can change (e.g. we've reserved home RAM)
+            continue;
 
         // If this server can handle all required threads, see if a server that is more preferred also has room.
         // If so, we prefer to pack that server with more jobs before utilizing another server.
@@ -1334,7 +1330,6 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
                     break;
                 // If the job can just as easily fit on this server, prefer to put the job there
                 if (remainingThreads <= computeMaxThreads(nextMostPreferredServer)) {
-                    //log('Opted to exec ' + tool.name + ' on preferred server ' + nextMostPreferredServer.name + ' rather than the one with most ram (' + targetServer.name + ')');
                     targetServer = nextMostPreferredServer;
                     break;
                 }
@@ -1371,10 +1366,10 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         remainingThreads -= maxThreadsHere;
         if (remainingThreads > 0) {
             if (!tool.isThreadSpreadingAllowed) break;
-            // No need to warn if it's allowed? log(`WARNING: Had to split ${threads} ${tool.name} threads across multiple servers. ${maxThreadsHere} on ${targetServer.name}`);
             splitThreads = true;
         }
     }
+    } // end pass loop
     // The run failed if there were threads left to schedule after we exhausted our pool of servers
     if (remainingThreads > 0 && threads < Number.MAX_SAFE_INTEGER)
         log(`ERROR: Ran out of RAM to run ${tool.name} ${splitThreads ? '' : `on ${targetServer?.name} `}- ${threads - remainingThreads} of ${threads} threads were spawned.`, false, 'error');
