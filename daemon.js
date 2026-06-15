@@ -35,8 +35,8 @@ const lowUtilizationThreshold = 0.80; // The counterpart - low utilization, whic
 // If we have plenty of resources after targeting all possible servers, we can start to grow/weaken servers above our hack level - up to this utilization
 const maxUtilizationPreppingAboveHackLevel = 0.75;
 // Maximum number of milliseconds the main targeting loop should run before we take a break until the next loop
-const maxLoopTime = 1000; //ms
-let loopInterval = 1000; //ms
+const maxLoopTime = 5000; //ms
+let loopInterval = 5000; //ms
 // the number of milliseconds to delay the grow execution after theft to ensure it doesn't trigger too early and have no effect.
 // For timing reasons the delay between each step should be *close* 1/4th of this number, but there is some imprecision
 let cycleTimingDelay; // (Set in command line args)
@@ -152,11 +152,11 @@ const argsSchema = [
     ['spend-hashes-for-money-when-under', 10E6], // (Default 10m) Convert 4 hashes to money whenever we're below this amount
     ['disable-spend-hashes', false], // An easy way to set the above to a very large negative number, thus never spending hashes for Money
     ['silent-misfires', false], // Instruct remote scripts not to alert when they misfire
-    ['initial-max-targets', 2], // Initial number of servers to target / prep (TODO: Scale this as BN progression increases)
+    ['initial-max-targets', 10], // Initial number of servers to target / prep
     ['max-steal-percentage', 0.75], // Don't steal more than this in case something goes wrong with timing or scheduling, it's hard to recover from
     ['cycle-timing-delay', 16000], // Time 
     ['queue-delay', 1000], // Delay before the first script begins, to give time for all scripts to be scheduled
-    ['max-batches', 40], // Maximum overlapping cycles to schedule in advance. Note that once scheduled, we must wait for all batches to complete before we can schedule more
+    ['max-batches', 100], // Maximum overlapping cycles to schedule in advance
     ['i', false], // Farm intelligence with manual hack.
     ['reserved-ram', 32],
     ['looping-mode', false], // Set to true to attempt to schedule perpetually-looping tasks.
@@ -195,7 +195,9 @@ export async function main(ns) {
     // Reset global vars on startup since they persist in memory in certain situations (such as on Augmentation)
     lastUpdate = "";
     lastUpdateTime = Date.now();
-    maxTargets = 2;
+    // Scale maxTargets based on available RAM - more RAM = more simultaneous targets
+    const totalRamGB = ns.getServerMaxRam("home");
+    maxTargets = Math.max(10, Math.min(50, Math.floor(totalRamGB / 100000))); // 10 per 100TB, min 10, max 50
     lowUtilizationIterations = 0;
     highUtilizationIterations = 0;
     serverListByFreeRam = [];
