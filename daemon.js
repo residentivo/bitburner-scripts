@@ -1278,12 +1278,18 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
     preferredServerOrder.push(...anyHacknetNodes.sort((a, b) => b.totalRam != a.totalRam ? b.totalRam - a.totalRam : a.name.localeCompare(b.name)));
 
     // Allow for an overriding "preferred" server to be used in the arguments, and slot it to the front regardless of the above
-    if (preferredServerName && preferredServerName != "home" /*home is handled above*/) {
-        const preferredServerIndex = preferredServerOrder.findIndex(i => i.name == preferredServerName);
-        if (preferredServerIndex != -1)
-            preferredServerOrder.unshift(preferredServerOrder.splice(preferredServerIndex, 1)[0]);
-        else
-            log(`ERROR: Configured preferred server "${preferredServerName}" for ${tool.name} is not a valid server name`, true, 'error');
+    if (preferredServerName) {
+        if (preferredServerName == "home") {
+            // Home was already moved to the back above; move it back to the front for preferred jobs
+            const homeIdx = preferredServerOrder.findIndex(i => i.name == "home");
+            if (homeIdx != -1) preferredServerOrder.unshift(preferredServerOrder.splice(homeIdx, 1)[0]);
+        } else {
+            const preferredServerIndex = preferredServerOrder.findIndex(i => i.name == preferredServerName);
+            if (preferredServerIndex != -1)
+                preferredServerOrder.unshift(preferredServerOrder.splice(preferredServerIndex, 1)[0]);
+            else
+                log(`ERROR: Configured preferred server "${preferredServerName}" for ${tool.name} is not a valid server name`, true, 'error');
+        }
     }
     //log(`Preferred Server ${preferredServerName} for ${tool.name} resulted in preferred order: ${preferredServerOrder.map(srv => srv.name)}`);
     //log(`Servers by free ram: ${rootedServersByFreeRam.map(svr => svr.name + " (" + svr.ramAvailable() + ")")}`);
