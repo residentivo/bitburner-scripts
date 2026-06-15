@@ -498,7 +498,8 @@ async function doTargetingLoop(ns) {
             sortServerList("targeting"); // Update the order in which we ought to target servers
 
             // Copy hack scripts to all rooted, hackable servers that don't have them yet
-            if (loops % 5 == 0) { // Every 5 loops to reduce overhead; deployHackScripts now uses cache
+            // Run on first loop and every 5 loops thereafter, BEFORE prep/targeting
+            if (loops == 1 || loops % 5 == 0) {
                 await deployHackScripts(ns);
             }
 
@@ -1301,8 +1302,9 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
     };
 
     // Distribute threads across servers: cap home to force spreading to other servers
-    // Home gets at most this many threads per call, so remote servers are utilized
-    const HOME_THREAD_CAP = 500; // max threads home can take per arbitraryExecution call
+    // Home gets at most this fraction of the total threads, so remote servers are utilized
+    const HOME_THREAD_RATIO = 0.25; // home gets at most 25% of total threads per call
+    const homeMaxThreads = Math.max(500, Math.floor(threads * HOME_THREAD_RATIO));
 
     let remainingThreads = threads;
     let splitThreads = false;
@@ -1310,8 +1312,8 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         var targetServer = rootedServersByFreeRam[i];
         var maxThreadsHere = Math.min(remainingThreads, computeMaxThreads(targetServer));
         // Cap home threads to force distribution to other servers
-        if (targetServer.name == "home" && maxThreadsHere > HOME_THREAD_CAP) {
-            maxThreadsHere = Math.min(maxThreadsHere, HOME_THREAD_CAP);
+        if (targetServer.name == "home" && maxThreadsHere > homeMaxThreads) {
+            maxThreadsHere = Math.min(maxThreadsHere, homeMaxThreads);
         }
         if (maxThreadsHere <= 0)
             continue; //break; HACK: We don't break here because there are cases when sort order can change (e.g. we've reserved home RAM)
