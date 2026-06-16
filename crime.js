@@ -29,7 +29,7 @@ async function legacyAutoCrime(ns, crime = "mug") {
             return;
         }
         ns.ui.openTail(); // Force a tail window open when auto-criming, or else it's very difficult to stop if it was accidentally closed.
-        let wait = ns.commitCrime(crime) + 10;
+        let wait = ns.commitCrime(ns.enums.CrimeType[crime]) + 10;
         ns.print(`Karma: ${formatNumberShort(ns.heart.break())} Committing crime \"${crime}\" and sleeping for ${formatDuration(wait)}...`);
         await ns.sleep(wait);
     }
