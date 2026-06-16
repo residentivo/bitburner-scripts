@@ -1010,6 +1010,13 @@ function solvePassword(hint, hintData, hostname = '') {
 /** @param {NS} ns */
 export async function main(ns) {
     const host = ns.getHostname()
+
+    // Only run on darkweb — ns.dnet API is only available there
+    if (host !== 'darkweb') {
+        ns.print(`ERROR: ${SCRIPT_NAME} must run on darkweb, not ${host}. Exiting.`);
+        return;
+    }
+
     // Suppress ALL noisy logs — only our file log remains
     ns.disableLog('ALL')
 

@@ -11,6 +11,13 @@ const EXTRACTOR_NAME = 'darknet-extractor.js'
 
 export async function main(ns) {
     const host = ns.getHostname()
+
+    // Only run on darkweb — ns.dnet API is only available there
+    if (host !== 'darkweb') {
+        ns.print(`ERROR: ${EXTRACTOR_NAME} must run on darkweb, not ${host}. Exiting.`);
+        return;
+    }
+
     ns.disableLog('ALL')
 
     // Dedup

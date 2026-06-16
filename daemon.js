@@ -259,7 +259,7 @@ export async function main(ns) {
             shouldRun: () => 4 in dictSourceFiles && (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4])) // Higher SF4 levels result in lower RAM requirements
         },
         { name: "bladeburner.js", tail: openTailWindows, shouldRun: () => 7 in dictSourceFiles && (ns.getResetInfo?.()?.currentNode ?? playerStats.bitNodeN) != 8 }, // Script to create manage bladeburner for us
-        { name: "darknet.js", tail: openTailWindows, shouldRun: () => ns.serverExists("darkweb") }, // Script to explore and exploit the darknet
+        // Note: darknet.js is managed by darknet-launcher.js (periodic script) which copies it to darkweb and runs it there
     ];
     asynchronousHelpers.forEach(helper => helper.name = getFilePath(helper.name));
     asynchronousHelpers.forEach(helper => helper.isLaunched = false);
