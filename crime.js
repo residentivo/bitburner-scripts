@@ -1,7 +1,7 @@
 import { formatDuration, formatNumberShort } from './helpers.js'
 import { crimeForKillsKarmaStats } from './work-for-factions.js'
 
-const crimes = ["shoplift", "rob store", "mug", "larceny", "deal drugs", "bond forgery", "traffick arms", "homicide", "grand theft auto", "kidnap", "assassinate", "heist"]
+const crimes = ["Shoplift", "Rob Store", "Mug", "Larceny", "Deal Drugs", "Bond Forgery", "Traffick Arms", "Homicide", "Grand Theft Auto", "Kidnap", "Assassination", "Heist"]
 export function autocomplete() { return crimes; }
 
 /** @param {NS} ns **/
@@ -16,7 +16,7 @@ export async function main(ns) {
 }
 
 /** @param {NS} ns **/
-async function legacyAutoCrime(ns, crime = "mug") {
+async function legacyAutoCrime(ns, crime = "Mug") {
     let interval = 100;
     while (true) {
         let maxBusyLoops = 100;
@@ -29,7 +29,7 @@ async function legacyAutoCrime(ns, crime = "mug") {
             return;
         }
         ns.ui.openTail(); // Force a tail window open when auto-criming, or else it's very difficult to stop if it was accidentally closed.
-        let wait = ns.commitCrime(ns.enums.CrimeType[crime]) + 10;
+        let wait = ns.commitCrime(crime) + 10;
         ns.print(`Karma: ${formatNumberShort(ns.heart.break())} Committing crime \"${crime}\" and sleeping for ${formatDuration(wait)}...`);
         await ns.sleep(wait);
     }
