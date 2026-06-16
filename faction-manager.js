@@ -153,7 +153,7 @@ export async function main(ns) {
             favorToDonate = undefined; // Will be computed per-faction below
             // Helper: given current favor, return rep needed to unlock donations
             const calcFavorToDonate = (favor) => Math.floor(150 * Math.pow(1.008, favor));
-            await updateFactionData(ns, allFactions, omitFactions);
+            await updateFactionData(ns, allFactions, omitFactions, currentBitNode);
             log(ns, 'Getting all augmentation data...');
             await updateAugmentationData(ns, desiredAugs);
             break;
@@ -220,7 +220,7 @@ let factionSortValue = faction => {
 };
 
 /** @param {NS} ns **/
-async function updateFactionData(ns, allFactions, factionsToOmit) {
+async function updateFactionData(ns, allFactions, factionsToOmit, currentBitNode) {
     factionNames = preferredFactionOrder.filter(f => !factionsToOmit.includes(f));
     // Add any player joined factions that may not be in the pre-defined list
     factionNames.push(...joinedFactions.filter(f => !factionNames.includes(f) && !factionsToOmit.includes(f)));
