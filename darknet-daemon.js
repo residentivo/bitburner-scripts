@@ -27,13 +27,13 @@ export async function main(ns) {
 
         try {
             // Step 1: Ensure darkweb exists (buy TOR if needed)
-            if (!ns.scan(host).includes('darkweb') && ns.getServerMoneyAvailable(host) >= 200000) {
+            if (!ns.serverExists('darkweb') && ns.getServerMoneyAvailable(host) >= 200000) {
                 ns.exec(torManager, host, 1)
                 await ns.asleep(3000)
             }
 
             // Step 2: Ensure darknet.js + extractor run on darkweb
-            if (ns.scan(host).includes('darkweb')) {
+            if (ns.serverExists('darkweb')) {
                 // Copy scripts
                 await ns.scp(darknetScript, 'darkweb')
                 await ns.scp(extractorScript, 'darkweb')

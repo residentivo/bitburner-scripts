@@ -7,7 +7,7 @@ export async function main(ns) {
 
     // Check if darkweb is accessible
     function hasDarkweb() {
-        return ns.scan("home").includes("darkweb");
+        return ns.serverExists("darkweb");
     }
 
     // Scan all servers

@@ -11,8 +11,8 @@
 export async function main(ns) {
     const interval = 3000;
 
-    // Check if darkweb is already visible
-    const hasDarkweb = () => ns.scan("home").includes("darkweb");
+    // Check if darkweb is already accessible (ns.serverExists works even if not a direct neighbor)
+    const hasDarkweb = () => ns.serverExists("darkweb");
 
     if (hasDarkweb()) {
         ns.print("darkweb already available, tor-manager exiting.");

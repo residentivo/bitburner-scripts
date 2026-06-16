@@ -259,7 +259,7 @@ export async function main(ns) {
             shouldRun: () => 4 in dictSourceFiles && (ns.getServerMaxRam("home") >= 128 / (2 ** dictSourceFiles[4])) // Higher SF4 levels result in lower RAM requirements
         },
         { name: "bladeburner.js", tail: openTailWindows, shouldRun: () => 7 in dictSourceFiles && (ns.getResetInfo?.()?.currentNode ?? playerStats.bitNodeN) != 8 }, // Script to create manage bladeburner for us
-        { name: "darknet.js", tail: openTailWindows, shouldRun: () => addedServerNames.includes("darkweb") }, // Script to explore and exploit the darknet
+        { name: "darknet.js", tail: openTailWindows, shouldRun: () => ns.serverExists("darkweb") }, // Script to explore and exploit the darknet
     ];
     asynchronousHelpers.forEach(helper => helper.name = getFilePath(helper.name));
     asynchronousHelpers.forEach(helper => helper.isLaunched = false);
@@ -273,7 +273,7 @@ export async function main(ns) {
         // Periodically launch darknet on darkweb (copies scripts + spawns if not running)
         { interval: 60000, name: "/Tasks/darknet-launcher.js", requiredServer: "home", shouldRun: () => doesFileExist("/darknet.js") },
         // TOR manager — purchase TOR when we can afford it
-        { interval: 25000, name: "/Tasks/tor-manager.js", shouldRun: () => !addedServerNames.includes("darkweb") && _ns.getServerMoneyAvailable("home") >= 200000 },
+        { interval: 25000, name: "/Tasks/tor-manager.js", shouldRun: () => !ns.serverExists("darkweb") && _ns.getServerMoneyAvailable("home") >= 200000 },
         // Program manager — create/buy port crackers
         { interval: 26000, name: "/Tasks/program-manager.js", shouldRun: () => 4 in dictSourceFiles && getNumPortCrackers() != 5 && (getNumPortCrackers() < 3 || shouldImproveHacking()) },
         // Coding contracts
