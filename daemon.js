@@ -35,8 +35,8 @@ const lowUtilizationThreshold = 0.80; // The counterpart - low utilization, whic
 // If we have plenty of resources after targeting all possible servers, we can start to grow/weaken servers above our hack level - up to this utilization
 const maxUtilizationPreppingAboveHackLevel = 0.75;
 // Maximum number of milliseconds the main targeting loop should run before we take a break until the next loop
-const maxLoopTime = 5000; //ms
-let loopInterval = 5000; //ms
+const maxLoopTime = 30000; //ms
+let loopInterval = 30000; //ms
 // the number of milliseconds to delay the grow execution after theft to ensure it doesn't trigger too early and have no effect.
 // For timing reasons the delay between each step should be *close* 1/4th of this number, but there is some imprecision
 let cycleTimingDelay; // (Set in command line args)
@@ -545,10 +545,8 @@ async function doTargetingLoop(ns) {
             // If this gets set to true, the loop will continue (e.g. to gather information), but no more work will be scheduled
             var workCapped = false;
             // Function to assess whether we've hit some cap that should prevent us from scheduling any more work
-            let isWorkCapped = () => workCapped = workCapped || failed.length > 0 // Scheduling fails when there's insufficient RAM. We've likely encountered a "soft cap" on ram utilization e.g. due to fragmentation
-                || getTotalNetworkUtilization() >= maxUtilization // "hard cap" on ram utilization, can be used to reserve ram or reduce the rate of encountering the "soft cap"
-                || targeting.length >= maxTargets // variable cap on the number of simultaneous targets
-                || (targeting.length + prepping.length) >= (maxTargets + maxPreppingAtMaxTargets); // Only allow a couple servers to be prepped in advance when at max-targets
+            let isWorkCapped = () => workCapped = workCapped || failed.length > 0 // Scheduling fails when there's insufficient RAM
+                || getTotalNetworkUtilization() >= maxUtilization; // "hard cap" on ram utilization (95%)
 
             // check for servers that need to be rooted
             // simultaneously compare our current target to potential targets
@@ -595,7 +593,7 @@ async function doTargetingLoop(ns) {
                 } else if (!hackOnly && !server.isPrepped()) { // If prepServer returned false or null. Check ourselves whether it is prepped
                     log('Prep failed for "' + server.name + '" (RAM Utilization: ' + (getTotalNetworkUtilization() * 100).toFixed(2) + '%)');
                     failed.push(server);
-                } else if (targeting.length >= maxTargets) { // Hard cap on number of targets, changes with utilization
+                } else if (getTotalNetworkUtilization() >= maxUtilization) { // RAM utilization cap reached
                     server.previouslyPrepped = true;
                     preppedButNotTargeting.push(server);
                 } else { // Otherwise, server is prepped at min security & max money and ready to target                       
