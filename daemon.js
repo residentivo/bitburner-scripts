@@ -295,7 +295,7 @@ export async function main(ns) {
     hackTools = [
         { name: "/Remote/weak-target.js", shortName: "weak", threadSpreadingAllowed: true },
         { name: "/Remote/grow-target.js", shortName: "grow", threadSpreadingAllowed: true },
-        { name: "/Remote/hack-target.js", shortName: "hack" },
+        { name: "/Remote/hack-target.js", shortName: "hack", threadSpreadingAllowed: true },
         { name: "/Remote/manualhack-target.js", shortName: "manualhack" },
         { name: "/Remote/share.js", shortName: "share", threadSpreadingAllowed: true },
     ];
