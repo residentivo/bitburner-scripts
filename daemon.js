@@ -35,8 +35,8 @@ const lowUtilizationThreshold = 0.80; // The counterpart - low utilization, whic
 // If we have plenty of resources after targeting all possible servers, we can start to grow/weaken servers above our hack level - up to this utilization
 const maxUtilizationPreppingAboveHackLevel = 0.75;
 // Maximum number of milliseconds the main targeting loop should run before we take a break until the next loop
-const maxLoopTime = 30000; //ms
-let loopInterval = 30000; //ms
+const maxLoopTime = 120000; //ms — 2 minutes per loop to fill all servers
+let loopInterval = 5000; //ms — fast loop to keep filling servers
 // the number of milliseconds to delay the grow execution after theft to ensure it doesn't trigger too early and have no effect.
 // For timing reasons the delay between each step should be *close* 1/4th of this number, but there is some imprecision
 let cycleTimingDelay; // (Set in command line args)
@@ -154,9 +154,9 @@ const argsSchema = [
     ['silent-misfires', false], // Instruct remote scripts not to alert when they misfire
     ['initial-max-targets', 50], // Initial number of servers to target / prep
     ['max-steal-percentage', 0.75], // Don't steal more than this in case something goes wrong with timing or scheduling, it's hard to recover from
-    ['cycle-timing-delay', 16000], // Time 
+    ['cycle-timing-delay', 4000], // Time between batch steps — 4s for fast cycling 
     ['queue-delay', 1000], // Delay before the first script begins, to give time for all scripts to be scheduled
-    ['max-batches', 100], // Maximum overlapping cycles to schedule in advance
+    ['max-batches', 200], // Maximum overlapping cycles to schedule in advance
     ['i', false], // Farm intelligence with manual hack.
     ['reserved-ram', 64], // Reserve 64GB for helpers on home
     ['looping-mode', false], // Set to true to attempt to schedule perpetually-looping tasks.
