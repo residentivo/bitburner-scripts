@@ -158,7 +158,7 @@ const argsSchema = [
     ['queue-delay', 1000], // Delay before the first script begins, to give time for all scripts to be scheduled
     ['max-batches', 100], // Maximum overlapping cycles to schedule in advance
     ['i', false], // Farm intelligence with manual hack.
-    ['reserved-ram', 0],
+    ['reserved-ram', 64], // Reserve 64GB for helpers on home
     ['looping-mode', false], // Set to true to attempt to schedule perpetually-looping tasks.
     ['recovery-thread-padding', 1],
     ['share', false], // Enable sharing free ram to increase faction rep gain (enabled automatically once RAM is sufficient)
@@ -311,9 +311,32 @@ export async function main(ns) {
     if (playerHackSkill() < 500 && (playerStats.lastNodeReset || playerStats.playtimeSinceLastAug || 0) < 600000)
         await kickstartHackXp(ns); // If we ascended less than 10 minutes ago, start with some study to quickly restore hack XP
 
-    allHelpersRunning = hackOnly ? true : await runStartupScripts(ns); // Start helper scripts
+    // Before starting the targeting loop, kill all old grow/weaken/hack scripts on remote servers
+    // to free up RAM. This ensures a clean slate when the daemon restarts.
+    log("Cleaning up old remote scripts before starting...");
+    try {
+        const serversToClean = addedServerNames.filter(s => s !== "home" && !s.startsWith('hacknet-node-') && !s.startsWith('hacknet-server-'));
+        for (const server of serversToClean) {
+            try {
+                for (const process of ns.ps(server)) {
+                    if (hackTools.some(t => t.name === process.filename)) {
+                        ns.kill(process.pid, server);
+                    }
+                }
+            } catch { /* ignore errors on individual servers */ }
+        }
+        log(`Cleaned up scripts on ${serversToClean.length} remote servers`);
+    } catch (e) {
+        log(`WARNING: Error cleaning up old scripts: ${e}`);
+    }
 
-    // Start the main targetting loop
+    // Start helper scripts BEFORE the targeting loop so they get RAM priority
+    allHelpersRunning = hackOnly ? true : await runStartupScripts(ns);
+    if (!allHelpersRunning) {
+        log("WARNING: Not all helper scripts could be started (insufficient RAM?)");
+    }
+
+    // Start the main targeting loop
     await doTargetingLoop(ns);
 }
 
