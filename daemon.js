@@ -152,13 +152,13 @@ const argsSchema = [
     ['spend-hashes-for-money-when-under', 10E6], // (Default 10m) Convert 4 hashes to money whenever we're below this amount
     ['disable-spend-hashes', false], // An easy way to set the above to a very large negative number, thus never spending hashes for Money
     ['silent-misfires', false], // Instruct remote scripts not to alert when they misfire
-    ['initial-max-targets', 10], // Initial number of servers to target / prep
+    ['initial-max-targets', 50], // Initial number of servers to target / prep
     ['max-steal-percentage', 0.75], // Don't steal more than this in case something goes wrong with timing or scheduling, it's hard to recover from
     ['cycle-timing-delay', 16000], // Time 
     ['queue-delay', 1000], // Delay before the first script begins, to give time for all scripts to be scheduled
     ['max-batches', 100], // Maximum overlapping cycles to schedule in advance
     ['i', false], // Farm intelligence with manual hack.
-    ['reserved-ram', 32],
+    ['reserved-ram', 0],
     ['looping-mode', false], // Set to true to attempt to schedule perpetually-looping tasks.
     ['recovery-thread-padding', 1],
     ['share', false], // Enable sharing free ram to increase faction rep gain (enabled automatically once RAM is sufficient)
@@ -197,7 +197,7 @@ export async function main(ns) {
     lastUpdateTime = Date.now();
     // Scale maxTargets based on available RAM - more RAM = more simultaneous targets
     const totalRamGB = ns.getServerMaxRam("home");
-    maxTargets = Math.max(10, Math.min(50, Math.floor(totalRamGB / 100000))); // 10 per 100TB, min 10, max 50
+    maxTargets = Math.max(10, Math.min(100, Math.floor(totalRamGB / 50000))); // 1 per 50TB, min 10, max 100
     lowUtilizationIterations = 0;
     highUtilizationIterations = 0;
     serverListByFreeRam = [];
@@ -809,7 +809,7 @@ function buildServerObject(ns, node) {
         getMaxMoney: () => dictServerMaxMoney[node] ?? 0,
         getMoneyPerRamSecond: () => dictServerProfitInfo ? dictServerProfitInfo[node]?.gainRate ?? 0 : (dictServerMaxMoney[node] ?? 0),
         getExpPerSecond: () => dictServerProfitInfo ? dictServerProfitInfo[node]?.expRate ?? 0 : (1 / dictServerMinSecurityLevels[node] ?? 0),
-        percentageToSteal: 1.0 / 16.0, // This will get tweaked automatically based on RAM available and the relative value of this server
+        percentageToSteal: 1.0 / 4.0, // Start with 25% — optimizePerformanceMetrics will tune down if needed
         getMoney: function () { return this.ns.getServerMoneyAvailable(this.name); },
         getSecurity: function () { return this.ns.getServerSecurityLevel(this.name); },
         canCrack: function () { return getNumPortCrackers() >= this.portsRequired; },
@@ -1267,9 +1267,8 @@ export async function arbitraryExecution(ns, tool, threads, args, preferredServe
         preferredServerOrder.reverse();
 
     var home = preferredServerOrder.splice(preferredServerOrder.findIndex(i => i.name == "home"), 1)[0];
-    // Home is always placed at the BACK as a fallback — we want to utilize remote servers first
-    // The HOME_THREAD_CAP above ensures home doesn't absorb all threads
-    preferredServerOrder.push(home);
+    // Home is placed at the FRONT — with 4.19 PB RAM, home should be filled first
+    preferredServerOrder.unshift(home);
     // Push all hacknet servers to the end of the preferred list, since they will lose productivity if used
     var anyHacknetNodes = [];
     let hnNodeIndex;
