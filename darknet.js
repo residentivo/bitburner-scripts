@@ -999,6 +999,7 @@ export async function main(ns) {
         try {
             peers = await ns.dnet.probe()
         } catch (e) {
+            ns.print(`[dnet] PROBE ERROR: ${e}`)
             await ns.asleep(500)
             continue
         }
@@ -1008,16 +1009,28 @@ export async function main(ns) {
             continue
         }
 
+        ns.print(`[dnet] PROBE: found ${peers.length} peers: ${peers.join(', ')}`)
+
         for (const neighbor of peers) {
             if (neighbor === 'home' || neighbor === host) continue
+
+            ns.print(`[dnet] Processing neighbor: ${neighbor}`)
 
             // Step A: get details
             let details
             try {
                 details = await ns.dnet.getServerDetails(neighbor)
-            } catch (e) { continue }
+            } catch (e) {
+                ns.print(`[dnet] ${neighbor} getServerDetails ERROR: ${e}`)
+                continue
+            }
 
-            if (!details.isOnline || !details.isConnectedToCurrentServer) continue
+            ns.print(`[dnet] ${neighbor} details: online=${details.isOnline} connected=${details.isConnectedToCurrentServer} hasSession=${details.hasSession} hint="${details.passwordHint}"`)
+
+            if (!details.isOnline || !details.isConnectedToCurrentServer) {
+                ns.print(`[dnet] ${neighbor} SKIPPED (offline or not connected)`)
+                continue
+            }
 
             // Track whether we have session (either already had it or just got it)
             let hasSession = details.hasSession
@@ -1028,6 +1041,8 @@ export async function main(ns) {
                 const data = details.data || ''
                 const candidates = solvePassword(hint, data, neighbor)
 
+                ns.print(`[dnet] ${neighbor} auth: ${candidates.length} candidates, hint="${hint}"`)
+
                 let authed = false
                 if (candidates.length > 0) {
                     for (const pw of candidates) {
@@ -1036,6 +1051,7 @@ export async function main(ns) {
                             if (r.success) {
                                 authed = true
                                 hasSession = true
+                                ns.print(`[dnet] ${neighbor} AUTH SUCCESS with "${pw}"`)
                                 break
                             }
                         } catch (e) { /* try next */ }
@@ -1078,45 +1094,59 @@ export async function main(ns) {
                         }
                     } catch (e) { /* not available */ }
                     if (bleedPasswords.length > 0) {
+                        ns.print(`[dnet] ${neighbor} heartbleed: ${bleedPasswords.length} candidates`)
                         for (const pw of [...new Set(bleedPasswords)]) {
                             try {
                                 const r = await ns.dnet.authenticate(neighbor, pw)
-                                if (r.success) { authed = true; hasSession = true; break }
+                                if (r.success) { authed = true; hasSession = true; ns.print(`[dnet] ${neighbor} AUTH SUCCESS (bleed) with "${pw}"`); break }
                             } catch (e) { /* try next */ }
                         }
                     }
                     if (!authed) {
                         const bleedInfo = bleedPasswords.length > 0 ? ` | bleed: ${bleedPasswords.length} candidates` : ' | no bleed'
+                        ns.print(`[dnet] ${neighbor} AUTH FAILED: tried ${candidates.length}${bleedInfo}`)
                         await logFail(ns, neighbor, 'auth-failed', `${hint} | tried ${candidates.length}${bleedInfo}`)
                     }
                 }
+            } else {
+                ns.print(`[dnet] ${neighbor} already has session`)
             }
 
             // Step C: ALWAYS scp scripts to neighbor (even if auth failed)
             // The neighbor needs the scripts to propagate further
             try {
-                await ns.scp(SCRIPT_NAME, neighbor, host)
-                await ns.scp('darknet-ram.js', neighbor, host)
-                await ns.scp(EXTRACTOR, neighbor, host)
-            } catch (e) { /* scp may fail, ignore */ }
+                const scp1 = await ns.scp(SCRIPT_NAME, neighbor, host)
+                const scp2 = await ns.scp('darknet-ram.js', neighbor, host)
+                const scp3 = await ns.scp(EXTRACTOR, neighbor, host)
+                ns.print(`[dnet] ${neighbor} SCP: darknet.js=${scp1} ram.js=${scp2} extractor=${scp3}`)
+            } catch (e) {
+                ns.print(`[dnet] ${neighbor} SCP ERROR: ${e}`)
+            }
 
             // Step D: exec darknet.js on neighbor if we have session
             // Also try exec even without session — some servers allow it
             try {
                 const neighborProcs = ns.ps(neighbor)
                 const alreadyRunning = neighborProcs.some(p => p.filename === SCRIPT_NAME)
-                if (!alreadyRunning) {
+                if (alreadyRunning) {
+                    ns.print(`[dnet] ${neighbor} already running darknet.js`)
+                } else {
                     const scriptRam = ns.getScriptRam(SCRIPT_NAME, host)
                     const freeRam = ns.getServerMaxRam(neighbor) - ns.getServerUsedRam(neighbor)
                     const maxThreads = Math.max(1, Math.floor(freeRam / scriptRam))
                     const threads = Math.min(maxThreads, 1)
+                    ns.print(`[dnet] ${neighbor} EXEC: scriptRam=${scriptRam} freeRam=${freeRam} maxThreads=${maxThreads} hasSession=${hasSession}`)
                     const pid = ns.exec(SCRIPT_NAME, neighbor, threads)
+                    ns.print(`[dnet] ${neighbor} EXEC RESULT: pid=${pid}`)
                     if (pid === 0 && hasSession) {
                         // If exec failed but we have session, try with 1 thread minimum
-                        ns.exec(SCRIPT_NAME, neighbor, 1)
+                        const pid2 = ns.exec(SCRIPT_NAME, neighbor, 1)
+                        ns.print(`[dnet] ${neighbor} EXEC RETRY: pid=${pid2}`)
                     }
                 }
-            } catch (e) { /* ignore */ }
+            } catch (e) {
+                ns.print(`[dnet] ${neighbor} EXEC ERROR: ${e}`)
+            }
         }
 
         // Step E: run extractor on THIS server — check if already running
