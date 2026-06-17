@@ -616,57 +616,41 @@ function solvePassword(hint, hintData, hostname = '') {
         return [...new Set([...candidates, ...hostVariants, ...commonPasswords])]
     }
 
-    // "PIN X" or "The PIN is X" or "PIN uses X" or "PIN: X"
-    const pinMatch = hint.match(/pin\s+(?:is|uses|:|=\s*)(\d+)/i) || hint.match(/pin\s*[:=]?\s*(\d+)/i)
+    // "PIN X" or "The PIN is X" or "PIN: X" (but NOT "PIN uses" — that's handled by shuffled/sorted above)
+    const pinMatch = hint.match(/pin\s+(?:is|:|=\s*)(\d+)/i) || hint.match(/pin\s*[:=]\s*(\d+)/i)
     if (pinMatch && pinMatch[1]) {
         const pin = pinMatch[1]
         const candidates = [pin]
-        // "PIN uses 224" — try 224 and permutations, plus partial matches
-        if (h.includes('use')) {
-            candidates.push(...permutations(pin))
-            const digits = pin.split('')
-            for (const d of digits) candidates.push(d)
-            // reversed
-            candidates.push(pin.split('').reverse().join(''))
-            // "PIN uses 145" → generate all PINs containing those digits
-            // 3-digit: just permutations (already added above)
-            // 4-digit PINs with one extra digit (0-9)
-            for (let extra = 0; extra <= 9; extra++) {
-                const extended = pin + String(extra)
-                candidates.push(...permutations(extended))
-            }
-            // 5-digit PINs with two extra digits (common combos)
-            for (let e1 = 0; e1 <= 9; e1++) {
-                for (let e2 = 0; e2 <= 9; e2++) {
-                    // Only a few common patterns to avoid explosion
-                    if (e1 === e2 || e1 === 0 || e2 === 0) {
-                        const extended = pin + String(e1) + String(e2)
-                        // Just try sorted and a few perms, not all
-                        candidates.push(extended, extended.split('').reverse().join(''))
-                        const sorted = extended.split('').sort().join('')
-                        candidates.push(sorted)
-                    }
-                }
-            }
-            // Pad with leading zeros
-            candidates.push('0' + pin, '00' + pin, '000' + pin)
-            // Common math with those digits
-            const pinNum = parseInt(pin)
-            candidates.push(String(pinNum * 2), String(pinNum * 3), String(pinNum + 1), String(pinNum - 1))
-        }
+        const digits = pin.split('')
+        for (const d of digits) candidates.push(d)
+        candidates.push(pin.split('').reverse().join(''))
+        candidates.push('0' + pin, '00' + pin)
+        const pinNum = parseInt(pin)
+        candidates.push(String(pinNum * 2), String(pinNum + 1), String(pinNum - 1))
         return [...new Set([...candidates, ...hostVariants, ...popCulture])]
     }
 
-    // "The password is shuffled NNN" — all permutations
+    // "The password is shuffled NNN" / "I accidentally sorted the password: NNN" / "PIN uses NNN"
+    // Game source: getPassword() generates numeric string, then sorted. Number().toString() strips leading zeros.
+    // So "shuffled 028" means digits [0,2,8], password is a permutation without leading zero: 208,280,802,820,28,82
     const shuffledMatch = hint.match(/shuffled\s+(\d+)/i)
-    if (shuffledMatch) {
-        return [...new Set([...permutations(shuffledMatch[1]), ...hostVariants])]
-    }
-
-    // "I accidentally sorted the password: NNN" — unsort = all permutations
     const sortedMatch = hint.match(/sorted\s+(?:the\s+)?(?:password|pin)?\s*[:=]?\s*(\d+)/i)
-    if (sortedMatch) {
-        return [...new Set([...permutations(sortedMatch[1]), ...hostVariants])]
+    const pinUsesMatch = hint.match(/pin\s+uses\s+(\d+)/i)
+    const digitsStr = shuffledMatch?.[1] || sortedMatch?.[1] || pinUsesMatch?.[1]
+    if (digitsStr) {
+        const perms = permutations(digitsStr)
+        // Remove leading zeros (Number().toString() behavior)
+        const candidates = [...new Set(perms.map(p => String(Number(p))))]
+        // Also try the raw sorted string and common PIN patterns
+        candidates.push(digitsStr, digitsStr.split('').reverse().join(''))
+        // Try with one extra digit appended (4-digit PIN from 3-digit hint)
+        if (digitsStr.length <= 3) {
+            for (let d = 0; d <= 9; d++) {
+                const extended = digitsStr + String(d)
+                candidates.push(...permutations(extended).map(p => String(Number(p))))
+            }
+        }
+        return [...new Set([...candidates, ...hostVariants])]
     }
 
     // "There is no password"
@@ -696,119 +680,83 @@ function solvePassword(hint, hintData, hostname = '') {
         return [...new Set([latin, '0', '1', ...hostVariants, ...commonPasswords])]
     }
 
-    // "The password is not set" / "no password" / "I didn't set a password" — try empty FIRST, then hostname
+    // "The password is not set" / "no password" / "I didn't set a password" — try empty FIRST
+    // Game source (getNoPasswordConfig): password = "" (empty string)
     if (h.includes('not set') || h.includes("didn't set a") || h.includes("did not set") || h.includes("never set")) {
         if (!h.includes('default')) {
-            return [...new Set([
-                '',  // empty is the most likely
-                ...hostVariants, ...popCulture,
-                'password', 'admin', '123456', 'default', 'null', 'none',
-                ...commonPasswords,
-            ])]
+            return [...new Set(['', ...hostVariants])]
         }
     }
 
     // Default / factory / never changed / didn't set / "the password is the default password"
+    // Game source: defaultSettingsDictionary = ["admin", "password", "0000", "12345"]
     if (h.includes('default') || h.includes('factory') || h.includes('never changed') ||
         h.includes("didn't change") || h.includes("didn't set") || h.includes("did i set") ||
         h.includes('still') || h.includes('original') || h.includes('no password')) {
-        // Build hostname-specific defaults: lowercase, no special chars, etc.
-        const hClean = hostname.toLowerCase().replace(/[^a-z0-9]/g, '')
-        const hParts = hostname.split(/[^a-zA-Z0-9]+/).filter(Boolean)
-        // Build part combinations: for "hacker-industries" try "hacker", "industries", "hackerindustries", etc.
-        const partCombos = []
-        for (let i = 0; i < hParts.length; i++) {
-            partCombos.push(hParts[i], hParts[i].toLowerCase(), hParts[i].toUpperCase())
-            // Cumulative combo: "hacker", "hackerindustries"
-            const cumul = hParts.slice(0, i + 1).join('')
-            partCombos.push(cumul, cumul.toLowerCase(), cumul.toUpperCase())
-            // Joined with hyphen/underscore
-            partCombos.push(hParts.slice(0, i + 1).join('-'), hParts.slice(0, i + 1).join('_'))
-        }
-        // Also try leet-speak decode of hostname
-        const leetMap = {'4':'a','3':'e','1':'i','0':'o','7':'t','5':'s'}
-        const leetDecoded = hostname.toLowerCase().replace(/[a-z0-9]/g, c => leetMap[c] || c)
         return [...new Set([
-            'default',  // try "default" literally FIRST
-            '',         // empty string second
-            hostname,   // exact hostname (with special chars)
-            hostname.toLowerCase(),
-            hostname.toUpperCase(),
-            hClean,     // cleaned hostname (no special chars)
-            leetDecoded, // leet-decoded hostname
-            leetDecoded.replace(/[^a-z0-9]/g, ''),
-            ...hParts,  // individual parts of hostname
-            ...partCombos, // part combinations
-            ...hostVariants,  // hostname as password is very common for "default" servers
-            ...popCulture,
-            'password', 'admin', '123456', 'letmein', 'qwerty', 'guest',
-            'root', 'toor', 'daemon', 'sys', 'adm', 'bin', 'superuser', 'operator',
-            'server', 'system', 'changeit', 'changeme', 'mysql', 'postgres', 'oracle',
-            'cisco', 'public', 'private', 'blank', 'none', 'null',
-            'open', 'login', 'unlock', 'access', 'secret', 'test', 'user', 'demo',
-            'pass', 'pwd', 'passw0rd', 'p@ssw0rd', 'admin123', 'root123', 'abc123',
-            '0000', '1111', '1234', '4321', '7777', '9999',
-            'password1', 'password123', 'admin1', 'admin1234', 'root1', 'test1',
-            'welcome', 'hello', 'master', 'super', 'god', 'love', 'code',
-            // Vendor-specific defaults
-            'changeme1', 'default1', 'default123', 'password1', 'administrator',
-            'test123', 'guest123', 'root1234', 'toor123',
-            // Common device/service defaults
-            'ubnt', 'zyxel', 'netgear', 'dlink', 'tplink', 'linksys', 'asus',
-            'arris', 'motorola', 'huawei', 'technicolor', 'sagemcom',
-            // Software defaults
-            'jenkins', 'docker', 'nginx', 'apache', 'redis', 'mongo', 'grafana',
-            'postgres1', 'mysql1', 'admin!', 'root!', 'sa', 'dbo',
-            // IoT/smart device defaults
-            'smart', 'fridge', 'toaster', 'device', 'iot', 'setup', 'connect',
-            // Parody/tech corp names (microhard=Microsoft parody, etc)
-            'microhard', 'omnitek', 'kuaigong', 'megacorp', 'apex', 'rogue',
-            'hospital', 'arcade', '4rc4de', 'summit', '5ummit',
-            // Factory literal
-            'factory', 'factory1', 'factoryreset', 'settings', 'settings1',
-            // Common short defaults
-            '12345', '1234567', '12345678', '123456789', '1234567890',
-            'qwerty1', 'qwerty123', 'abc', 'abcd', 'abcde',
-            'pass1', 'pass123', 'user1', 'user123', 'login1', 'login123',
+            'admin', 'password', '0000', '12345',  // game's actual defaultSettingsDictionary
+            '',  // some servers have no password
+            ...hostVariants,  // hostname as password (common fallback)
         ])]
     }
 
     // Buffer length: "Warning: password buffer is N bytes"
+    // Game source: getPassword(length, true) — alphanumeric (letters + digits), exact length
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
-        const candidates = [...hostVariants, ...popCulture]
-        // Massive wordlists by length
-        const wordsByLen = {
-            3: ['cat','dog','foo','bar','baz','qux','pwd','key','abc','xyz','net','web','ssh','ftp','sql','api','hex','bin','oct','raw','red','big','hot','top','low','new','old','cap','log','bit','set','get','run','end','map','tag','ref','pid','uid','gid','dev','mod','sys','env','var','lib','inc','ext','err','dbg','val','idx','num','len','max','min','sum','avg','add','sub','mul','div','rem','rat','vec','mat','row','col','dim','nil','nan','inf','yes','no','off','not','and','nor','xor','imp','iff','tru','fls','arr','obj','str','int','chr','buf','reg','seg','stk','que','lst','tre','grp','set','fun','app','win','frm','dlg','btn','tab','fld','img','txt','lnk','drv','dev','com','net','org','edu','gov','mil','int','pro','biz','inf','name','mobi','asia','cat','jobs','post','tel','travel','xxx','coop','aero','museum','arpa','root','local'],
-            4: ['pass','test','root','user','abcd','1234','hack','open','null','void','true','fail','exit','loop','code','data','file','link','load','save','help','info','warn','error','debug','trace','login','auth','tick','halt','ping','sync','lock','wait','fork','exec','kill','push','pull','seek','jump','call','send','recv','read','write','pipe','open','shut','bind','conn','disc','list','peek','poll','drop','swap','move','copy','fill','sort','find','scan','next','prev','last','head','tail','step','stop','skip','mark','flag','size','type','mode','flag','mask','port','host','addr','name','path','base','dest','core','temp','swap','page','byte','word','line','block','chunk','frame','pixel','grid','node','edge','tree','root','leaf','seed','hash','sign','cert','keys','salt','seed','token','code','seed','rand','time','date','week','year','zone','diff','span','rate','freq','step','iter','loop','turn','tick','mile','kilo','mega','giga','tera','peta','exbi','zebi','yobi','zero','null','none','some','any','all','both','each','more','less','much','many','only','just','very','also','then','else','when','once','ever','never','still','back','deep','high','long','wide','near','far','here','away','left','right','up','down','over','past','into','onto','upon','from','with','that','this','what','which','how','why'],
-            5: ['admin','qwert','abcde','12345','hello','world','sword','blade','shift','enter','space','break','pause','clear','reset','power','start','abort','flush','clean','crash','panic','fault','throw','catch','guard','check','valid','verify','trust','allow','grant','revoke','deny','block','limit','count','first','index','slice','range','delta','alpha','bravo','gamma','delta','theta','sigma','omega','prime','sqrt','floor','ceil','round','abs','sign','log2','log10','power','exp','sin','cos','tan','asin','acos','atan','atan2','sinh','cosh','tanh','clamp','lerp','min','max','swap','revrs','sort','uniq','flat','join','split','trim','strip','lower','upper','title','camel','snake','kebab','pascal','dot','path','slash','comma','colon','semi','point','vuln','exploit','shell','spawn','daemon','nginx','apache','linux','unix','posix','bash','zsh','csh','ksh','ssh','scp','sftp','rsync','curl','wget','ping','traceroute','dns','dhcp','nfs','smb','cifs','ldap','kerberos','oauth','jwt','ssrf','xss','csrf','rce','sqli','xxe'],
-            6: ['123456','qwerty','secret','abcdef','letme1','access','oracle','ubuntu','debian','fedora','centos','redhat','gentoo','arch','alpine','window','macos','kernel','system','driver','module','packet','socket','thread','socket','server','client','broker','master','worker','leader','follower','proxy','cache','queue','stack','stream','buffer','object','render','shader','matrix','vector','tensor','scalar','domain','record','schema','cursor','cursor','cursor','python','golang','kotlin','swift','ruby','perl','rust','haskell','clojure','elixir','erlang','scala','lua','risc','arm','x86','amd64','mips','sparc','ppc','sysv','bsd','glibc','musl','tinfo','ncurse','readli','zlib','bzip2','xz','lz4','zstd','brotli','snappy','lzfse','acodec','mpeg','h264','h265','vp8','vp9','av1','opus','flac','vorbis','aac','mp3','wav','ogg','webm','mkv','mp4','flv','avi','gif','png','jpeg','tiff','webp','svg','pdf','docx','xlsx','json','yaml','toml','xml','html','css','js','ts','py','rb','go','rs','java','c','cpp','h','sh','bash','fish','zsh','ps1','bat','cmd','sql','r','m','pl','lua','vim','el','clj','ex','erl','hs','ml','scala','kt','dart','swift','zig','nim','v','wasm','net','com','org','wifi','wpa2','tls12','sshd','nginx','apache','docker','k8s','etcd','vault','consul','kafka','redis','mongo','mysql','psql','mariad','sqlite','oracle','msssql','couch','neo4j','influx','grafan','promet','elastic','logsta','kibana','jenkin','gitlab','github','codepi','travic','circle','argo','flux','helm','kusto','terraform'],
-            7: ['1234567','7654321','1111111','0000000','9999999','letmein','changeme','trustno','abcdefg','testing','default','welcome','pass123','admin12','root1234','backup1','network','service','process','session','connect','request','respond','message','handler','control','command','monitor','trigger','deploy','release','rollback','restart','upgrade','downgrade','refresh','rebuild','compile','execute','analyze','display','console','terminal','prompt','dialog','option','setting','feature','plugin','module','extend','update','install','uninstal','config','preference','profile','account','privacy','security','encrypt','decrypt','encode','decode','compress','decompress','serialize','deserial','validate','sanitize','transform','convert','resolve','reject','fulfill','observe','subscribe','dispatch','emit','listen','notify','publish','consume','produce','process','compute','calculate','simulate','optimize','minimize','maximize','approxim','interpol','extrapo','regress','predict','classify','cluster','detect','recognize','identify','extract','generate','compose','aggregate','reduce','filter','project','invert','transpose','conjugate','normalize','orthogo','diagonal','symmetr','determi','eigen','singular','factoriz','decompos','permute','combin','shuffle','sample','random','stochast','markov','bayes','gaussian','poisson','uniform','exponent','weibull','pareto','lognorm','bernoul','binomia','hyperg','negbino','geom','chisq','fstat','tstat','betafunc','erf','gammafn','zetafn','digamma','polygam','bessel','legendr','chebys','hermite','laguerr','jacobi','fourier','laplace','hilbert','z transf','mellin','cauchy','riemann','dirichl','mobius','euler','fermat','mersenn','carmich','wilson','fermat2','bezout','euclid','kroneck','legendr2','jacobi2','ramanuj','hardy','waring','goldbac','collatz','thue','prouhet','morse','gray','huffman','shannon','fano','arthur','turing','church','godel','cantor','hilbert2','noether','gauss2','euler2','fermat3','laplace2','fourier2','newton2','leibniz','banach','jordan2','gram2','schmidt','schur','weierst','riemann2','mobius2','cauchy2','klein','poincar','rieman3','manifol','topolog','metric2','hausdor','fractal','mandelb','julia2','cantor2','sierpin','koch2','minkows','fatou2','bifurca','logisti','lorenz2','rossler','henon2','arnold2','chirikov','circle2','sine2','baker2','ikeda2','tinkerbell','gingerb','mahlena','swatrz','kapreka','collatz2','ulam2','goodste','busybea','tagasys','life2','rule110','conway2','langton','turmit2','curtist','margolu','levy2','brownia','wiener2','ornstei','uhlenbe','ito2','straton','fokker2','planck2','kolmogo','chapman','riccati','bessel2','airy2','hermite2','laguerr2','hyperg2','conflue','whittak','meijer2','fox2','hfun2','appell2','lauric2','pfaff2','gauss3','kummer2','euler3','dirichl2','lerch2','polylog','li2','clausen','glaisher','katona','chowla','hooley','barban','viggo','bombier','elliot','selberg2','weil2','tate2','lang2','grothen','atiyah2','wiles2','perelman','yau2','donalds','kontse','voevod','milnor2','smale2','nash2','morse2','thom2','cerf2','kirby2','lens2','kervair','rokhlin','wall2','browder','sullivan','quillen2','baues2','frieds2','serre2','deligne','beilins','bloch2','kato2','hodge2','griffit2','clemens2','voisin2','green2','taubes2','kronhei','mrowka','bismut2','getzler2','lenhard','pasc2','fermat4'],
-        }
-        // Add words of exact length
-        if (wordsByLen[len]) candidates.push(...wordsByLen[len])
-        // Also from commonPasswords
-        for (const pw of commonPasswords) {
-            if (pw.length === len) candidates.push(pw)
-        }
-        // Add from extendedPasswords
-        for (const pw of extendedPasswords) {
-            if (pw.length === len) candidates.push(pw)
-        }
-        // Brute force numbers of this length (if feasible)
-        if (len <= 5) {
-            const min = len === 1 ? 0 : Math.pow(10, len - 1)
-            const max = Math.pow(10, len) - 1
-            for (let i = min; i <= max; i++) candidates.push(String(i))
+        const candidates = [...hostVariants.filter(v => v.length === len)]
+        // Brute force alphanumeric of exact length
+        // For len <= 4, brute force all; for len 5-6, use common patterns + hostname
+        if (len <= 3) {
+            // All 3-char alphanumeric: 36^3 = 46656 — manageable
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+            for (let i = 0; i < chars.length; i++) {
+                for (let j = 0; j < chars.length; j++) {
+                    for (let k = 0; k < chars.length; k++) {
+                        candidates.push(chars[i] + chars[j] + chars[k])
+                    }
+                }
+            }
+        } else if (len === 4) {
+            // 36^4 = 1.6M — too many. Use common 4-char patterns
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+            // All 4-digit numbers
+            for (let i = 0; i <= 9999; i++) candidates.push(String(i).padStart(4, '0'))
+            // Common 4-letter words
+            const words4 = ['pass','test','root','user','abcd','1234','hack','open','null','void','true','fail','exit','loop','code','data','file','link','load','save','help','info','warn','login','auth','tick','halt','ping','sync','lock','wait','fork','exec','kill','push','pull','read','write','pipe','bind','conn','list','drop','swap','move','copy','fill','sort','find','scan','next','prev','last','head','tail','step','stop','skip','mark','flag','size','type','mode','port','host','addr','name','path','base','dest','core','temp','page','byte','word','line','block','chunk','frame','node','edge','tree','leaf','seed','hash','sign','cert','keys','salt','token','rand','time','date','week','year','zone','diff','span','rate','freq','iter','turn','tick','mile','kilo','mega','giga','tera','peta','zero','none','some','any','all','both','each','more','less','much','many','only','just','very','also','then','else','when','once','ever','still','back','deep','high','long','wide','near','far','here','away','left','right','up','down','over','past','into','from','with','that','this','what','which','how','why']
+            candidates.push(...words4)
+            // 2 chars + 2 digits patterns
+            for (let i = 0; i < chars.length; i++) {
+                for (let j = 0; j < chars.length; j++) {
+                    for (let d = 0; d <= 99; d++) {
+                        candidates.push(chars[i] + chars[j] + String(d).padStart(2, '0'))
+                        candidates.push(String(d).padStart(2, '0') + chars[i] + chars[j])
+                    }
+                }
+            }
+        } else if (len === 5) {
+            // 5 chars: common words + hostname-based
+            const words5 = ['admin','qwert','abcde','12345','hello','world','sword','blade','shift','enter','space','break','pause','clear','reset','power','start','abort','flush','clean','crash','panic','fault','throw','catch','guard','check','valid','verify','trust','allow','grant','revoke','deny','block','limit','count','first','index','slice','range','delta','alpha','bravo','gamma','theta','sigma','omega','prime','sqrt','floor','ceil','round','login','shell','spawn','daemon','nginx','apache','linux','unix','posix','bash','ssh','scp','curl','wget','ping','dns','dhcp','nfs','smb','ldap','oauth','jwt','xss','csrf','rce','sqli']
+            candidates.push(...words5)
+            // 5-digit numbers
+            for (let i = 0; i <= 99999; i += 100) candidates.push(String(i).padStart(5, '0'))
+            for (let i = 0; i <= 999; i++) candidates.push(String(i).padStart(5, '0'))
         } else if (len === 6) {
-            // 6 digits = 900k, too many. Try common 6-digit patterns
-            candidates.push('000000','111111','123456','654321','999999','000001','100000','999998')
+            // 6 chars: hostname-based + common words
+            const words6 = ['123456','qwerty','secret','abcdef','letme1','access','oracle','ubuntu','debian','fedora','centos','redhat','gentoo','arch','window','macos','kernel','system','driver','module','packet','socket','thread','server','client','broker','master','worker','leader','proxy','cache','queue','stack','stream','buffer','object','render','matrix','vector','domain','record','schema','python','golang','kotlin','swift','ruby','perl','rust','haskell','clojure','elixir','erlang','scala','lua','risc','arm','x86','amd64','mips','sparc','ppc','sysv','bsd','glibc','musl','zlib','bzip2','xz','lz4','zstd','brotli','snappy','acodec','mpeg','h264','h265','vp8','vp9','av1','opus','flac','vorbis','aac','mp3','wav','ogg','webm','mkv','mp4','flv','avi','gif','png','jpeg','tiff','webp','svg','pdf','json','yaml','toml','xml','html','css','js','ts','py','rb','go','rs','java','c','cpp','h','sh','bash','fish','zsh','ps1','bat','cmd','sql','r','m','pl','lua','vim','el','clj','ex','erl','hs','ml','scala','kt','dart','zig','nim','v','wasm','net','com','org','wifi','wpa2','sshd','docker','k8s','etcd','vault','consul','kafka','redis','mongo','mysql','psql','sqlite','couch','neo4j','influx','jenkin','gitlab','github','codepi','travic','circle','argo','flux','helm','kusto','terraform']
+            candidates.push(...words6)
+            // 6-digit numbers (common patterns)
             for (let i = 0; i <= 999; i++) candidates.push(String(i).padStart(6, '0'))
-        } else if (len === 7) {
-            // Try common 7-digit numbers and padded 6-digit
-            for (let i = 0; i <= 999; i++) candidates.push(String(i).padStart(7, '0'))
-            for (let i = 1000000; i <= 1000999; i++) candidates.push(String(i))
+            candidates.push('000000','111111','123456','654321','999999')
+        } else {
+            // 7+ chars: hostname-based only + common words of that length
+            for (const pw of commonPasswords) {
+                if (pw.length === len) candidates.push(pw)
+            }
+            for (const pw of extendedPasswords) {
+                if (pw.length === len) candidates.push(pw)
+            }
         }
         return [...new Set(candidates)]
     }
@@ -876,28 +824,17 @@ function solvePassword(hint, hintData, hostname = '') {
     }
 
     // Range: "number between X and Y" or "a number between X and Y"
+    // Game source (getGuessNumberConfig): password = floor((random * 10 * (difficulty+3)) / 3)
+    // maxNumber = 10^password.length, so "between 0 and 10" = 1 digit, "0 and 100" = 2 digits, etc.
     const rangeMatch = hint.match(/(?:a\s+)?number\s+between\s+(\d+)\s+and\s+(\d+)/i) ||
                        hint.match(/from\s+(\d+)\s+to\s+(\d+)/i) ||
                        hint.match(/between\s+(\d+)\s+and\s+(\d+)/i)
     if (rangeMatch) {
         const lo = parseInt(rangeMatch[1])
         const hi = parseInt(rangeMatch[2])
-        const candidates = [...hostVariants, ...popCulture]
-        if (hi - lo <= 200) {
-            for (let i = lo; i <= hi; i++) candidates.push(String(i))
-        } else {
-            // Too many — sample strategically
-            for (let i = lo; i <= Math.min(lo + 50, hi); i++) candidates.push(String(i))
-            for (let i = Math.max(hi - 10, lo); i <= hi; i++) candidates.push(String(i))
-            // Common interesting numbers in range
-            for (let i = lo; i <= hi; i++) {
-                if (i === 42 || i === 69 || i === 13 || i === 7 || i === 0 || i === 1 ||
-                    i === 99 || i === 100 || (i > 0 && (i & (i-1)) === 0)) // powers of 2
-                    candidates.push(String(i))
-            }
-        }
-        // Also try common passwords as some servers accept words for "number" hints
-        candidates.push(...commonPasswords)
+        const candidates = [...hostVariants]
+        // Try ALL numbers in range (Bitburner auth is fast)
+        for (let i = lo; i <= hi; i++) candidates.push(String(i))
         return [...new Set(candidates)]
     }
 
@@ -922,25 +859,11 @@ function solvePassword(hint, hintData, hostname = '') {
     }
 
     // Dog's name / pet name / "my first dog's name"
+    // Game source: dogNameDictionary = ["fido", "spot", "rover", "max"]
     if (h.includes("dog") || h.includes("pet") || h.includes("puppy") || h.includes("hound") || h.includes("fur") || h.includes("first dog"))
         return [...new Set([
-            'spanky',  // most common "the dog's name" answer in Bitburner
-            'rex', 'rover', 'fido', 'buster', 'max', 'buddy', 'charlie', 'jack', 'cooper',
-            'rocky', 'toby', 'duke', 'zeus', 'bear', 'tiger', 'shadow', 'bandit', 'sparky',
-            'barney', 'winston', 'ginger', 'daisy', 'molly', 'lady', 'sasha', 'lola',
-            'pluto', 'snoopy', 'odog', 'dog', 'doggy', 'pup', 'wolf', 'fox', 'cody',
-            'lassie', 'beethoven', 'scooby', 'clifford', 'marley', 'houdini',
-            'ace', 'apollo', 'archie', 'bailey', 'barkley', 'benji', 'biscuit', 'blaze',
-            'boomer', 'bruno', 'bubba', 'buddy', 'copper', 'dakota', 'dexter', 'diego',
-            'duffy', 'eddie', 'flash', 'frankie', 'george', 'gizmo', 'goofy', 'harley',
-            'henry', 'hugo', 'indy', 'jasper', 'jake', 'koda', 'leo', 'linus',
-            'lucky', 'luke', 'murphy', 'nala', 'odie', 'oliver', 'otis', 'ozzy',
-            'patch', 'peanut', 'prince', 'rascal', 'romeo', 'roscoe', 'ruby', 'rusty',
-            'sam', 'sammy', 'scout', 'scrappy', 'sebastian', 'simba', 'spike', 'stella',
-            'taco', 'teddy', 'thor', 'tiny', 'tito', 'waffles', 'walter', 'wiggles',
-            'winnebago', 'woof', 'yoshi', 'ziggy', 'zoe',
-            'old yeller', 'copper', 'balto', 'toto', 'courage', 'brian', 'porthos',
-            ...hostVariants, ...popCulture, ...extendedPasswords,
+            'fido', 'spot', 'rover', 'max',  // game's actual dogNameDictionary
+            ...hostVariants,
         ])]
 
     // Maze / labyrinth / dark corridor riddle
@@ -985,75 +908,60 @@ function solvePassword(hint, hintData, hostname = '') {
             ...hostVariants, ...popCulture, ...extendedPasswords,
         ])]
 
-    // "you are one who's'nt authorized" / "not authorized" riddle
-    if (h.includes('authorized') || h.includes("who's") || h.includes("who is not") || h.includes("whont"))
-        return [...new Set([
-            'unauthorized',  // most likely — "who's'nt authorized" → unauthorized
-            'authorized',
-            'yes', 'no', 'maybe', 'please', 'letmein',
-            'access', 'granted', 'denied', 'permit', 'allow', 'accept', 'approve',
-            'user', 'admin', 'root', 'sudo', 'su', 'login', 'auth', 'token',
-            // "who's'nt" = who won't → negation riddle, password might be the opposite
-            'iam', 'i_am', 'not', 'who', 'whos', 'whont', 'wont', 'will',
-            '0', '1', '42', '1337', '401', '403', '200',
-            // Hostname as password (common for these riddles)
-            ...hostVariants, ...popCulture, ...extendedPasswords,
-        ])]
+    // "you are one who's'nt authorized" — YESN'T minigame
+    // Game source (getYesn_tConfig): getPassword(3 + difficulty/2, difficulty > 8)
+    // Password is numeric or alphanumeric, 3+ chars
+    if (h.includes('authorized') || h.includes("who's") || h.includes("who is not") || h.includes("whont")) {
+        const candidates = [...hostVariants]
+        // Brute force numbers 0-99999
+        for (let i = 0; i <= 99999; i++) candidates.push(String(i))
+        // Common alphanumeric
+        for (const pw of commonPasswords) candidates.push(pw)
+        return [...new Set(candidates)]
+    }
 
-    // "(I'm busy browsing social media at the cafe)" — social media / cafe riddle
-    // Also matches Chinese tea shop hosts (茶店 etc)
+    // "(I'm busy browsing social media at the cafe)" — PACKET SNIFFER
+    // Game source (getPacketSnifferConfig): password = getPassword(3 + random*6, difficulty > 8)
+    // The password is hidden in heartbleed logs — look for phrases like "Your password has been reset. It is now set to X"
+    // This solver relies on heartbleed extraction in the main auth loop, but we try common patterns too
     if (h.includes('social media') || h.includes('browsing') || h.includes('cafe') || h.includes('coffee') ||
-        h.includes('tea') || (hostname && /[\u4e00-\u9fff]/.test(hostname)))
-        return [...new Set([
-            'facebook', 'twitter', 'instagram', 'reddit', 'tiktok', 'youtube', 'myspace', 'tumblr', 'snapchat', 'pinterest', 'linkedin', 'slack', 'discord', 'whatsapp', 'telegram',
-            'social', 'media', 'browse', 'cafe', 'coffee', 'latte', 'espresso', 'cappuccino', 'mocha', 'americano', 'macchiato', 'ristretto', 'flatwhite',
-            // Tea shop variants (茶店 = tea shop)
-            'tea', 'cha', 'chadain', 'teashop', 'matcha', 'oolong', 'greentea', 'boba', 'bubbletea', 'chinese',
-            'wifi', 'password', 'freewifi', 'freewifi!', 'guestwifi', 'cafewifi', 'netcafe',
-            'coffee1', 'cafe1', '1234', '12345', 'admin', 'open',
-            ...hostVariants, ...popCulture, ...extendedPasswords,
-        ])]
+        h.includes('tea') || (hostname && /[\u4e00-\u9fff]/.test(hostname))) {
+        // Password is numeric or alphanumeric, 3-9 chars — brute force common lengths
+        const candidates = [...hostVariants]
+        // 3-6 digit numbers (most common for low difficulty)
+        for (let i = 0; i <= 999999; i++) candidates.push(String(i))
+        // Common alphanumeric patterns
+        for (const pw of commonPasswords) candidates.push(pw)
+        return [...new Set(candidates)]
+    }
 
-    // Mountain riddle
-    if (h.includes('ascend') || h.includes('mountain') || h.includes('highest'))
-        return [...new Set([
-            '8848',  // Everest height in meters — most common answer
-            'everest',
-            ...hostVariants, ...popCulture, ...mountainPasswords, ...extendedPasswords,
-            // Also try reversed hostname (gro;rekcah = hacker)
-            ...hostVariants.filter(c => c.length > 2).map(c => c.split('').reverse().join('')),
-        ])]
+    // Mountain riddle — "Ascend the highest mountain!"
+    // Game source (getKingOfTheHillConfig): getPassword(min(1 + difficulty/6, 10)) — NUMERIC only
+    if (h.includes('ascend') || h.includes('mountain') || h.includes('highest')) {
+        const candidates = [...hostVariants]
+        // Numeric passwords up to 10 digits — brute force common patterns
+        for (let i = 0; i <= 99999; i++) candidates.push(String(i))
+        // Common "mountain" numbers
+        candidates.push('8848','8849','29029','29032','29035','29028','8850','8848m')
+        return [...new Set(candidates)]
+    }
 
     // Riddle fallback
     if (h.includes('riddle') || h.includes('true'))
         return [...new Set([...hostVariants, ...extendedPasswords])]
 
     // Symbol/emoji hints like "!!🌶️!!"
+    // Game source (getSpiceLevelConfig): getPassword(3 + difficulty/3, difficulty > 8)
+    // Password is numeric or alphanumeric, 3-11 chars
     if (hint && !h.match(/[a-z]{3,}/)) {
-        // Try to decode common emojis to words
-        const emojiWordMap = {
-            '🌶️': 'spicy', '🔥': 'fire', '💀': 'dead', '❤️': 'love', '⚡': 'power',
-            '🌟': 'star', '👑': 'king', '🗡️': 'blade', '🚀': 'rocket', '💎': 'diamond',
-            '🔑': 'key', '🗝️': 'key', '🔒': 'lock', '🔓': 'unlock', '☠️': 'skull',
-            '⭐': 'star', '🌈': 'rainbow', '🎯': 'target', '🍕': 'pizza', '🎵': 'music',
-            '💻': 'computer', '🤖': 'robot', '👾': 'alien', '🧠': 'brain', '🦾': 'arm',
-        }
-        const emojiWords = []
-        for (const [emoji, word] of Object.entries(emojiWordMap)) {
-            if (hint.includes(emoji)) emojiWords.push(word)
-        }
         const stripped = hint.replace(/[^a-zA-Z0-9!@#$%^&*_\-+=]/g, '')
-        return [...new Set([
-            stripped, '',
-            ...emojiWords,
-            // Spicy/hot variants
-            'spicy', 'hot', 'fire', 'pepper', 'chili', 'habanero', 'jalapeno',
-            'ghostpepper', 'capsaicin', 'scoville', 'heat', 'burn', 'flame',
-            '!!', '!!!', '!@#', '!@#$', '!1!', '!0!',
-            // Punctuation-only patterns with numbers
-            '0', '1', '42', '69', '666', '1337',
-            ...hostVariants, ...popCulture, ...extendedPasswords,
-        ])]
+        const candidates = [...new Set([stripped, ''])]
+        // Brute force 3-6 digit numbers (most common)
+        for (let i = 0; i <= 999999; i++) candidates.push(String(i))
+        // Common alphanumeric
+        for (const pw of commonPasswords) candidates.push(pw)
+        candidates.push(...hostVariants)
+        return [...new Set(candidates)]
     }
 
     // Fallback: if we have a hint but no solver, try everything
@@ -1150,6 +1058,10 @@ export async function main(ns) {
                                     /key\s*[:=]\s*['"]?(\w+)['"]?/i,
                                     /login\s*[:=]\s*['"]?(\w+)['"]?/i,
                                     /admin\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                    // Packet sniffer: "Your password has been reset. It is now set to X"
+                                    /now set to\s+['"]?(\w+)['"]?\s*[\.\!]?\s*$/i,
+                                    // Packet sniffer: "Your account password is X"
+                                    /account password\s+(?:is|has been changed to)\s+['"]?(\w+)['"]?/i,
                                 ]
                                 for (const pat of pwPatterns) {
                                     const m = s.match(pat)
@@ -1158,6 +1070,11 @@ export async function main(ns) {
                                 // Also try the whole entry as password if it looks like one (short, no spaces)
                                 if (s.length <= 30 && !s.includes(' ') && /^\w+$/.test(s)) {
                                     bleedPasswords.push(s)
+                                }
+                                // Packet sniffer: extract last word of "now set to X" phrases
+                                const lastWord = s.match(/to\s+(\w+)\s*[\.\!]?\s*$/i)
+                                if (lastWord && lastWord[1] && lastWord[1].length <= 15) {
+                                    bleedPasswords.push(lastWord[1])
                                 }
                             }
                         }
