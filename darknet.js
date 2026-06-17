@@ -999,12 +999,12 @@ export async function main(ns) {
         try {
             peers = await ns.dnet.probe()
         } catch (e) {
-            await ns.asleep(1000)
+            await ns.asleep(500)
             continue
         }
 
         if (!peers || peers.length === 0) {
-            await ns.asleep(1000)
+            await ns.asleep(500)
             continue
         }
 
@@ -1019,8 +1019,11 @@ export async function main(ns) {
 
             if (!details.isOnline || !details.isConnectedToCurrentServer) continue
 
+            // Track whether we have session (either already had it or just got it)
+            let hasSession = details.hasSession
+
             // Step B: auth (skip if already authenticated)
-            if (!details.hasSession) {
+            if (!hasSession) {
                 const hint = details.passwordHint || ''
                 const data = details.data || ''
                 const candidates = solvePassword(hint, data, neighbor)
@@ -1032,6 +1035,7 @@ export async function main(ns) {
                             const r = await ns.dnet.authenticate(neighbor, pw)
                             if (r.success) {
                                 authed = true
+                                hasSession = true
                                 break
                             }
                         } catch (e) { /* try next */ }
@@ -1045,10 +1049,8 @@ export async function main(ns) {
                         const logs = await ns.dnet.heartbleed(neighbor)
                         if (logs && logs.length > 0) {
                             log(ns, `${neighbor} BLEED: ${JSON.stringify(logs).substring(0, 300)}`)
-                            // Extract potential passwords from heartbleed logs
                             for (const entry of logs) {
                                 const s = String(entry)
-                                // Look for patterns like "password: X", "passwd=X", "pw: X", etc.
                                 const pwPatterns = [
                                     /password\s*[:=]\s*['"]?(\w+)['"]?/i,
                                     /passwd\s*[:=]\s*['"]?(\w+)['"]?/i,
@@ -1058,20 +1060,16 @@ export async function main(ns) {
                                     /key\s*[:=]\s*['"]?(\w+)['"]?/i,
                                     /login\s*[:=]\s*['"]?(\w+)['"]?/i,
                                     /admin\s*[:=]\s*['"]?(\w+)['"]?/i,
-                                    // Packet sniffer: "Your password has been reset. It is now set to X"
                                     /now set to\s+['"]?(\w+)['"]?\s*[\.\!]?\s*$/i,
-                                    // Packet sniffer: "Your account password is X"
                                     /account password\s+(?:is|has been changed to)\s+['"]?(\w+)['"]?/i,
                                 ]
                                 for (const pat of pwPatterns) {
                                     const m = s.match(pat)
                                     if (m && m[1]) bleedPasswords.push(m[1])
                                 }
-                                // Also try the whole entry as password if it looks like one (short, no spaces)
                                 if (s.length <= 30 && !s.includes(' ') && /^\w+$/.test(s)) {
                                     bleedPasswords.push(s)
                                 }
-                                // Packet sniffer: extract last word of "now set to X" phrases
                                 const lastWord = s.match(/to\s+(\w+)\s*[\.\!]?\s*$/i)
                                 if (lastWord && lastWord[1] && lastWord[1].length <= 15) {
                                     bleedPasswords.push(lastWord[1])
@@ -1079,44 +1077,46 @@ export async function main(ns) {
                             }
                         }
                     } catch (e) { /* not available */ }
-                    // Try heartbleed-extracted passwords first
                     if (bleedPasswords.length > 0) {
                         for (const pw of [...new Set(bleedPasswords)]) {
                             try {
                                 const r = await ns.dnet.authenticate(neighbor, pw)
-                                if (r.success) { authed = true; break }
+                                if (r.success) { authed = true; hasSession = true; break }
                             } catch (e) { /* try next */ }
                         }
                     }
                     if (!authed) {
-                        // Log with candidate count and bleed info for debugging
                         const bleedInfo = bleedPasswords.length > 0 ? ` | bleed: ${bleedPasswords.length} candidates` : ' | no bleed'
                         await logFail(ns, neighbor, 'auth-failed', `${hint} | tried ${candidates.length}${bleedInfo}`)
                     }
-                    // Don't continue — still try to scp+exec so neighbor can help propagate
                 }
             }
 
-            // Step C: scp scripts to neighbor (even if auth failed — file propagation helps)
+            // Step C: ALWAYS scp scripts to neighbor (even if auth failed)
+            // The neighbor needs the scripts to propagate further
             try {
-                await ns.scp(SCRIPT_NAME, neighbor)
-                await ns.scp('darknet-ram.js', neighbor)
-                await ns.scp(EXTRACTOR, neighbor)
-            } catch (e) { /* scp may fail if not auth'ed, ignore */ }
+                await ns.scp(SCRIPT_NAME, neighbor, host)
+                await ns.scp('darknet-ram.js', neighbor, host)
+                await ns.scp(EXTRACTOR, neighbor, host)
+            } catch (e) { /* scp may fail, ignore */ }
 
-            // Step D: exec darknet.js on neighbor — check if already running
-            // Only exec if we have an auth session (required for exec on remote)
-            if (details.hasSession) {
-                try {
-                    const neighborProcs = ns.ps(neighbor)
-                    const alreadyRunning = neighborProcs.some(p => p.filename === SCRIPT_NAME)
-                    if (!alreadyRunning) {
-                        // Try to exec with available RAM
-                        const maxThreads = Math.max(1, Math.floor((ns.getServerMaxRam(neighbor) - ns.getServerUsedRam(neighbor)) / ns.getScriptRam(SCRIPT_NAME, host)))
-                        ns.exec(SCRIPT_NAME, neighbor, Math.min(maxThreads, 1))
+            // Step D: exec darknet.js on neighbor if we have session
+            // Also try exec even without session — some servers allow it
+            try {
+                const neighborProcs = ns.ps(neighbor)
+                const alreadyRunning = neighborProcs.some(p => p.filename === SCRIPT_NAME)
+                if (!alreadyRunning) {
+                    const scriptRam = ns.getScriptRam(SCRIPT_NAME, host)
+                    const freeRam = ns.getServerMaxRam(neighbor) - ns.getServerUsedRam(neighbor)
+                    const maxThreads = Math.max(1, Math.floor(freeRam / scriptRam))
+                    const threads = Math.min(maxThreads, 1)
+                    const pid = ns.exec(SCRIPT_NAME, neighbor, threads)
+                    if (pid === 0 && hasSession) {
+                        // If exec failed but we have session, try with 1 thread minimum
+                        ns.exec(SCRIPT_NAME, neighbor, 1)
                     }
-                } catch (e) { /* ignore */ }
-            }
+                }
+            } catch (e) { /* ignore */ }
         }
 
         // Step E: run extractor on THIS server — check if already running
@@ -1126,7 +1126,7 @@ export async function main(ns) {
             try { ns.exec(EXTRACTOR, host, 1) } catch (e) { /* ignore */ }
         }
 
-        await ns.asleep(1000)
+        await ns.asleep(200)  // Fast loop for rapid propagation
     }
 }
 
