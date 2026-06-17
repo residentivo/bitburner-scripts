@@ -1143,6 +1143,11 @@ export async function main(ns) {
                         const pid2 = ns.exec(SCRIPT_NAME, neighbor, 1)
                         ns.print(`[dnet] ${neighbor} EXEC RETRY: pid=${pid2}`)
                     }
+                    // Verify the script is running
+                    await ns.asleep(100)
+                    const procsAfter = ns.ps(neighbor)
+                    const running = procsAfter.filter(p => p.filename === SCRIPT_NAME)
+                    ns.print(`[dnet] ${neighbor} VERIFY: ${running.length} darknet.js instances running`)
                 }
             } catch (e) {
                 ns.print(`[dnet] ${neighbor} EXEC ERROR: ${e}`)
