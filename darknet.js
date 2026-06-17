@@ -910,39 +910,34 @@ function solvePassword(hint, hintData, hostname = '') {
 
     // "you are one who's'nt authorized" — YESN'T minigame
     // Game source (getYesn_tConfig): getPassword(3 + difficulty/2, difficulty > 8)
-    // Password is numeric or alphanumeric, 3+ chars
+    // Password is numeric or alphanumeric, 3+ chars — limit candidates
     if (h.includes('authorized') || h.includes("who's") || h.includes("who is not") || h.includes("whont")) {
         const candidates = [...hostVariants]
-        // Brute force numbers 0-99999
-        for (let i = 0; i <= 99999; i++) candidates.push(String(i))
-        // Common alphanumeric
-        for (const pw of commonPasswords) candidates.push(pw)
+        for (let i = 0; i <= 9999; i++) candidates.push(String(i))  // 0-9999 only
+        candidates.push('password', 'admin', 'default', 'yes', 'no')
         return [...new Set(candidates)]
     }
 
     // "(I'm busy browsing social media at the cafe)" — PACKET SNIFFER
     // Game source (getPacketSnifferConfig): password = getPassword(3 + random*6, difficulty > 8)
-    // The password is hidden in heartbleed logs — look for phrases like "Your password has been reset. It is now set to X"
-    // This solver relies on heartbleed extraction in the main auth loop, but we try common patterns too
+    // The password is hidden in heartbleed logs — MUST try heartbleed FIRST
+    // Only try numeric brute force as fallback, and limit to 6 digits max
     if (h.includes('social media') || h.includes('browsing') || h.includes('cafe') || h.includes('coffee') ||
         h.includes('tea') || (hostname && /[\u4e00-\u9fff]/.test(hostname))) {
-        // Password is numeric or alphanumeric, 3-9 chars — brute force common lengths
+        // Numeric passwords 3-6 chars — limit to 100k candidates max
         const candidates = [...hostVariants]
-        // 3-6 digit numbers (most common for low difficulty)
-        for (let i = 0; i <= 999999; i++) candidates.push(String(i))
-        // Common alphanumeric patterns
-        for (const pw of commonPasswords) candidates.push(pw)
-        return [...new Set(candidates)]
+        for (let i = 0; i <= 99999; i++) candidates.push(String(i))
+        // Common alphanumeric — very short list
+        candidates.push('password', 'admin', 'default', '123456', 'qwerty')
+        return [...new Set(candidates)]  // Max ~100k candidates
     }
 
     // Mountain riddle — "Ascend the highest mountain!"
     // Game source (getKingOfTheHillConfig): getPassword(min(1 + difficulty/6, 10)) — NUMERIC only
     if (h.includes('ascend') || h.includes('mountain') || h.includes('highest')) {
         const candidates = [...hostVariants]
-        // Numeric passwords up to 10 digits — brute force common patterns
-        for (let i = 0; i <= 99999; i++) candidates.push(String(i))
-        // Common "mountain" numbers
-        candidates.push('8848','8849','29029','29032','29035','29028','8850','8848m')
+        for (let i = 0; i <= 9999; i++) candidates.push(String(i))  // 0-9999 only
+        candidates.push('8848','8849','29029','29032','29035','29028','8850','8848m','everest','summit')
         return [...new Set(candidates)]
     }
 
@@ -952,14 +947,12 @@ function solvePassword(hint, hintData, hostname = '') {
 
     // Symbol/emoji hints like "!!🌶️!!"
     // Game source (getSpiceLevelConfig): getPassword(3 + difficulty/3, difficulty > 8)
-    // Password is numeric or alphanumeric, 3-11 chars
+    // Password is numeric or alphanumeric, 3-11 chars — limit candidates
     if (hint && !h.match(/[a-z]{3,}/)) {
         const stripped = hint.replace(/[^a-zA-Z0-9!@#$%^&*_\-+=]/g, '')
         const candidates = [...new Set([stripped, ''])]
-        // Brute force 3-6 digit numbers (most common)
-        for (let i = 0; i <= 999999; i++) candidates.push(String(i))
-        // Common alphanumeric
-        for (const pw of commonPasswords) candidates.push(pw)
+        for (let i = 0; i <= 9999; i++) candidates.push(String(i))  // 0-9999 only
+        candidates.push('password', 'admin', 'default', 'spicy', 'hot', 'fire')
         candidates.push(...hostVariants)
         return [...new Set(candidates)]
     }
