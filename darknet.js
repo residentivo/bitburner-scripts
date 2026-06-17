@@ -236,8 +236,15 @@ function solvePassword(hint, hintData, hostname = '') {
         popCulture.push('machine', 'god', 'deus', 'church', 'templar', 'cyber', 'android', 'synth', 'matrix', 'skynet', 'omnic', 'primordial', 'architect', 'builder', 'creator', 'maker')
     if (hlow.includes('labyr') || hlow.includes('maze') || hlow.includes('l4byr'))
         popCulture.push('minotaur', 'theseus', 'ariadne', 'thread', 'labyrinth', 'maze', 'daedalus', 'icarus', 'corridoor')
-    if (hlow.includes('everest') || hlow.includes('mountain') || hlow.includes('himalaya'))
-        popCulture.push('everest', 'sagarmatha', 'chomolungma', '8848', '29029')
+    // Mountain / everest hints — check BOTH hostname AND hint text
+    if (hlow.includes('everest') || hlow.includes('mountain') || hlow.includes('himalaya') ||
+        h.includes('mountain') || h.includes('everest') || h.includes('himalaya') || h.includes('ascend') ||
+        h.includes('summit') || h.includes('peak') || h.includes('climb') || h.includes('highest'))
+        popCulture.push('everest', 'EVEREST', 'Everest', 'sagarmatha', 'Sagarmatha', 'SAGARMATHA',
+            'chomolungma', 'Chomolungma', 'CHOMOLUNGMA', '8848', '8849', '8848.86', '29029', '29032',
+            'summit', 'SUMMIT', 'Summit', 'peak', 'PEAK', 'Peak', 'top', 'TOP', 'Top',
+            'ascend', 'ASCEND', 'Ascend', 'mountain', 'MOUNTAIN', 'Mountain',
+            'climb', 'CLIMB', 'Climb', 'highest', 'HIGHEST', 'Highest')
     if (hlow.includes('fitness') || hlow.includes('gym') || hlow.includes('snap'))
         popCulture.push('fitness', 'gym', 'workout', 'lift', 'gain', 'protein', 'cardio', 'sweat', 'muscle', 'iron', 'pump', 'fit', 'strong', 'power', 'endurance')
     if (hlow.includes('clarke') || hlow.includes('incorporated') || hlow.includes('anonymous'))
@@ -548,6 +555,32 @@ function solvePassword(hint, hintData, hostname = '') {
     if (hlow.includes('h0me'))
         popCulture.push('home', 'h0me', 'house', 'base', 'root')
 
+    // Social media / browsing / cafe hints
+    if (h.includes('social media') || h.includes('browsing') || h.includes('cafe') || h.includes('twitter') ||
+        h.includes('facebook') || h.includes('instagram') || h.includes('tiktok') || h.includes('reddit'))
+        popCulture.push('social', 'SOCIAL', 'Social', 'media', 'MEDIA', 'Media', 'browse', 'BROWSE', 'Browse',
+            'cafe', 'CAFE', 'Cafe', 'twitter', 'TWITTER', 'Twitter', 'tweet', 'TWEET', 'Tweet',
+            'facebook', 'FACEBOOK', 'Facebook', 'instagram', 'INSTAGRAM', 'Instagram', 'tiktok', 'TikTok',
+            'reddit', 'REDDIT', 'Reddit', 'post', 'POST', 'Post', 'like', 'LIKE', 'Like',
+            'follow', 'FOLLOW', 'Follow', 'share', 'SHARE', 'Share', 'viral', 'VIRAL', 'Viral',
+            'selfie', 'SELFIE', 'Selfie', 'hashtag', 'HASHTAG', 'Hashtag', 'influencer', 'INSTAGRAM',
+            'online', 'ONLINE', 'Online', 'web', 'WEB', 'Web', 'internet', 'INTERNET', 'Internet',
+            'scroll', 'SCROLL', 'Scroll', 'feed', 'FEED', 'Feed', 'timeline', 'TIMELINE', 'Timeline');
+
+    // Unauthorized / access denied hints
+    if (h.includes('authorized') || h.includes('unauthorized') || h.includes('access denied') ||
+        h.includes('access granted') || h.includes('permission') || h.includes('forbidden') ||
+        h.includes(' restricted') || h.includes("who's'nt") || h.includes('whos not') || h.includes("isn't authorized"))
+        popCulture.push('authorized', 'AUTHORIZED', 'Authorized', 'unauthorized', 'UNAUTHORIZED', 'Unauthorized',
+            'access', 'ACCESS', 'Access', 'granted', 'GRANTED', 'Granted', 'denied', 'DENIED', 'Denied',
+            'permission', 'PERMISSION', 'Permission', 'allow', 'ALLOW', 'Allow', 'deny', 'DENY', 'Deny',
+            'forbidden', 'FORBIDDEN', 'Forbidden', 'restricted', 'RESTRICTED', 'Restricted',
+            'admin', 'ADMIN', 'Admin', 'root', 'ROOT', 'Root', 'sudo', 'SUDO', 'Sudo');
+    // Try hostname as-is for authorized/unauthorized — commonly the password IS the hostname here
+    if (h.includes('authorized') || h.includes("who's'nt") || h.includes('whos not'))
+        return [...new Set([hostname, hostname.toLowerCase(), ...hostVariants, ...popCulture,
+            'authorized', 'unauthorized', 'access', 'granted', 'denied', 'admin', 'password', 'default'])];
+
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     // But NOT "The default password is set" / "The password is set to default" — those fall through
     const keyMatch = hint.match(/(?:key|secret|pin|it'?s set to)\s+(?:is\s+)?(\w+)/i)
@@ -682,13 +715,30 @@ function solvePassword(hint, hintData, hostname = '') {
         // Build hostname-specific defaults: lowercase, no special chars, etc.
         const hClean = hostname.toLowerCase().replace(/[^a-z0-9]/g, '')
         const hParts = hostname.split(/[^a-zA-Z0-9]+/).filter(Boolean)
+        // Build part combinations: for "hacker-industries" try "hacker", "industries", "hackerindustries", etc.
+        const partCombos = []
+        for (let i = 0; i < hParts.length; i++) {
+            partCombos.push(hParts[i], hParts[i].toLowerCase(), hParts[i].toUpperCase())
+            // Cumulative combo: "hacker", "hackerindustries"
+            const cumul = hParts.slice(0, i + 1).join('')
+            partCombos.push(cumul, cumul.toLowerCase(), cumul.toUpperCase())
+            // Joined with hyphen/underscore
+            partCombos.push(hParts.slice(0, i + 1).join('-'), hParts.slice(0, i + 1).join('_'))
+        }
+        // Also try leet-speak decode of hostname
+        const leetMap = {'4':'a','3':'e','1':'i','0':'o','7':'t','5':'s'}
+        const leetDecoded = hostname.toLowerCase().replace(/[a-z0-9]/g, c => leetMap[c] || c)
         return [...new Set([
             'default',  // try "default" literally FIRST
             '',         // empty string second
-            hostname,   // exact hostname
+            hostname,   // exact hostname (with special chars)
             hostname.toLowerCase(),
+            hostname.toUpperCase(),
             hClean,     // cleaned hostname (no special chars)
+            leetDecoded, // leet-decoded hostname
+            leetDecoded.replace(/[^a-z0-9]/g, ''),
             ...hParts,  // individual parts of hostname
+            ...partCombos, // part combinations
             ...hostVariants,  // hostname as password is very common for "default" servers
             ...popCulture,
             'password', 'admin', '123456', 'letmein', 'qwerty', 'guest',
@@ -715,7 +765,11 @@ function solvePassword(hint, hintData, hostname = '') {
             'microhard', 'omnitek', 'kuaigong', 'megacorp', 'apex', 'rogue',
             'hospital', 'arcade', '4rc4de', 'summit', '5ummit',
             // Factory literal
-            'factory', 'factory1', 'factoryreset', 'settings', 'default1',
+            'factory', 'factory1', 'factoryreset', 'settings', 'settings1',
+            // Common short defaults
+            '12345', '1234567', '12345678', '123456789', '1234567890',
+            'qwerty1', 'qwerty123', 'abc', 'abcd', 'abcde',
+            'pass1', 'pass123', 'user1', 'user123', 'login1', 'login123',
         ])]
     }
 
