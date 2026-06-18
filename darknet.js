@@ -1131,16 +1131,22 @@ export async function main(ns) {
                     ns.print(`[dnet] ${neighbor} EXEC: scriptRam=${scriptRam} freeRam=${freeRam} maxThreads=${maxThreads} hasSession=${hasSession}`)
                     const pid = ns.exec(SCRIPT_NAME, neighbor, threads)
                     ns.print(`[dnet] ${neighbor} EXEC RESULT: pid=${pid}`)
-                    if (pid === 0 && hasSession) {
-                        // If exec failed but we have session, try with 1 thread minimum
-                        const pid2 = ns.exec(SCRIPT_NAME, neighbor, 1)
-                        ns.print(`[dnet] ${neighbor} EXEC RETRY: pid=${pid2}`)
+                    if (pid === 0) {
+                        ns.print(`[dnet] ${neighbor} EXEC FAILED: ns.exec returned 0`)
+                        if (hasSession) {
+                            // If exec failed but we have session, try with 1 thread minimum
+                            const pid2 = ns.exec(SCRIPT_NAME, neighbor, 1)
+                            ns.print(`[dnet] ${neighbor} EXEC RETRY: pid=${pid2}`)
+                        }
                     }
-                    // Verify the script is running
-                    await ns.asleep(100)
+                    // Verify the script is running after a short delay
+                    await ns.asleep(200)
                     const procsAfter = ns.ps(neighbor)
                     const running = procsAfter.filter(p => p.filename === SCRIPT_NAME)
-                    ns.print(`[dnet] ${neighbor} VERIFY: ${running.length} darknet.js instances running`)
+                    ns.print(`[dnet] ${neighbor} VERIFY: ${running.length} darknet.js instances running, pids=${running.map(p=>p.pid).join(',')}`)
+                    if (running.length === 0 && pid !== 0) {
+                        ns.print(`[dnet] ${neighbor} WARN: exec returned pid=${pid} but script not running — may have crashed`)
+                    }
                 }
             } catch (e) {
                 ns.print(`[dnet] ${neighbor} EXEC ERROR: ${e}`)
