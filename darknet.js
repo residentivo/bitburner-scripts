@@ -1139,7 +1139,6 @@ export async function main(ns) {
                     if (pid === 0) {
                         ns.print(`[dnet] ${neighbor} EXEC FAILED: ns.exec returned 0`)
                         if (hasSession) {
-                            // If exec failed but we have session, try with 1 thread minimum
                             const pid2 = ns.exec(SCRIPT_NAME, neighbor, 1)
                             ns.print(`[dnet] ${neighbor} EXEC RETRY: pid=${pid2}`)
                         }
@@ -1153,6 +1152,12 @@ export async function main(ns) {
                         ns.print(`[dnet] ${neighbor} WARN: exec returned pid=${pid} but script not running — may have crashed`)
                     }
                 }
+                // Also run extractor on neighbor (in case darknet.js doesn't auto-start it)
+                const neighborExtractorRunning = neighborProcs.some(p => p.filename === EXTRACTOR)
+                if (!neighborExtractorRunning) {
+                    const extPid = ns.exec(EXTRACTOR, neighbor, 1)
+                    ns.print(`[dnet] ${neighbor} EXTRACTOR exec: pid=${extPid}`)
+                }
             } catch (e) {
                 ns.print(`[dnet] ${neighbor} EXEC ERROR: ${e}`)
             }
@@ -1162,7 +1167,10 @@ export async function main(ns) {
         const localProcs = ns.ps(host)
         const extractorRunning = localProcs.some(p => p.filename === EXTRACTOR)
         if (!extractorRunning) {
-            try { ns.exec(EXTRACTOR, host, 1) } catch (e) { /* ignore */ }
+            const extPid = ns.exec(EXTRACTOR, host, 1)
+            ns.print(`[dnet] ${host} EXTRACTOR exec: pid=${extPid}`)
+        } else {
+            ns.print(`[dnet] ${host} EXTRACTOR already running`)
         }
 
         await ns.asleep(200)  // Fast loop for rapid propagation
