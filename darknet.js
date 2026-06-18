@@ -966,12 +966,6 @@ function solvePassword(hint, hintData, hostname = '') {
 export async function main(ns) {
     const host = ns.getHostname()
 
-    // Only run on darkweb — ns.dnet API is only available there
-    if (host !== 'darkweb') {
-        ns.print(`ERROR: ${SCRIPT_NAME} must run on darkweb, not ${host}. Exiting.`);
-        return;
-    }
-
     // Suppress ALL noisy logs — only our file log remains
     ns.disableLog('ALL')
 
@@ -979,6 +973,17 @@ export async function main(ns) {
     const myPid = ns.pid
     const others = ns.ps(host).filter(p => p.filename === SCRIPT_NAME && p.pid !== myPid)
     if (others.length > 0) return
+
+    ns.print(`[dnet] STARTING darknet.js on ${host} (pid=${myPid})`)
+
+    // Test if ns.dnet is available on this server
+    try {
+        const testBlocked = await ns.dnet.getBlockedRam(host)
+        ns.print(`[dnet] ns.dnet API available on ${host}, blockedRam=${testBlocked}`)
+    } catch (e) {
+        ns.print(`[dnet] ERROR: ns.dnet API NOT available on ${host}: ${e}`)
+        return  // Can't run without dnet API
+    }
 
     while (true) {
         // Step 0: Free RAM (only if blocked > 0)
