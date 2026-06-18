@@ -12,18 +12,22 @@ const EXTRACTOR_NAME = 'darknet-extractor.js'
 export async function main(ns) {
     const host = ns.getHostname()
 
-    // Only run on darkweb — ns.dnet API is only available there
-    if (host !== 'darkweb') {
-        ns.print(`ERROR: ${EXTRACTOR_NAME} must run on darkweb, not ${host}. Exiting.`);
-        return;
-    }
-
     ns.disableLog('ALL')
 
     // Dedup
     const myPid = ns.pid
     const others = ns.ps(host).filter(p => p.filename === EXTRACTOR_NAME && p.pid !== myPid)
     if (others.length > 0) return
+
+    // Test if ns.dnet is available
+    try {
+        await ns.dnet.getBlockedRam(host)
+    } catch (e) {
+        ns.print(`[extractor] ERROR: ns.dnet API NOT available on ${host}: ${e}`)
+        return
+    }
+
+    ns.print(`[extractor] STARTING on ${host} (pid=${myPid})`)
 
     while (true) {
         // 1. Free blocked RAM (only if blocked > 0)
