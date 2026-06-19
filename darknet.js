@@ -921,15 +921,39 @@ function solvePassword(hint, hintData, hostname = '') {
     // "(I'm busy browsing social media at the cafe)" — PACKET SNIFFER
     // Game source (getPacketSnifferConfig): password = getPassword(3 + random*6, difficulty > 8)
     // The password is hidden in heartbleed logs — MUST try heartbleed FIRST
-    // Only try numeric brute force as fallback, and limit to 6 digits max
+    // Also try social-media themed passwords before numeric brute force
     if (h.includes('social media') || h.includes('browsing') || h.includes('cafe') || h.includes('coffee') ||
         h.includes('tea') || (hostname && /[\u4e00-\u9fff]/.test(hostname))) {
-        // Numeric passwords 3-6 chars — limit to 100k candidates max
-        const candidates = [...hostVariants]
-        for (let i = 0; i <= 99999; i++) candidates.push(String(i))
-        // Common alphanumeric — very short list
-        candidates.push('password', 'admin', 'default', '123456', 'qwerty')
-        return [...new Set(candidates)]  // Max ~100k candidates
+        // Contextual passwords FIRST (before numeric brute force)
+        const candidates = [
+            ...hostVariants,
+            // Social media platforms
+            'twitter', 'Twitter', 'TWITTER', 'tweet', 'Tweet',
+            'instagram', 'Instagram', 'INSTAGRAM', 'insta', 'Insta',
+            'facebook', 'Facebook', 'FACEBOOK', 'fb', 'FB',
+            'tiktok', 'TikTok', 'TIKTOK',
+            'snapchat', 'Snapchat', 'SNAPCHAT', 'snap',
+            'reddit', 'Reddit', 'REDDIT',
+            'linkedin', 'LinkedIn', 'LINKEDIN',
+            'youtube', 'YouTube', 'YOUTUBE', 'yt',
+            'whatsapp', 'WhatsApp', 'WHATSAPP',
+            'telegram', 'Telegram', 'TELEGRAM',
+            'discord', 'Discord', 'DISCORD',
+            'mastodon', 'Mastodon', 'MASTODON',
+            'bluesky', 'Bluesky', 'BLUESKY',
+            // Cafe / social context
+            'cafe', 'Cafe', 'CAFE', 'coffee', 'Coffee', 'COFFEE',
+            'latte', 'Latte', 'espresso', 'cappuccino',
+            'scrolling', 'doomscrolling', 'browsing',
+            'social', 'Social', 'SOCIAL', 'media', 'Media', 'MEDIA',
+            'wifi', 'WiFi', 'WIFI', 'internet',
+            'online', 'Online', 'ONLINE',
+            // Common short passwords
+            'password', 'admin', 'default', '123456', 'qwerty',
+        ]
+        // Numeric brute force LAST — only 0-9999 (not 100k)
+        for (let i = 0; i <= 9999; i++) candidates.push(String(i))
+        return [...new Set(candidates)]
     }
 
     // Mountain riddle — "Ascend the highest mountain!"
@@ -1042,7 +1066,55 @@ export async function main(ns) {
                 ns.print(`[dnet] ${neighbor} auth: ${candidates.length} candidates, hint="${hint}"`)
 
                 let authed = false
-                if (candidates.length > 0) {
+
+                // ALWAYS try heartbleed FIRST — it may contain the actual password
+                let bleedPasswords = []
+                try {
+                    const logs = await ns.dnet.heartbleed(neighbor)
+                    if (logs && logs.length > 0) {
+                        log(ns, `${neighbor} BLEED: ${JSON.stringify(logs).substring(0, 300)}`)
+                        for (const entry of logs) {
+                            const s = String(entry)
+                            const pwPatterns = [
+                                /password\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                /passwd\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                /pass\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                /pw\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                /secret\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                /key\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                /login\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                /admin\s*[:=]\s*['"]?(\w+)['"]?/i,
+                                /now set to\s+['"]?(\w+)['"]?\s*[\.\!]?\s*$/i,
+                                /account password\s+(?:is|has been changed to)\s+['"]?(\w+)['"]?/i,
+                            ]
+                            for (const pat of pwPatterns) {
+                                const m = s.match(pat)
+                                if (m && m[1]) bleedPasswords.push(m[1])
+                            }
+                            if (s.length <= 30 && !s.includes(' ') && /^\w+$/.test(s)) {
+                                bleedPasswords.push(s)
+                            }
+                            const lastWord = s.match(/to\s+(\w+)\s*[\.\!]?\s*$/i)
+                            if (lastWord && lastWord[1] && lastWord[1].length <= 15) {
+                                bleedPasswords.push(lastWord[1])
+                            }
+                        }
+                    }
+                } catch (e) { /* not available */ }
+
+                // Try heartbleed passwords FIRST
+                if (bleedPasswords.length > 0) {
+                    ns.print(`[dnet] ${neighbor} heartbleed: ${bleedPasswords.length} candidates`)
+                    for (const pw of [...new Set(bleedPasswords)]) {
+                        try {
+                            const r = await ns.dnet.authenticate(neighbor, pw)
+                            if (r.success) { authed = true; hasSession = true; ns.print(`[dnet] ${neighbor} AUTH SUCCESS (bleed) with "${pw}"`); break }
+                        } catch (e) { /* try next */ }
+                    }
+                }
+
+                // Then try candidate list
+                if (!authed && candidates.length > 0) {
                     for (const pw of candidates) {
                         try {
                             const r = await ns.dnet.authenticate(neighbor, pw)
@@ -1057,54 +1129,9 @@ export async function main(ns) {
                 }
 
                 if (!authed) {
-                    // Heartbleed for debug info AND password extraction
-                    let bleedPasswords = []
-                    try {
-                        const logs = await ns.dnet.heartbleed(neighbor)
-                        if (logs && logs.length > 0) {
-                            log(ns, `${neighbor} BLEED: ${JSON.stringify(logs).substring(0, 300)}`)
-                            for (const entry of logs) {
-                                const s = String(entry)
-                                const pwPatterns = [
-                                    /password\s*[:=]\s*['"]?(\w+)['"]?/i,
-                                    /passwd\s*[:=]\s*['"]?(\w+)['"]?/i,
-                                    /pass\s*[:=]\s*['"]?(\w+)['"]?/i,
-                                    /pw\s*[:=]\s*['"]?(\w+)['"]?/i,
-                                    /secret\s*[:=]\s*['"]?(\w+)['"]?/i,
-                                    /key\s*[:=]\s*['"]?(\w+)['"]?/i,
-                                    /login\s*[:=]\s*['"]?(\w+)['"]?/i,
-                                    /admin\s*[:=]\s*['"]?(\w+)['"]?/i,
-                                    /now set to\s+['"]?(\w+)['"]?\s*[\.\!]?\s*$/i,
-                                    /account password\s+(?:is|has been changed to)\s+['"]?(\w+)['"]?/i,
-                                ]
-                                for (const pat of pwPatterns) {
-                                    const m = s.match(pat)
-                                    if (m && m[1]) bleedPasswords.push(m[1])
-                                }
-                                if (s.length <= 30 && !s.includes(' ') && /^\w+$/.test(s)) {
-                                    bleedPasswords.push(s)
-                                }
-                                const lastWord = s.match(/to\s+(\w+)\s*[\.\!]?\s*$/i)
-                                if (lastWord && lastWord[1] && lastWord[1].length <= 15) {
-                                    bleedPasswords.push(lastWord[1])
-                                }
-                            }
-                        }
-                    } catch (e) { /* not available */ }
-                    if (bleedPasswords.length > 0) {
-                        ns.print(`[dnet] ${neighbor} heartbleed: ${bleedPasswords.length} candidates`)
-                        for (const pw of [...new Set(bleedPasswords)]) {
-                            try {
-                                const r = await ns.dnet.authenticate(neighbor, pw)
-                                if (r.success) { authed = true; hasSession = true; ns.print(`[dnet] ${neighbor} AUTH SUCCESS (bleed) with "${pw}"`); break }
-                            } catch (e) { /* try next */ }
-                        }
-                    }
-                    if (!authed) {
-                        const bleedInfo = bleedPasswords.length > 0 ? ` | bleed: ${bleedPasswords.length} candidates` : ' | no bleed'
-                        ns.print(`[dnet] ${neighbor} AUTH FAILED: tried ${candidates.length}${bleedInfo}`)
-                        await logFail(ns, neighbor, 'auth-failed', `${hint} | tried ${candidates.length}${bleedInfo}`)
-                    }
+                    const bleedInfo = bleedPasswords.length > 0 ? ` | bleed: ${bleedPasswords.length} candidates` : ' | no bleed'
+                    ns.print(`[dnet] ${neighbor} AUTH FAILED: tried ${candidates.length}${bleedInfo}`)
+                    await logFail(ns, neighbor, 'auth-failed', `${hint} | tried ${candidates.length}${bleedInfo}`)
                 }
             } else {
                 ns.print(`[dnet] ${neighbor} already has session`)
