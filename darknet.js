@@ -577,9 +577,15 @@ function solvePassword(hint, hintData, hostname = '') {
             'forbidden', 'FORBIDDEN', 'Forbidden', 'restricted', 'RESTRICTED', 'Restricted',
             'admin', 'ADMIN', 'Admin', 'root', 'ROOT', 'Root', 'sudo', 'SUDO', 'Sudo');
     // Try hostname as-is for authorized/unauthorized — commonly the password IS the hostname here
-    if (h.includes('authorized') || h.includes("who's'nt") || h.includes('whos not'))
-        return [...new Set([hostname, hostname.toLowerCase(), ...hostVariants, ...popCulture,
-            'authorized', 'unauthorized', 'access', 'granted', 'denied', 'admin', 'password', 'default'])];
+    // Also covers "you are one who's'nt authorized" (yesn't minigame) — password is numeric, brute force needed
+    if (h.includes('authorized') || h.includes("who's'nt") || h.includes('whos not')) {
+        const candidates = [...new Set([hostname, hostname.toLowerCase(), ...hostVariants, ...popCulture,
+            'authorized', 'unauthorized', 'access', 'granted', 'denied', 'admin', 'password', 'default',
+            'one', '1', 'two', '2', 'i', 'me', 'who', 'you', 'nobody', 'anonymous', 'guest'])]
+        // Yesn't minigame: getPassword(3 + difficulty/2, difficulty > 8) — numeric, 3+ digits
+        for (let i = 0; i <= 99999; i++) candidates.push(String(i))
+        return [...new Set(candidates)]
+    }
 
     // Direct extraction: "key is X", "password is X", "pin is X", "it's set to X"
     // But NOT "The default password is set" / "The password is set to default" — those fall through
@@ -908,13 +914,12 @@ function solvePassword(hint, hintData, hostname = '') {
             ...hostVariants, ...popCulture, ...extendedPasswords,
         ])]
 
-    // "you are one who's'nt authorized" — YESN'T minigame
+    // "you are one who's'nt authorized" — YESN'T minigame (fallback if not caught above)
     // Game source (getYesn_tConfig): getPassword(3 + difficulty/2, difficulty > 8)
-    // Password is numeric or alphanumeric, 3+ chars — limit candidates
-    if (h.includes('authorized') || h.includes("who's") || h.includes("who is not") || h.includes("whont")) {
+    if (h.includes("who's") || h.includes("who is not") || h.includes("whont")) {
         const candidates = [...hostVariants]
-        for (let i = 0; i <= 9999; i++) candidates.push(String(i))  // 0-9999 only
-        candidates.push('password', 'admin', 'default', 'yes', 'no')
+        for (let i = 0; i <= 99999; i++) candidates.push(String(i))
+        candidates.push('password', 'admin', 'default', 'yes', 'no', 'one', '1', 'i', 'me')
         return [...new Set(candidates)]
     }
 
