@@ -708,63 +708,58 @@ function solvePassword(hint, hintData, hostname = '') {
 
     // Buffer length: "Warning: password buffer is N bytes"
     // Game source: getPassword(length, true) — alphanumeric (letters + digits), exact length
+    // IMPORTANT: Buffer passwords are ALMOST ALWAYS numeric in the game.
+    // Only try alphabetic words as fallback, and NEVER try pure words for len <= 6.
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
-        const candidates = [...hostVariants.filter(v => v.length === len)]
-        // Brute force alphanumeric of exact length
-        // For len <= 4, brute force all; for len 5-6, use common patterns + hostname
+        const numericFirst = []  // numeric candidates first (most common)
+        const alphaFallback = [] // alphabetic words as fallback
+        const hostBased = hostVariants.filter(v => v.length === len)
+
         if (len <= 3) {
-            // All 3-char alphanumeric: 36^3 = 46656 — manageable
+            // All 3-digit numbers first (000-999)
+            for (let i = 0; i <= 999; i++) numericFirst.push(String(i).padStart(len, '0'))
+            // Then 3-char alphanumeric brute force
             const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-            for (let i = 0; i < chars.length; i++) {
-                for (let j = 0; j < chars.length; j++) {
-                    for (let k = 0; k < chars.length; k++) {
-                        candidates.push(chars[i] + chars[j] + chars[k])
-                    }
-                }
-            }
+            for (let i = 0; i < chars.length; i++)
+                for (let j = 0; j < chars.length; j++)
+                    for (let k = 0; k < chars.length; k++)
+                        alphaFallback.push(chars[i] + chars[j] + chars[k])
         } else if (len === 4) {
-            // 36^4 = 1.6M — too many. Use common 4-char patterns
-            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-            // All 4-digit numbers
-            for (let i = 0; i <= 9999; i++) candidates.push(String(i).padStart(4, '0'))
-            // Common 4-letter words
-            const words4 = ['pass','test','root','user','abcd','1234','hack','open','null','void','true','fail','exit','loop','code','data','file','link','load','save','help','info','warn','login','auth','tick','halt','ping','sync','lock','wait','fork','exec','kill','push','pull','read','write','pipe','bind','conn','list','drop','swap','move','copy','fill','sort','find','scan','next','prev','last','head','tail','step','stop','skip','mark','flag','size','type','mode','port','host','addr','name','path','base','dest','core','temp','page','byte','word','line','block','chunk','frame','node','edge','tree','leaf','seed','hash','sign','cert','keys','salt','token','rand','time','date','week','year','zone','diff','span','rate','freq','iter','turn','tick','mile','kilo','mega','giga','tera','peta','zero','none','some','any','all','both','each','more','less','much','many','only','just','very','also','then','else','when','once','ever','still','back','deep','high','long','wide','near','far','here','away','left','right','up','down','over','past','into','from','with','that','this','what','which','how','why']
-            candidates.push(...words4)
+            // All 4-digit numbers first
+            for (let i = 0; i <= 9999; i++) numericFirst.push(String(i).padStart(4, '0'))
+            // Common 4-letter words as fallback
+            alphaFallback.push('pass','test','root','user','abcd','hack','open','null','void','true','fail','exit','loop','code','data','file','link','load','save','help','info','warn','login','auth','tick','halt','ping','sync','lock','wait','fork','exec','kill','push','pull','read','write','pipe','bind','conn','list','drop','swap','move','copy','fill','sort','find','scan','next','prev','last','head','tail','step','stop','skip','mark','flag','size','type','mode','port','host','addr','name','path','base','dest','core','temp','page','byte','word','line','block','chunk','frame','node','edge','tree','leaf','seed','hash','sign','cert','keys','salt','token','rand','time','date','week','year','zone','diff','span','rate','freq','iter','turn','tick','mile','kilo','mega','giga','tera','peta','zero','none','some','any','all','both','each','more','less','much','many','only','just','very','also','then','else','when','once','ever','still','back','deep','high','long','wide','near','far','here','away','left','right','up','down','over','past','into','from','with','that','this','what','which','how','why')
             // 2 chars + 2 digits patterns
-            for (let i = 0; i < chars.length; i++) {
-                for (let j = 0; j < chars.length; j++) {
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+            for (let i = 0; i < chars.length; i++)
+                for (let j = 0; j < chars.length; j++)
                     for (let d = 0; d <= 99; d++) {
-                        candidates.push(chars[i] + chars[j] + String(d).padStart(2, '0'))
-                        candidates.push(String(d).padStart(2, '0') + chars[i] + chars[j])
+                        alphaFallback.push(chars[i] + chars[j] + String(d).padStart(2, '0'))
+                        alphaFallback.push(String(d).padStart(2, '0') + chars[i] + chars[j])
                     }
-                }
-            }
         } else if (len === 5) {
-            // 5 chars: common words + hostname-based
-            const words5 = ['admin','qwert','abcde','12345','hello','world','sword','blade','shift','enter','space','break','pause','clear','reset','power','start','abort','flush','clean','crash','panic','fault','throw','catch','guard','check','valid','verify','trust','allow','grant','revoke','deny','block','limit','count','first','index','slice','range','delta','alpha','bravo','gamma','theta','sigma','omega','prime','sqrt','floor','ceil','round','login','shell','spawn','daemon','nginx','apache','linux','unix','posix','bash','ssh','scp','curl','wget','ping','dns','dhcp','nfs','smb','ldap','oauth','jwt','xss','csrf','rce','sqli']
-            candidates.push(...words5)
-            // 5-digit numbers
-            for (let i = 0; i <= 99999; i += 100) candidates.push(String(i).padStart(5, '0'))
-            for (let i = 0; i <= 999; i++) candidates.push(String(i).padStart(5, '0'))
+            // 5-digit numbers FIRST (most common for buffer)
+            for (let i = 0; i <= 99999; i++) numericFirst.push(String(i).padStart(5, '0'))
+            // Common 5-char words as fallback ONLY
+            alphaFallback.push('admin','qwert','abcde','hello','world','sword','blade','shift','enter','break','pause','clear','reset','power','start','abort','flush','clean','crash','panic','fault','throw','catch','guard','check','valid','verify','trust','allow','grant','revoke','deny','block','limit','count','first','index','slice','range','delta','alpha','bravo','gamma','theta','sigma','omega','prime','sqrt','floor','ceil','round','login','shell','spawn','daemon','nginx','apache','linux','unix','posix','bash','ssh','scp','curl','wget','ping','dns','dhcp','nfs','smb','ldap','oauth','jwt','xss','csrf','rce','sqli')
         } else if (len === 6) {
-            // 6 chars: hostname-based + common words
-            const words6 = ['123456','qwerty','secret','abcdef','letme1','access','oracle','ubuntu','debian','fedora','centos','redhat','gentoo','arch','window','macos','kernel','system','driver','module','packet','socket','thread','server','client','broker','master','worker','leader','proxy','cache','queue','stack','stream','buffer','object','render','matrix','vector','domain','record','schema','python','golang','kotlin','swift','ruby','perl','rust','haskell','clojure','elixir','erlang','scala','lua','risc','arm','x86','amd64','mips','sparc','ppc','sysv','bsd','glibc','musl','zlib','bzip2','xz','lz4','zstd','brotli','snappy','acodec','mpeg','h264','h265','vp8','vp9','av1','opus','flac','vorbis','aac','mp3','wav','ogg','webm','mkv','mp4','flv','avi','gif','png','jpeg','tiff','webp','svg','pdf','json','yaml','toml','xml','html','css','js','ts','py','rb','go','rs','java','c','cpp','h','sh','bash','fish','zsh','ps1','bat','cmd','sql','r','m','pl','lua','vim','el','clj','ex','erl','hs','ml','scala','kt','dart','zig','nim','v','wasm','net','com','org','wifi','wpa2','sshd','docker','k8s','etcd','vault','consul','kafka','redis','mongo','mysql','psql','sqlite','couch','neo4j','influx','jenkin','gitlab','github','codepi','travic','circle','argo','flux','helm','kusto','terraform']
-            candidates.push(...words6)
-            // 6-digit numbers (common patterns)
-            for (let i = 0; i <= 999; i++) candidates.push(String(i).padStart(6, '0'))
-            candidates.push('000000','111111','123456','654321','999999')
+            // 6-digit numbers FIRST
+            for (let i = 0; i <= 999999; i++) numericFirst.push(String(i).padStart(6, '0'))
+            // Common 6-char words as fallback
+            alphaFallback.push('123456','qwerty','secret','abcdef','access','oracle','ubuntu','debian','fedora','centos','redhat','gentoo','arch','window','kernel','system','driver','module','packet','socket','thread','server','client','broker','master','worker','leader','proxy','cache','queue','stack','stream','buffer','object','render','matrix','vector','domain','record','schema','python','golang','kotlin','swift','ruby','perl','rust','haskell','clojure','elixir','erlang','scala','lua','risc','arm','x86','amd64','mips','sparc','ppc','sysv','bsd','glibc','musl','zlib','bzip2','xz','lz4','zstd','brotli','snappy','acodec','mpeg','h264','h265','vp8','vp9','av1','opus','flac','vorbis','aac','mp3','wav','ogg','webm','mkv','mp4','flv','avi','gif','png','jpeg','tiff','webp','svg','pdf','json','yaml','toml','xml','html','css','js','ts','py','rb','go','rs','java','c','cpp','h','sh','bash','fish','zsh','ps1','bat','cmd','sql','r','m','pl','lua','vim','el','clj','ex','erl','hs','ml','scala','kt','dart','zig','nim','v','wasm','net','com','org','wifi','wpa2','sshd','docker','k8s','etcd','vault','consul','kafka','redis','mongo','mysql','psql','sqlite','couch','neo4j','influx','jenkin','gitlab','github','codepi','travic','circle','argo','flux','helm','kusto','terraform')
         } else {
-            // 7+ chars: hostname-based only + common words of that length
+            // 7+ chars: hostname-based + common words of that length
             for (const pw of commonPasswords) {
-                if (pw.length === len) candidates.push(pw)
+                if (pw.length === len) numericFirst.push(pw)
             }
             for (const pw of extendedPasswords) {
-                if (pw.length === len) candidates.push(pw)
+                if (pw.length === len) numericFirst.push(pw)
             }
         }
-        return [...new Set(candidates)]
+        // Order: host-based first (most likely), then numeric (most common), then alpha fallback
+        return [...new Set([...hostBased, ...numericFirst, ...alphaFallback])]
     }
 
     // "Remember to use X"
