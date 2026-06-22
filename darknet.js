@@ -710,6 +710,7 @@ function solvePassword(hint, hintData, hostname = '') {
     // Game source: getPassword(length, true) — alphanumeric (letters + digits), exact length
     // IMPORTANT: Buffer passwords are ALMOST ALWAYS numeric in the game.
     // Only try alphabetic words as fallback, and NEVER try pure words for len <= 6.
+    // HARD CAP: max ~15k candidates to avoid tick timeout on authenticate loop
     const bufMatch = hint.match(/buffer is (\d+) bytes?/i)
     if (bufMatch) {
         const len = parseInt(bufMatch[1])
@@ -718,37 +719,44 @@ function solvePassword(hint, hintData, hostname = '') {
         const hostBased = hostVariants.filter(v => v.length === len)
 
         if (len <= 3) {
-            // All 3-digit numbers first (000-999)
+            // All numbers 000-999 (1k)
             for (let i = 0; i <= 999; i++) numericFirst.push(String(i).padStart(len, '0'))
-            // Then 3-char alphanumeric brute force
-            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-            for (let i = 0; i < chars.length; i++)
-                for (let j = 0; j < chars.length; j++)
-                    for (let k = 0; k < chars.length; k++)
-                        alphaFallback.push(chars[i] + chars[j] + chars[k])
         } else if (len === 4) {
-            // All 4-digit numbers first
+            // All 4-digit numbers first (10k) — covers 99%+ of buffer=4 passwords
             for (let i = 0; i <= 9999; i++) numericFirst.push(String(i).padStart(4, '0'))
-            // Common 4-letter words as fallback
-            alphaFallback.push('pass','test','root','user','abcd','hack','open','null','void','true','fail','exit','loop','code','data','file','link','load','save','help','info','warn','login','auth','tick','halt','ping','sync','lock','wait','fork','exec','kill','push','pull','read','write','pipe','bind','conn','list','drop','swap','move','copy','fill','sort','find','scan','next','prev','last','head','tail','step','stop','skip','mark','flag','size','type','mode','port','host','addr','name','path','base','dest','core','temp','page','byte','word','line','block','chunk','frame','node','edge','tree','leaf','seed','hash','sign','cert','keys','salt','token','rand','time','date','week','year','zone','diff','span','rate','freq','iter','turn','tick','mile','kilo','mega','giga','tera','peta','zero','none','some','any','all','both','each','more','less','much','many','only','just','very','also','then','else','when','once','ever','still','back','deep','high','long','wide','near','far','here','away','left','right','up','down','over','past','into','from','with','that','this','what','which','how','why')
-            // 2 chars + 2 digits patterns
-            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-            for (let i = 0; i < chars.length; i++)
-                for (let j = 0; j < chars.length; j++)
-                    for (let d = 0; d <= 99; d++) {
-                        alphaFallback.push(chars[i] + chars[j] + String(d).padStart(2, '0'))
-                        alphaFallback.push(String(d).padStart(2, '0') + chars[i] + chars[j])
-                    }
+            // Minimal alpha fallback — only short common words, NO 2char+2digit brute force
+            // That pattern alone was 129k candidates and causes tick timeout
+            alphaFallback.push('pass','test','root','user','hack','open','code','data','file',
+                'auth','lock','ping','read','write','exec','kill','push','pull','swap','move',
+                'copy','fill','sort','find','scan','flag','port','host','addr','name','path',
+                'core','temp','page','byte','word','line','node','edge','tree','hash','sign',
+                'cert','keys','salt','seed','token','login','admin','bash','ssh','ftp','dns',
+                'null','void','true','fail','exit','loop','help','info','warn','wait','bind',
+                'conn','list','drop','next','last','head','tail','step','stop','skip','mark')
         } else if (len === 5) {
-            // 5-digit numbers FIRST (most common for buffer)
-            for (let i = 0; i <= 99999; i++) numericFirst.push(String(i).padStart(5, '0'))
-            // Common 5-char words as fallback ONLY
-            alphaFallback.push('admin','qwert','abcde','hello','world','sword','blade','shift','enter','break','pause','clear','reset','power','start','abort','flush','clean','crash','panic','fault','throw','catch','guard','check','valid','verify','trust','allow','grant','revoke','deny','block','limit','count','first','index','slice','range','delta','alpha','bravo','gamma','theta','sigma','omega','prime','sqrt','floor','ceil','round','login','shell','spawn','daemon','nginx','apache','linux','unix','posix','bash','ssh','scp','curl','wget','ping','dns','dhcp','nfs','smb','ldap','oauth','jwt','xss','csrf','rce','sqli')
+            // 5-digit numbers FIRST (most common for buffer) — 100k is too many, cap at 0-9999 + common
+            for (let i = 0; i <= 9999; i++) numericFirst.push(String(i).padStart(5, '0'))
+            // Plus common 5-digit patterns
+            for (let i = 10000; i <= 10999; i++) numericFirst.push(String(i))
+            for (let i = 12345; i <= 12345; i++) numericFirst.push(String(i))
+            numericFirst.push('11111','22222','33333','44444','55555','66666','77777','88888','99999','00000')
+            alphaFallback.push('admin','hello','world','sword','blade','shift','enter','break','clear',
+                'reset','power','start','abort','flush','clean','crash','panic','fault','guard',
+                'check','valid','verify','trust','allow','login','shell','spawn','daemon','nginx',
+                'apache','linux','posix','bash','ssh','curl','wget','ping','dns','dhcp','nfs',
+                'ldap','oauth','jwt','xss','csrf','rce','sqli','test1','user1','guest','qwert')
         } else if (len === 6) {
-            // 6-digit numbers FIRST
-            for (let i = 0; i <= 999999; i++) numericFirst.push(String(i).padStart(6, '0'))
-            // Common 6-char words as fallback
-            alphaFallback.push('123456','qwerty','secret','abcdef','access','oracle','ubuntu','debian','fedora','centos','redhat','gentoo','arch','window','kernel','system','driver','module','packet','socket','thread','server','client','broker','master','worker','leader','proxy','cache','queue','stack','stream','buffer','object','render','matrix','vector','domain','record','schema','python','golang','kotlin','swift','ruby','perl','rust','haskell','clojure','elixir','erlang','scala','lua','risc','arm','x86','amd64','mips','sparc','ppc','sysv','bsd','glibc','musl','zlib','bzip2','xz','lz4','zstd','brotli','snappy','acodec','mpeg','h264','h265','vp8','vp9','av1','opus','flac','vorbis','aac','mp3','wav','ogg','webm','mkv','mp4','flv','avi','gif','png','jpeg','tiff','webp','svg','pdf','json','yaml','toml','xml','html','css','js','ts','py','rb','go','rs','java','c','cpp','h','sh','bash','fish','zsh','ps1','bat','cmd','sql','r','m','pl','lua','vim','el','clj','ex','erl','hs','ml','scala','kt','dart','zig','nim','v','wasm','net','com','org','wifi','wpa2','sshd','docker','k8s','etcd','vault','consul','kafka','redis','mongo','mysql','psql','sqlite','couch','neo4j','influx','jenkin','gitlab','github','codepi','travic','circle','argo','flux','helm','kusto','terraform')
+            // 6-digit numbers — cap at 0-9999 + padded + common patterns (not 1M!)
+            for (let i = 0; i <= 9999; i++) numericFirst.push(String(i).padStart(6, '0'))
+            // Plus common 6-digit patterns
+            for (let i = 100000; i <= 100999; i++) numericFirst.push(String(i))
+            for (let i = 123456; i <= 123456; i++) numericFirst.push(String(i))
+            numericFirst.push('111111','222222','333333','444444','555555','666666','777777','888888','999999','000000')
+            numericFirst.push('123456','654321','123123','112233','123321')
+            alphaFallback.push('qwerty','secret','access','ubuntu','debian','fedora','centos','redhat',
+                'window','kernel','system','driver','packet','socket','thread','server','client',
+                'broker','master','worker','leader','stream','buffer','object','matrix','vector',
+                'domain','python','golang','kotlin','swift','ruby','login','config')
         } else {
             // 7+ chars: hostname-based + common words of that length
             for (const pw of commonPasswords) {
@@ -759,7 +767,13 @@ function solvePassword(hint, hintData, hostname = '') {
             }
         }
         // Order: host-based first (most likely), then numeric (most common), then alpha fallback
-        return [...new Set([...hostBased, ...numericFirst, ...alphaFallback])]
+        const all = [...new Set([...hostBased, ...numericFirst, ...alphaFallback])]
+        if (all.length > 20000) {
+            // Safety cap: truncate to first 20k to avoid tick timeout
+            ns.print(`[dnet] WARNING: buffer=${len} generated ${all.length} candidates, truncating to 20000`)
+            return all.slice(0, 20000)
+        }
+        return all
     }
 
     // "Remember to use X"
@@ -1102,10 +1116,12 @@ export async function main(ns) {
                     }
                 } catch (e) { /* not available */ }
 
-                // Try heartbleed passwords FIRST
+                // Try heartbleed passwords FIRST — cap at 500
                 if (bleedPasswords.length > 0) {
-                    ns.print(`[dnet] ${neighbor} heartbleed: ${bleedPasswords.length} candidates`)
-                    for (const pw of [...new Set(bleedPasswords)]) {
+                    const bleedUnique = [...new Set(bleedPasswords)]
+                    const bleedCapped = bleedUnique.slice(0, 500)
+                    ns.print(`[dnet] ${neighbor} heartbleed: ${bleedCapped.length} candidates (${bleedUnique.length} unique, ${bleedPasswords.length} total)`)
+                    for (const pw of bleedCapped) {
                         try {
                             const r = await ns.dnet.authenticate(neighbor, pw)
                             if (r.success) { authed = true; hasSession = true; ns.print(`[dnet] ${neighbor} AUTH SUCCESS (bleed) with "${pw}"`); break }
@@ -1113,18 +1129,26 @@ export async function main(ns) {
                     }
                 }
 
-                // Then try candidate list
+                // Then try candidate list — HARD CAP at 50k to avoid tick timeout
                 if (!authed && candidates.length > 0) {
-                    for (const pw of candidates) {
+                    const maxAuthAttempts = Math.min(candidates.length, 50000)
+                    if (candidates.length > 50000) {
+                        ns.print(`[dnet] ${neighbor} auth: CAPPING ${candidates.length} → ${maxAuthAttempts} candidates`)
+                    }
+                    for (let i = 0; i < maxAuthAttempts; i++) {
+                        const pw = candidates[i]
                         try {
                             const r = await ns.dnet.authenticate(neighbor, pw)
                             if (r.success) {
                                 authed = true
                                 hasSession = true
-                                ns.print(`[dnet] ${neighbor} AUTH SUCCESS with "${pw}"`)
+                                ns.print(`[dnet] ${neighbor} AUTH SUCCESS with "${pw}" (attempt ${i+1}/${maxAuthAttempts})`)
                                 break
                             }
                         } catch (e) { /* try next */ }
+                    }
+                    if (!authed && candidates.length > maxAuthAttempts) {
+                        ns.print(`[dnet] ${neighbor} auth: gave up after ${maxAuthAttempts}/${candidates.length} candidates`)
                     }
                 }
 
