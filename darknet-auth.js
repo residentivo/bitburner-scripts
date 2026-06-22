@@ -11,8 +11,25 @@
  */
 
 const SCRIPT_NAME = 'darknet.js'
-const AUTH_SCRIPT = 'darknet-auth.js'
+const AUTH_SCRIPT='***'
 const EXTRACTOR = 'darknet-extractor.js'
+const RAM_SCRIPT = 'darknet-ram.js'
+const ALL_SCRIPTS = [SCRIPT_NAME, AUTH_SCRIPT, EXTRACTOR, RAM_SCRIPT]
+
+/** Ensure all scripts exist on a server, copying from home if needed */
+async function ensureScriptsOn(ns, server) {
+    if (server === 'home') return
+    for (const script of ALL_SCRIPTS) {
+        if (!ns.fileExists(script, server)) {
+            try {
+                const ok = await ns.scp(script, server, 'home')
+                ns.print(`[dnet-auth] ${script} → ${server}: ${ok}`)
+            } catch (e) {
+                ns.print(`[dnet-auth] ${script} → ${server} ERROR: ${e}`)
+            }
+        }
+    }
+}
 
 const commonPasswords = [
     '', 'password', 'admin', '123456', 'default', 'letmein', 'qwerty', 'guest',
@@ -823,6 +840,9 @@ export async function main(ns) {
 
     ns.disableLog('ALL')
     ns.print(`[dnet-auth] STARTING auth for ${target} on ${host}`)
+
+    // Step 0: Ensure scripts exist on target (copy from home if needed)
+    await ensureScriptsOn(ns, target)
 
     // Step 1: Get server details
     let details

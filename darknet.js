@@ -15,6 +15,8 @@
 const SCRIPT_NAME = 'darknet.js'
 const AUTH_SCRIPT = 'darknet-auth.js'
 const EXTRACTOR = 'darknet-extractor.js'
+const RAM_SCRIPT = 'darknet-ram.js'
+const ALL_SCRIPTS = [SCRIPT_NAME, AUTH_SCRIPT, EXTRACTOR, RAM_SCRIPT]
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -38,7 +40,12 @@ export async function main(ns) {
         return
     }
 
+    // Step 0: Ensure all scripts are on this server (copy from home if needed)
+    await ensureScripts(ns, host)
+
     while (true) {
+        // Re-check scripts are still present (in case of wipe)
+        await ensureScripts(ns, host)
         // Step 0: Free RAM (only if blocked > 0)
         try {
             const blocked = await ns.dnet.getBlockedRam(host)
@@ -95,9 +102,10 @@ export async function main(ns) {
             // Step C: ALWAYS scp scripts to neighbor
             try {
                 const scp1 = await ns.scp(SCRIPT_NAME, neighbor, host)
-                const scp2 = await ns.scp('darknet-ram.js', neighbor, host)
+                const scp2 = await ns.scp(RAM_SCRIPT, neighbor, host)
                 const scp3 = await ns.scp(EXTRACTOR, neighbor, host)
-                ns.print(`[dnet] ${neighbor} SCP: darknet.js=${scp1} ram.js=${scp2} extractor=${scp3}`)
+                const scp4 = await ns.scp(AUTH_SCRIPT, neighbor, host)
+                ns.print(`[dnet] ${neighbor} SCP: darknet=${scp1} ram=${scp2} extractor=${scp3} auth=${scp4}`)
             } catch (e) {
                 ns.print(`[dnet] ${neighbor} SCP ERROR: ${e}`)
             }
@@ -166,4 +174,26 @@ export async function main(ns) {
 
 export function autocomplete(data) {
     return ["--tail"]
+}
+
+/** Ensure all scripts exist on this server, copying from home if needed */
+async function ensureScripts(ns, host) {
+    if (host === 'home') return  // Already on home, scripts should exist
+    const procs = ns.ps(host)
+    for (const script of ALL_SCRIPTS) {
+        const exists = ns.fileExists(script, host)
+        if (!exists) {
+            ns.print(`[dnet] ${script} missing on ${host}, copying from home...`)
+            try {
+                const ok = await ns.scp(script, host, 'home')
+                if (ok) {
+                    ns.print(`[dnet] ${script} copied to ${host} from home`)
+                } else {
+                    ns.print(`[dnet] ${script} COPY FROM HOME FAILED`)
+                }
+            } catch (e) {
+                ns.print(`[dnet] ${script} COPY ERROR: ${e}`)
+            }
+        }
+    }
 }
