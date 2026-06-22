@@ -42,6 +42,9 @@ export async function main(ns) {
 
     // Step 0: Ensure all scripts are on this server (copy from home if needed)
     await ensureScripts(ns, host)
+    // Debug: list scripts on this server
+    const localScripts = ALL_SCRIPTS.filter(s => ns.fileExists(s, host))
+    ns.print(`[dnet] Scripts on ${host}: ${localScripts.join(', ')} (${localScripts.length}/${ALL_SCRIPTS})`)
 
     while (true) {
         // Re-check scripts are still present (in case of wipe)
@@ -99,12 +102,12 @@ export async function main(ns) {
                 ns.print(`[dnet] ${neighbor} auth already running`)
             }
 
-            // Step C: ALWAYS scp scripts to neighbor
+            // Step C: ALWAYS scp scripts to neighbor — from home (darknet servers may not scp between each other)
             try {
-                const scp1 = await ns.scp(SCRIPT_NAME, neighbor, host)
-                const scp2 = await ns.scp(RAM_SCRIPT, neighbor, host)
-                const scp3 = await ns.scp(EXTRACTOR, neighbor, host)
-                const scp4 = await ns.scp(AUTH_SCRIPT, neighbor, host)
+                const scp1 = await ns.scp(SCRIPT_NAME, neighbor, 'home')
+                const scp2 = await ns.scp(RAM_SCRIPT, neighbor, 'home')
+                const scp3 = await ns.scp(EXTRACTOR, neighbor, 'home')
+                const scp4 = await ns.scp(AUTH_SCRIPT, neighbor, 'home')
                 ns.print(`[dnet] ${neighbor} SCP: darknet=${scp1} ram=${scp2} extractor=${scp3} auth=${scp4}`)
             } catch (e) {
                 ns.print(`[dnet] ${neighbor} SCP ERROR: ${e}`)
