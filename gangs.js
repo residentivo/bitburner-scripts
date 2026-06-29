@@ -115,7 +115,7 @@ async function initialize(ns) {
                     `Unless you have a lot of free RAM for temporary scripts, you may get runtime errors.`);
             const augmentationNames = await getNsDataThroughFile(ns, `ns.singularity.getAugmentationsFromFaction('${myGangFaction}')`, '/Temp/gang-augs.txt');
             const ownedAugmentations = await getNsDataThroughFile(ns, `ns.singularity.getOwnedAugmentations(true)`, '/Temp/player-augs-purchased.txt');
-            const dictAugRepReqs = await getDict(ns, augmentationNames, 'getAugmentationRepReq', '/Temp/aug-repreqs.txt');
+            const dictAugRepReqs = await getNsDataThroughFile(ns, dictCommand(augmentationNames, 'ns.singularity.getAugmentationRepReq(o)'), '/Temp/aug-repreqs.txt');
             // Due to a bug, gangs appear to provide "The Red Pill" even when it's unavailable (outside of BN2), so ignore this one.
             requiredRep = augmentationNames.filter(aug => !ownedAugmentations.includes(aug) && aug != "The Red Pill").reduce((max, aug) => Math.max(max, dictAugRepReqs[aug]), -1);
             log(ns, `Highest augmentation reputation cost is ${formatNumberShort(requiredRep)}`);
@@ -492,6 +492,7 @@ async function enableOrDisableWarfare(ns, myGangInfo) {
 // Ram-dodging helper to get gang information for each item in a list
 const getGangInfoDict = async (ns, elements, gangFunction) => await getDict(ns, elements, `gang.${gangFunction}`, `/Temp/gang-${gangFunction}.txt`);
 const getDict = async (ns, elements, nsFunction, fileName) => await getNsDataThroughFile(ns, `Object.fromEntries(${JSON.stringify(elements)}.map(e => [e, ns.${nsFunction}(e)]))`, fileName);
+const dictCommand = (list, command) => `Object.fromEntries(${JSON.stringify(list)}.map(o => [o, ${command}]))`;
 
 /** Gang calcs shamefully stolen from https://github.com/danielyxie/bitburner/blob/dev/src/Gang/GangMember.ts **/
 let getStatWeight = (task, memberInfo) =>
