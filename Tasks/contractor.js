@@ -740,5 +740,5 @@ export async function main(ns) {
     }
   }
 
-  ns.tprint(`Done. Total: ${total}, Solved: ${solved}, Failed: ${failed}`);
+  // ns.tprint(`Done. Total: ${total}, Solved: ${solved}, Failed: ${failed}`);
 }

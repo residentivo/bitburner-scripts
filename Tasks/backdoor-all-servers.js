@@ -6,7 +6,6 @@ let spawnDelay = 50; // Delay to allow time for `installBackdoor` to start runni
  * Scan all servers, backdoor anything that can be backdoored, and leave a file to indicate it's been done
  * Requires: SF-4.1 **/
 export let main = async ns => {
-    ns.tprint('BACKDOOR: Starting backdoor scan...');
     // Check if singularity (SF4) is available — backdoor requires it
     if (!ns.singularity || typeof ns.singularity.installBackdoor !== 'function') {
         ns.tprint('SKIP: Singularity API (SF4) not available in this bitnode. Cannot backdoor.');
@@ -54,7 +53,7 @@ export let main = async ns => {
             // Kick off a separate script that will run backdoor before we connect to home.
             var pid = ns.run(getFilePath('/Tasks/backdoor-all-servers.js.backdoor-one.js'), 1, server);
             if (pid === 0)
-                return ns.print(`Couldn't initiate a new backdoor of "${server}"" (insufficient RAM?). Will try again later.`);
+                return ns.print(`Couldn't initiate a new backdoor of "${server}"\" (insufficient RAM?). Will try again later.`);
             await ns.sleep(spawnDelay); // Wait some time for the external backdoor script to initiate its backdoor of the current connected server
             ns.singularity.connect("home");
         }
@@ -64,4 +63,5 @@ export let main = async ns => {
         if (anyConnected)
             ns.singularity.connect("home");
     }
+    // ns.tprint('BACKDOOR: Starting backdoor scan...');
 };
