@@ -172,6 +172,10 @@ function solvePassword(hint, hintData, hostname = '') {
     const hostVariants = hostnameVariants(hostname)
     const popCulture = []
     const hlow = (hostname || '').toLowerCase()
+    const expectedMatch = hint.match(/expected\\s*'([^']+)'/i)
+    if (expectedMatch && expectedMatch[1]) {
+        return [expectedMatch[1]]
+    }
 
     if (hlow.includes('anor') || hlow.includes('londo') || hlow.includes('lordran') || hlow.includes('souls') || hlow.includes('firelink'))
         popCulture.push('solaire', 'darkwraith', 'hollow', 'gwyndolin', 'ornstein', 'smough', 'gwyn', 'nito', 'seath', 'kalameet', 'priscilla', 'artorias', 'manus', 'quelaag', 'chaos', 'fire', 'bonfire', 'estus', 'pyromancy', 'dark', 'sun', 'praise the sun', 'darksouls', 'lordran', 'anorlondo', 'ash', 'ember', 'kindle', 'humanity', 'hollowed')
