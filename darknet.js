@@ -709,10 +709,9 @@ function solvePassword(hint, hintData, hostname = '') {
         return [...new Set(candidates)]
     }
 
-    if (h.includes('ascend') || h.includes('mountain') || h.includes('highest')) {
-        const candidates = [...hostVariants]
+    if (h.includes("ascend") || h.includes("mountain") || h.includes("highest")) {
+        const candidates = [...hostVariants, ...mountainPasswords]
         for (let i = 0; i <= 9999; i++) candidates.push(String(i))
-        candidates.push('8848','8849','29029','29032','29035','29028','8850','8848m','everest','summit')
         return [...new Set(candidates)]
     }
 
