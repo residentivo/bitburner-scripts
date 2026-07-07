@@ -12,6 +12,7 @@
  * SCP always from home (darknet servers may not scp between each other).
  */
 
+const __autoRestartStartTime__ = Date.now();
 const SCRIPT_NAME = 'darknet.js'
 const EXTRACTOR = 'darknet-extractor.js'
 const RAM_SCRIPT = 'darknet-ram.js'
@@ -775,6 +776,12 @@ export async function main(ns) {
     await ensureScripts(ns, host)
 
     while (true) {
+        // Auto-restart if running for more than 30 minutes
+        if (Date.now() - __autoRestartStartTime__ > 30 * 60 * 1000) {
+            ns.exec('darknet.js', ns.getHostname(), 1, ...ns.getScriptArgs());
+            ns.exit();
+        }
+
         // Re-check scripts
         await ensureScripts(ns, host)
 
