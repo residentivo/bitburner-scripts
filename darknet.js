@@ -778,7 +778,7 @@ export async function main(ns) {
     while (true) {
         // Auto-restart if running for more than 30 minutes
         if (Date.now() - __autoRestartStartTime__ > 30 * 60 * 1000) {
-            ns.exec('darknet.js', ns.getHostname(), 1, ...ns.getScriptArgs());
+            ns.exec('darknet.js', ns.getHostname(), 1, ...ns.args);
             ns.exit();
         }
 
