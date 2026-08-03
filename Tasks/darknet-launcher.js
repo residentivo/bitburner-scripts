@@ -37,9 +37,9 @@ export async function main(ns) {
         return
     }
 
-    // Spawn darknet.js
+    // Spawn darknet.js with forwarded args
     try {
-        const pid = ns.exec('darknet.js', TARGET, 1)
+        const pid = ns.exec('darknet.js', TARGET, 1, ...ns.args)
         ns.print(`spawned darknet.js pid=${pid}`)
     } catch (e) {
         ns.print(`spawn error: ${e}`)

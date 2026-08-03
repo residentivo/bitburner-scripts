@@ -755,6 +755,16 @@ export async function main(ns) {
     const host = ns.getHostname()
 
     ns.disableLog('ALL')
+    
+    const tailEnabled = ns.args.includes("--tail");
+    if (tailEnabled) {
+        try {
+            ns.ui.openTail(SCRIPT_NAME, host, ...ns.args);
+            ns.print(`[dnet] Tail window opened for ${SCRIPT_NAME}`);
+        } catch (e) {
+            ns.print(`[dnet] Failed to open tail: ${e}`);
+        }
+    }
 
     // Dedup: if another instance is already running, exit
     const myPid = ns.pid
@@ -776,11 +786,6 @@ export async function main(ns) {
     await ensureScripts(ns, host)
 
     while (true) {
-        // Auto-restart if running for more than 30 minutes
-        if (Date.now() - __autoRestartStartTime__ > 30 * 60 * 1000) {
-            ns.exec('darknet.js', ns.getHostname(), 1, ...ns.args);
-            ns.exit();
-        }
 
         // Re-check scripts
         await ensureScripts(ns, host)
