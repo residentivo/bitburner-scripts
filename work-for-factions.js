@@ -101,11 +101,16 @@ export function autocomplete(data, args) {
     return [];
 }
 
+// Set by /Tasks/covenant-trainer.js (daemon.js --train-for-covenant) while the player should be training at the gym. Ignored if stale.
+const covenantTrainingFlagFile = '/Temp/covenant-training.txt';
+const isCovenantTraining = ns => !!ns && Date.now() - Number(ns.read(covenantTrainingFlagFile) || 0) < 2 * 60 * 1000;
+let _ns;
 // Bit of an ugly afterthought, but this is all over the place to break out of whatever we're doing and return to the main loop.
-const breakToMainLoop = () => Date.now() > mainLoopStart + checkForNewPrioritiesInterval;
+const breakToMainLoop = () => Date.now() > mainLoopStart + checkForNewPrioritiesInterval || isCovenantTraining(_ns);
 
 /** @param {NS} ns */
 export async function main(ns) {
+    _ns = ns;
     disableLogs(ns, ['sleep']);
     options = ns.flags(argsSchema);
     const desiredAugStats = options['desired-stats'];
@@ -200,6 +205,11 @@ export async function main(ns) {
     mainLoopStart = Date.now();
     while (true) { // After each loop, we will repeat all prevous work "strategies" to see if anything new has been unlocked, and add one more "strategy" to the queue
         try {
+            if (isCovenantTraining(ns)) { // Player is training combat stats for The Covenant - stay out of the way
+                ns.print(`INFO: Player is training for The Covenant (covenant-trainer.js). Sleeping for 30 seconds...`);
+                await ns.sleep(30000);
+                continue;
+            }
             if (!breakToMainLoop()) scope++; // Increase the scope of work if the last iteration completed early (i.e. due to all work within that scope being complete)
             mainLoopStart = Date.now();
             ns.print(`INFO: Starting main work loop with scope: ${scope}...`);

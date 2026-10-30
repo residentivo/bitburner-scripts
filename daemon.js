@@ -168,6 +168,8 @@ const argsSchema = [
     ['no-tail-windows', false], // Set to true to prevent the default behaviour of opening a tail window for certain launched scripts. (Doesn't affect scripts that open their own tail windows)
     ['initial-study-time', 10], // Seconds. Set to 0 to not do any studying at startup. By default, if early in an augmentation, will start with a little study to boost hack XP
     ['initial-hack-xp-time', 10], // Seconds. Set to 0 to not do any hack-xp grinding at startup. By default, if early in an augmentation, will start with a little study to boost hack XP
+    ['train-for-covenant', false], // Once all sleeves are bought and fully trained (sync 100%, shock 0%, all augs), train the player's combat stats at the gym until ready for The Covenant
+    ['covenant-min-sleeves', 3], // Number of sleeves required before --train-for-covenant starts training the player
 ];
 
 export function autocomplete(data, args) {
@@ -233,6 +235,7 @@ export async function main(ns) {
     if (useHacknetNodes) log('-n - Using hacknet nodes to run scripts!');
     if (verbose) log('-v - Verbose logging activated!');
     if (runOnce) log('-o - Run-once mode activated!');
+    if (options['train-for-covenant']) log(`--train-for-covenant - Will train combat stats for The Covenant once ${options['covenant-min-sleeves']} sleeves are bought and fully trained`);
     if (loopingMode) {
         log('--looping-mode - scheduled remote tasks will loop themselves');
         cycleTimingDelay = 0;
@@ -292,6 +295,8 @@ export async function main(ns) {
         { interval: 32000, name: "host-manager.js", requiredServer: "home", args: () => ['--reserve-percent', Math.min(0.9, 0.1 * Object.values(dictSourceFiles).reduce((t, v) => t + v, 0)), '--utilization-trigger', '0'], shouldRun: () => { if (shouldReserveMoney() || !shouldImproveHacking()) return false; let utilization = getTotalNetworkUtilization(); return utilization >= maxUtilization || utilization > 0.80 && maxTargets < 20 || utilization > 0.50 && maxTargets < 5; } },
         // Backdoor all servers
         { interval: 33000, name: "/Tasks/backdoor-all-servers.js", requiredServer: "home", shouldRun: () => 4 in dictSourceFiles, tail: true },
+        // Train combat stats for The Covenant once all sleeves are bought and fully trained
+        { interval: 34000, name: "/Tasks/covenant-trainer.js", requiredServer: "home", shouldRun: () => options['train-for-covenant'] && 4 in dictSourceFiles && 10 in dictSourceFiles, args: () => ['--min-sleeves', options['covenant-min-sleeves']] },
     ];
     periodicScripts.forEach(tool => tool.name = getFilePath(tool.name));
     hackTools = [
