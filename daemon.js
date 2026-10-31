@@ -274,7 +274,7 @@ export async function main(ns) {
     // Note: Periodic script are generally run every 30 seconds, but intervals are spaced out to ensure they aren't all bursting into temporary RAM at the same time.
     periodicScripts = [
         // Periodically launch darknet on darkweb (copies scripts + spawns if not running)
-            { interval: 60000, name: "/Tasks/darknet-launcher.js", requiredServer: "home", shouldRun: () => doesFileExist("/darknet.js"), args: () => ns.args },
+            { interval: 6000, name: "/Tasks/darknet-launcher.js", requiredServer: "home", shouldRun: () => doesFileExist("/darknet.js"), args: () => ns.args },
             // Darknet RAM cleaner - periodically frees RAM on darkweb by killing non-protected scripts
             { interval: 300000, name: "/Tasks/darknet-ram-cleaner.js", requiredServer: "home", shouldRun: () => ns.serverExists("darkweb") && doesFileExist("/darknet.js"), args: () => ["--interval", "300"] },
             // TOR manager — purchase TOR when we can afford it
