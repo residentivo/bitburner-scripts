@@ -14,20 +14,21 @@ export async function main(ns) {
     ns.disableLog("ALL");
     
     // Parse arguments
-    const args = ns.args;
-    if (args.length < 1) {
-        ns.tprint("Usage: run darknetRAMCleaner.js <darknetHost> [intervalSeconds] [--protect script1 script2 ...]");
-        return;
-    }
+    const args = ns.args.map(String);
     
-    const darknetHost = args[0];
+    // Host is optional: if the first arg is a flag (e.g. daemon.js passes "--interval 300"), default to "darkweb"
+    const hasHostArg = args.length > 0 && !args[0].startsWith("--");
+    const darknetHost = hasHostArg ? args[0] : "darkweb";
     let intervalSeconds = 300; // default 5 minutes
     const protectList = [];
     
     // Parse optional arguments
-    let i = 1;
+    let i = hasHostArg ? 1 : 0;
     while (i < args.length) {
-        if (args[i] === "--protect") {
+        if (args[i] === "--interval") {
+            if (i + 1 < args.length && !isNaN(args[i + 1])) intervalSeconds = parseFloat(args[i + 1]);
+            i += 2;
+        } else if (args[i] === "--protect") {
             i++;
             while (i < args.length && !args[i].startsWith("--")) {
                 protectList.push(args[i]);
@@ -117,7 +118,8 @@ export async function main(ns) {
             await ns.dnet.memoryReallocation();
             
         } catch (error) {
-            ns.tprint(`Error in darknetRAMCleaner for ${darknetHost}: ${error.message}`);
+            // ns errors are often thrown as plain strings, so error.message may be undefined
+            ns.tprint(`Error in darknetRAMCleaner for ${darknetHost}: ${error?.message ?? error}`);
             // Wait before retrying to avoid spamming errors
             await ns.asleep(intervalSeconds * 1000);
             continue;
