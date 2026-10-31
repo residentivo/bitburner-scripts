@@ -12,7 +12,15 @@
 export async function main(ns) {
     // Disable logging for performance (as per user preference)
     ns.disableLog("ALL");
-    
+
+    // Single-instance guard: exit if another copy of this script is already running on this host (regardless of args)
+    const myName = ns.getScriptName();
+    const otherInstance = ns.ps(ns.getHostname()).find(p => p.filename === myName && p.pid !== ns.pid);
+    if (otherInstance) {
+        ns.print(`Already running (PID: ${otherInstance.pid}). Exiting.`);
+        return;
+    }
+
     // Parse arguments
     const args = ns.args.map(String);
     

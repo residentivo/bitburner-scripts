@@ -404,8 +404,10 @@ async function kickstartHackXp(ns) {
 
 // Check running status of scripts on servers
 function whichServerIsRunning(ns, scriptName, canUseCache = true) {
+    // ns.ps() reports filenames without a leading slash, but tool names may be declared with one (e.g. "/Tasks/...")
+    const normalizedName = scriptName.replace(/^\/+/, '');
     for (const server of serverListByFreeRam)
-        if (ps(ns, server.name, canUseCache).some(process => process.filename === scriptName))
+        if (ps(ns, server.name, canUseCache).some(process => process.filename.replace(/^\/+/, '') === normalizedName))
             return server.name;
     return null;
 }
