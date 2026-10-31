@@ -276,7 +276,7 @@ export async function main(ns) {
         // Periodically launch darknet on darkweb (copies scripts + spawns if not running)
             { interval: 600, name: "/Tasks/darknet-launcher.js", requiredServer: "home", shouldRun: () => doesFileExist("/darknet.js"), args: () => ns.args },
             // Darknet RAM cleaner - periodically frees RAM on darkweb by killing non-protected scripts
-            { interval: 300000, name: "/Tasks/darknet-ram-cleaner.js", requiredServer: "home", shouldRun: () => ns.serverExists("darkweb") && doesFileExist("/darknet.js"), args: () => ["--interval", "300"] },
+            { interval: 300000, name: "/Tasks/darknet-ram-cleaner.js", requiredServer: "home", shouldRun: () => ns.serverExists("darkweb") && doesFileExist("/darknet.js"), args: () => ["--interval", "3000"] },
             // TOR manager — purchase TOR when we can afford it
             { interval: 25000, name: "/Tasks/tor-manager.js", shouldRun: () => !ns.serverExists("darkweb") && _ns.getServerMoneyAvailable("home") >= 200000 },
         // Program manager — create/buy port crackers
